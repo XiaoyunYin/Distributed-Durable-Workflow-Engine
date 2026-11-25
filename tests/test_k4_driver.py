@@ -201,6 +201,84 @@ def test_kill_requires_exact_container_restart_death_and_ready():
             interventions.kill_proof(before, other, ack)
 
 
+@pytest.mark.parametrize(
+    ("cri_id", "exit_code", "source", "accepted"),
+    [
+        ("old", 137, "explicit", True),
+        ("intermediate", 137, "explicit", False),
+        ("old", 143, "explicit", False),
+        ("old", 137, "inferred", False),
+    ],
+)
+def test_kill_retains_status_when_later_restart_replaces_death(
+    tmp_path, cri_id, exit_code, source, accepted
+):
+    before = pod()
+    before["spec"] = {"nodeName": "kind-worker"}
+    after = pod(restart=2, cid="containerd://new")
+    expected = []
+    for p, state, last in (
+        (before, {"running": {"startedAt": "before"}}, {}),
+        (
+            after,
+            {"running": {"startedAt": "after"}},
+            {
+                "terminated": {
+                    "containerID": "containerd://intermediate",
+                    "exitCode": 137,
+                    "signal": 9,
+                }
+            },
+        ),
+    ):
+        row = p["status"]["containerStatuses"][0]
+        row.update(state=state, lastState=last)
+        expected.append(
+            [{key: row[key] for key in ("containerID", "restartCount", "state", "lastState")}]
+        )
+
+    base = Mock()
+    base.until.side_effect = lambda predicate, seconds: predicate()
+    status = {"state": "CONTAINER_EXITED", "id": cri_id}
+    if source == "explicit":
+        status["exitCode"] = exit_code
+    base.command.return_value = SimpleNamespace(returncode=0, stdout=json.dumps({"status": status}))
+    adapter = interventions.Interventions(base, "ns", tmp_path, {}, {}, "a" * 40)
+    adapter.get = Mock(side_effect=[injected(), after])
+    if accepted:
+        assert adapter.kill(before) == after
+    else:
+        with pytest.raises(ValueError, match="k4-chaos-death-container"):
+            adapter.kill(before)
+    snapshots = (tmp_path / "k4-kill-container-statuses.json").read_text(encoding="utf-8")
+    assert json.loads(snapshots) == dict(before=expected[0], after=expected[1])
+    assert base.command.call_args.args[0][-1] == "old"
+
+
+def test_kill_retains_status_on_missing_ack(tmp_path):
+    before = pod()
+    after = pod(restart=1, cid="containerd://new")
+    base = Mock()
+
+    def until(predicate, seconds):
+        assert not predicate()
+        raise TimeoutError
+
+    base.until.side_effect = until
+    adapter = interventions.Interventions(base, "ns", tmp_path, {}, {}, "a" * 40)
+    adapter.get = Mock(side_effect=[{}, after])
+    with pytest.raises(ValueError, match="k4-chaos-ack-missing"):
+        adapter.kill(before)
+    snapshots = json.loads((tmp_path / "k4-kill-container-statuses.json").read_text())
+    assert snapshots["before"][0]["containerID"] == "containerd://old"
+    assert snapshots["after"][0]["containerID"] == "containerd://new"
+
+
+def test_kill_requires_explicit_cri_record():
+    record = dict(container_id="old", exit_status=137, exit_status_source="inferred")
+    assert not interventions.cri_kill_termination(record, "old"), "non-explicit CRI accepted"
+
+
 def test_eviction_singletons_once_no_harness_no_cordon(tmp_path):
     old = {role: [pod(role, role)] for role in interventions.ENGINE_ROLES}
     old["worker"] = [pod("w1"), pod("w2")]

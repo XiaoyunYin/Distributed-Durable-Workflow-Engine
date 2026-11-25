@@ -18,6 +18,7 @@ FENCE_ROLES = {"worker", "relay", "decision", "allocator"}
 BROKER_PATH = "broker/positions.jsonl"
 CONTROL_PATH = "fault/control.json"
 STALE_PATH = "fault/stale-challenge.json"
+STALE_CELLS = {"hook-5", "medium-3"}
 IDLE_RELATIONS = (
     "activity_attempts",
     "attempt_result_evidence",
@@ -124,7 +125,7 @@ def make_plan(
                 ],
             }
         )
-    stale = binding["episode"].startswith("hook-5-")
+    stale = binding["episode"].rsplit("-", 1)[0] in STALE_CELLS
     plan = {
         "schema": "dur053.k6-plan.v1",
         "episode": binding["episode"],
@@ -342,7 +343,7 @@ def replay(
         "G_CHECKER_CONFIRMATION",
     )
     manifest = json.loads((good / "manifest.json").read_bytes())
-    require(manifest["cell"] in {"medium-16", "hook-5"}, "G_CHECKER_CELL")
+    require(manifest["cell"] in {"medium-16", *STALE_CELLS}, "G_CHECKER_CELL")
     require(
         positive["findings"] == []
         and positive["relation_integrity"] == "covered/pass"
@@ -353,7 +354,7 @@ def replay(
     ids = [f"I{i}" for i in range(1, 14)]
     labels = positive["labels"]
     registered = {"I1", "I2", "I4", "I6", "I11"}
-    if manifest["cell"] == "hook-5":
+    if manifest["cell"] in STALE_CELLS:
         registered.add("I3")
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
@@ -377,7 +378,7 @@ def replay(
 
     replay_missing(directory, good, source, offline, "source")
     if source == "witness/topology.json" and not idle:
-        proof = STALE_PATH if manifest["cell"] == "hook-5" else CONTROL_PATH
+        proof = STALE_PATH if manifest["cell"] in STALE_CELLS else CONTROL_PATH
         replay_missing(directory, good, proof, offline, "confirmation")
 
 

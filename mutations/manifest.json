@@ -12502,7 +12502,7 @@
       "id": "k4b2-death-container",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_interventions.py",
-      "old": "term.get(\"containerID\", old[\"containerID\"]) == old[\"containerID\"]",
+      "old": "term.get(\"containerID\", None if multiple else old[\"containerID\"]) == old[\"containerID\"]",
       "new": "True",
       "command": [
         "uv",
@@ -23404,8 +23404,8 @@
       "id": "k6g3a4b-commit-outcome",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/stale_challenge.go",
-      "old": "if call.Outcome == \"COMMITTED\" {",
-      "new": "if call.Outcome == \"UNEXPECTED_COMMIT\" {",
+      "old": "if m.Cell == \"hook-5\" && call.Outcome == \"COMMITTED\" {",
+      "new": "if m.Cell == \"hook-5\" && call.Outcome == \"UNEXPECTED_COMMIT\" {",
       "command": [
         "go",
         "test",
@@ -23531,6 +23531,514 @@
         "-count=1"
       ],
       "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-id",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "record.get(\"container_id\") == container_id",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_when_later_restart_replaces_death[intermediate-137-explicit-False]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-exit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "record.get(\"exit_status\") == 137",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_when_later_restart_replaces_death[old-143-explicit-False]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-explicit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "and record.get(\"exit_status_source\") == \"explicit\"",
+      "new": "and True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_requires_explicit_cri_record",
+        "-q"
+      ],
+      "expected": "non-explicit CRI",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-snapshot",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "retain_kill_status(lambda path, doc: save(self.output / path, doc), name, pod, after)",
+      "new": "pass",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_on_missing_ack",
+        "-q"
+      ],
+      "expected": "FileNotFoundError",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-enable",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " || m.Cell == \"medium-3\"",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-target",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.PodUID != s.Before.PodUID || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongPartitionTarget$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-lock-epoch",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.Lock.Epoch != s.Hold.Epoch || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongProbeEpoch$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-lock-sqlstate",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.Lock.SQLState != \"00000\" || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^LockNotAcquired$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-lock-rollback",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || p.Lock.Rollback != \"00000\"",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^LockNotRolledBack$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-controller",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.controllerSource(m.Namespace)",
+      "new": "m.Namespace + \"/cut\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^MissingController$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-daemon",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.dropRule(m.Namespace, p.controllerSource(m.Namespace))",
+      "new": "\"drop-chain\", \"dst-set\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^MissingDaemon$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-destination",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || !p.destination(set)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongDestination$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-failed-route",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || !p.route(p.Failed, 124)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^FailedRouteConnects$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-counters",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "duringPackets <= beforePackets || duringBytes <= beforeBytes",
+      "new": "duringPackets < beforePackets || duringBytes < beforeBytes",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^NoRisingCounters$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-partition-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "UTC(time.Unix(0, p.ConfirmedNS)) < s.Takeover.Updated",
+      "new": "true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongInjectionOrder$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-kernel-removal",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "staleAttached(p.RulesAfter, chain) || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^RuleStillPresent$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-route-outcome",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "*r.Exit == exit && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^RoutingStillBlocked$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-restore-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "p.Restored.EndNS < rows[7].AtNS",
+      "new": "true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^LateRestoration$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-active",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || b.State != \"active\"",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^IdleBackend$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-backend-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || b.StartUS != staleObject(x, \"backend_start_us\")",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongBackend$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-actual-query",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "strings.Join(strings.Fields(b.Query), \" \") !=\n\t\t\t\"SELECT owner_id::text, epoch, lease_expires_at, clock_timestamp() FROM engine.partition_leases WHERE partition_id = $1 FOR UPDATE\" ||\n\t\t",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^WrongQuery$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-blocker",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "!slices.Equal(b.BlockedBy, []int64{b.ObserverPID}) || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^UnrelatedBlocker$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-observer-rollback",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": " || b.RolledBack != \"00000\"",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^ObserverDidNotRollback$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-execution-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_partition.go",
+      "old": "rows[9].AtNS < b.StartNS && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^EarlyExecution$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-database-commit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " || s.Rejected.Attempts != 0",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^Committed$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-medium3-unverified-commit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "m.Cell == \"hook-5\" && call.Outcome == \"COMMITTED\"",
+      "new": "call.Outcome == \"COMMITTED\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Medium3Challenge$/^UncorroboratedCommit$",
+        "-count=1"
+      ],
+      "expected": "medium-3 verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-stale-replay-mount",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "\"--propagation\",\n                    \"private\",",
+      "new": "\"--propagation\",\n                    \"shared\",",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k6_g_deployed.py::test_stale_parity_uses_private_fault_sources",
+        "-q"
+      ],
+      "expected": "live fixtures must have private mounts",
       "requires_database": false
     }
   ]

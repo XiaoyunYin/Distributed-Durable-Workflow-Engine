@@ -26,7 +26,12 @@ const (
 func configureK6LeaseTakeover(options *engine.ServeOptions) error {
 	role := os.Getenv("DUR053_K6_LEASE_TAKEOVER_ROLE")
 	workflow := os.Getenv("DUR053_K6_LEASE_TAKEOVER_WORKFLOW")
+	cell := os.Getenv("DUR053_K6_LEASE_TAKEOVER_CELL")
+	if cell == "" {
+		cell = "hook-5"
+	}
 	if (role != "predecessor" && role != "successor") || workflow == "" ||
+		(cell != "hook-5" && cell != "medium-3") ||
 		os.Getenv("DUR053_K4_CAMPAIGN") != "1" || options.AfterLeaseAcquired != nil {
 		return errors.New("K6_LEASE_TAKEOVER_CONFIGURATION")
 	}
@@ -47,7 +52,7 @@ func configureK6LeaseTakeover(options *engine.ServeOptions) error {
 			if input.WorkflowID != workflow {
 				return store.CreateAttempt(ctx, input)
 			}
-			return k6TakeoverAttempt(ctx, scheduler, store, input, client, process)
+			return k6TakeoverAttempt(ctx, scheduler, store, input, client, process, cell)
 		}
 	case "successor":
 		finished := false
@@ -62,6 +67,7 @@ func configureK6LeaseTakeover(options *engine.ServeOptions) error {
 			}
 			ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 			fields := k6LeaseFields(ref, wf.WorkflowID, wf.Revision, backend)
+			fields.Objects["cell"] = cell
 			fields.Objects["transaction"] = xid
 			return lease, true, func() (bool, error) {
 				released, err := finishK6Takeover(client, k6SuccessorBoundary, fields)
@@ -103,13 +109,14 @@ func finishK6Takeover(client k6hook.Client, boundary string, fields k6hook.Field
 }
 
 func k6TakeoverAttempt(ctx, scheduler context.Context, store *state.Store, input state.AttemptInput,
-	client k6hook.Client, process string) (state.Attempt, error) {
+	client k6hook.Client, process, cell string) (state.Attempt, error) {
 	var fields k6hook.Fields
 	var released bool
 	var cancel context.CancelFunc = func() {}
 	defer func() { cancel() }()
 	attempt, err := store.CreateAttemptForTakeover(ctx, input, func(backend state.LeaseTakeoverBackend) (context.Context, error) {
 		fields = k6LeaseFields(input.Lease, input.WorkflowID, input.ExpectedRevision, backend)
+		fields.Objects["cell"] = cell
 		fields.Objects["node"] = input.NodeID
 		fields.Objects["iteration"] = strconv.Itoa(input.Iteration)
 		var err error

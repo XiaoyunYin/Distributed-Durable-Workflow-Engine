@@ -15,20 +15,23 @@ const (
 	staleProof   = "DeployedStaleChallenge"
 )
 
-func (m Manifest) staleChallenge() bool { return m.Cell == "hook-5" && m.CaptureEnabled() }
+func (m Manifest) staleChallenge() bool {
+	return (m.Cell == "hook-5" || m.Cell == "medium-3") && m.CaptureEnabled()
+}
 
 type StaleObservation struct {
-	Schema   string        `json:"schema"`
-	Binding  SourceBinding `json:"binding"`
-	Journal  string        `json:"journal"`
-	Before   StaleProcess  `json:"before"`
-	After    StaleProcess  `json:"after"`
-	Peer     StaleProcess  `json:"peer"`
-	Hold     StaleSample   `json:"hold"`
-	Takeover StaleSample   `json:"takeover"`
-	Rejected StaleSample   `json:"rejected"`
-	Call     *StaleCall    `json:"call"`
-	Progress string        `json:"progress_transaction"`
+	Schema    string          `json:"schema"`
+	Binding   SourceBinding   `json:"binding"`
+	Journal   string          `json:"journal"`
+	Before    StaleProcess    `json:"before"`
+	After     StaleProcess    `json:"after"`
+	Peer      StaleProcess    `json:"peer"`
+	Hold      StaleSample     `json:"hold"`
+	Takeover  StaleSample     `json:"takeover"`
+	Rejected  StaleSample     `json:"rejected"`
+	Call      *StaleCall      `json:"call"`
+	Progress  string          `json:"progress_transaction"`
+	Partition *StalePartition `json:"partition,omitempty"`
 }
 
 type StaleProcess struct {
@@ -250,7 +253,7 @@ func (e engineOrder) staleChallenge(m Manifest, plan Plan, arrivals Arrivals, s 
 	if !staleOrder(m, plan, arrivals, s, rows, oldCommit, peerCommit) {
 		return wrongOrder
 	}
-	if call.Outcome == "COMMITTED" {
+	if m.Cell == "hook-5" && call.Outcome == "COMMITTED" {
 		return "STALE_CHALLENGE_COMMITTED"
 	}
 	if s.Rejected.Revision != s.Hold.Revision || s.Rejected.Attempts != 0 {
@@ -258,6 +261,11 @@ func (e engineOrder) staleChallenge(m Manifest, plan Plan, arrivals Arrivals, s 
 	}
 	if call.Outcome != "ErrLeaseNotOwned" {
 		return "required_proof_missing:stale_challenge_rejection"
+	}
+	if m.Cell == "medium-3" {
+		if code := checkStalePartition(m, s, rows); code != "" {
+			return code
+		}
 	}
 	wf := e.workflows[call.Workflow]
 	for _, h := range e.rows[history] {
@@ -317,7 +325,7 @@ func staleOrder(m Manifest, plan Plan, arrivals Arrivals, s StaleObservation, ro
 	updated, _ := time.Parse(TimeLayout, boot.Updated)
 	expiry, _ := time.Parse(TimeLayout, boot.Expiry)
 	dbAt, _ := time.Parse(TimeLayout, boot.DBTime)
-	return m.Cell == "hook-5" && plan.FaultMode == "injected" && arrivals.RemovalUTC != nil &&
+	return m.staleChallenge() && plan.FaultMode == "injected" && arrivals.RemovalUTC != nil &&
 		staleOffer(plan, arrivals, s.Call.Workflow, x["node"], rows[0].AtNS, rows[2].AtNS) &&
 		*arrivals.RemovalUTC == UTC(time.Unix(0, rows[13].AtNS)) && plan.HoldDeadlineUTC != nil &&
 		UTC(time.UnixMilli(rows[0].UntilMS)) <= *plan.HoldDeadlineUTC && rows[0].UntilMS == rows[4].UntilMS &&

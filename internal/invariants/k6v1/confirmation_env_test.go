@@ -37,6 +37,7 @@ var controlActuatorEnv = map[string]bool{
 	"DUR053_K6_HOOK_WORKLOAD":                 true,
 	"DUR053_K6_LEASE_TAKEOVER_ROLE":           true,
 	"DUR053_K6_LEASE_TAKEOVER_WORKFLOW":       true,
+	"DUR053_K6_LEASE_TAKEOVER_CELL":           true,
 	"DUR053_K6_PARTITION_CELL":                true,
 	"DUR053_K6_PARTITION_WORKFLOW":            true,
 	"DUR053_K6_RELAY_ARM":                     true,

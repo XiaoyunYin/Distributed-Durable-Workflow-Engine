@@ -6,6 +6,7 @@ import hashlib
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import suppress
 from datetime import datetime
 from threading import Lock
 
@@ -111,14 +112,40 @@ def chaos_ack(obj):
     )
 
 
-def kill_proof(before, after, acknowledged):
+def retain_kill_status(write, name, before, after):
+    def statuses(pod):
+        return [
+            {key: status.get(key) for key in ("state", "lastState", "restartCount", "containerID")}
+            for status in (pod or {}).get("status", {}).get("containerStatuses", [])
+        ]
+
+    write(name + "-container-statuses.json", dict(before=statuses(before), after=statuses(after)))
+
+
+def cri_kill_termination(record, container_id):
+    if (
+        record.get("container_id") == container_id
+        and record.get("exit_status_source") == "explicit"
+        and record.get("exit_status") == 137
+    ):
+        return dict(containerID="containerd://" + container_id, exitCode=137, signal=9)
+    return {}
+
+
+def kill_proof(before, after, acknowledged, *, cri_exit=None):
     require(acknowledged, "k4-chaos-ack-missing")
     require(before["metadata"]["uid"] == after["metadata"]["uid"], "k4-chaos-wrong-uid")
     old = before["status"]["containerStatuses"][0]
     new = after["status"]["containerStatuses"][0]
     term = new.get("lastState", {}).get("terminated", {})
+    multiple = new["restartCount"] - old["restartCount"] > 1
+    if cri_exit is not None and (
+        not term or (multiple and term.get("containerID") != old["containerID"])
+    ):
+        term = cri_kill_termination(cri_exit(), old["containerID"].split("://", 1)[1]) or term
     require(
-        term.get("containerID", old["containerID"]) == old["containerID"],
+        not term
+        or term.get("containerID", None if multiple else old["containerID"]) == old["containerID"],
         "k4-chaos-death-container",
     )
     require(
@@ -198,9 +225,7 @@ class Interventions:
 
     def get_list(self, kind):
         self.safety()
-        return json.loads(
-            self.d.k("-n", self.ns, "get", kind, "-o", "json", record=False).stdout
-        )
+        return json.loads(self.d.k("-n", self.ns, "get", kind, "-o", "json", record=False).stdout)
 
     def pods(self, role):
         return json.loads(
@@ -263,9 +288,6 @@ class Interventions:
             save(self.output / (name + "-status.json"), ack)
             return chaos_ack(ack)
 
-        self.wait(injected, 60, "k4-chaos-ack-missing")
-        require(chaos_ack(ack), "k4-chaos-ack-missing")
-        self.release()
         after = None
 
         def restarted():
@@ -276,8 +298,38 @@ class Interventions:
                 "restartCount", 0
             ) > status["restartCount"] and ready(after)
 
-        self.wait(restarted, 120, "k4-chaos-restart-missing")
-        kill_proof(pod, after, True)
+        def cri_exit():
+            cid = status["containerID"].split("://", 1)[1]
+            result = self.d.command(
+                ["docker", "exec", pod["spec"]["nodeName"], "crictl", "inspect", cid],
+                timeout=4,
+                allowed=True,
+            )
+            if result.returncode:
+                return {}
+            record = json.loads(result.stdout).get("status", {})
+            save(self.output / (name + "-cri-inspect.json"), record)
+            if record.get("state") != "CONTAINER_EXITED":
+                return {}
+            return dict(
+                container_id=record.get("id"),
+                exit_status=record.get("exitCode"),
+                exit_status_source="explicit" if "exitCode" in record else "",
+            )
+
+        try:
+            self.wait(injected, 60, "k4-chaos-ack-missing")
+            require(chaos_ack(ack), "k4-chaos-ack-missing")
+            self.release()
+            self.wait(restarted, 120, "k4-chaos-restart-missing")
+            kill_proof(pod, after, True, cri_exit=cri_exit)
+        except ValueError as error:
+            if after is None and str(error).startswith("K3 guard: k4-chaos-"):
+                with suppress(ValueError, TimeoutError):
+                    after = self.get("pod", pod["metadata"]["name"])
+            raise
+        finally:
+            retain_kill_status(lambda path, doc: save(self.output / path, doc), name, pod, after)
         save(self.output / (name + "-replacement.json"), after)
         self.d.k("-n", self.ns, "delete", "podchaos", name, "--wait=true", "--timeout=30s")
         return after
