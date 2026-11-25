@@ -18,6 +18,7 @@ from urllib.request import urlopen
 
 import dur053_k3 as kind
 from j2_oci import restore
+from j2_offline import attempt_key
 from j2_overlay import J2, obj
 from j3_overlay import (
     APP,
@@ -463,7 +464,7 @@ def dispatch_proof(driver, origin, db_ip, observer, sender):
         "relay did not publish the target tasks",
     )
     claims = {
-        (r["workflow_id"], r["worker_id"], r["token_hash"])
+        (attempt_key(r), r["token_hash"], r["worker_id"], r["worker_request_id"].split(":", 1)[0])
         for r in data["attempts"]
         if r["token_hash"]
     }
@@ -484,7 +485,8 @@ print(json.dumps({'inventory':i,'data':(root / i['file']).read_text()}))
         require(
             inv["complete"]
             and inv["written"] == len(rows)
-            and inv["pod_uid"] in uids
+            and inv["pod_uid"] == pod["metadata"]["uid"]
+            and inv["pod_name"] == name
             and inv["sha256"] == hashlib.sha256(raw.encode()).hexdigest(),
             "incomplete worker witness",
         )
@@ -492,19 +494,20 @@ print(json.dumps({'inventory':i,'data':(root / i['file']).read_text()}))
             if "claim_token" in row:
                 row["token_hash"] = hashlib.sha256(row.pop("claim_token").encode()).hexdigest()
             if row["event"] == "start":
-                witnessed.append((row["workflow_id"], row["worker_id"], row["token_hash"]))
+                actor = f"system:serviceaccount:{APP}:worker:pod:{name}:uid:{inv['pod_uid']}"
+                witnessed.append((attempt_key(row), row["token_hash"], actor, row["worker_id"]))
         ledgers.append({"inventory": inv, "events": rows})
+    kind.save(driver.output / "slot-ledger.json", {"ready_slots": slots, "witness": ledgers})
     require(
         set(witnessed) == claims
         and len(witnessed) == len(claims)
-        and {row[0] for row in claims} == accepted,
+        and {row[0][0] for row in claims} == accepted,
         "worker slot ledger differs from durable target claims",
     )
     require(
-        all(any(row[1].endswith(slot) for slot in slots) for row in claims),
+        all(slot in slots for _, _, _, slot in claims),
         "claim outside configured slots",
     )
-    kind.save(driver.output / "slot-ledger.json", {"ready_slots": slots, "witness": ledgers})
     return accepted
 
 
