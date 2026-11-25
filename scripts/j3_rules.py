@@ -60,7 +60,10 @@ def render(labels):
         return {"record": "j3:" + name, "expr": expr}
 
     def normalized(metric_name):
-        return f"j3:{metric_name}{{{matcher}}}"
+        metric = f"j3:{metric_name}{{{matcher}}}"
+        # A vanished recording can still be selected until this evaluation
+        # finishes and writes its stale marker. Use only current predicates.
+        return f"({metric} and (timestamp({metric}) == time()))"
 
     def latch(name, fire, clear):
         previous = presence(f'ALERTS{{{matcher},alertname="{name}",alertstate="firing"}} == 1')

@@ -11,8 +11,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from http.client import HTTPException
 from pathlib import Path
-from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
@@ -267,7 +267,7 @@ def prom(expr):
 def endpoint_ready(port, path):
     try:
         return bool(request(port, path))
-    except URLError:
+    except (OSError, HTTPException):
         return False
 
 

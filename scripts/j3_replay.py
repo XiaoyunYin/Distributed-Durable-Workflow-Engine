@@ -151,9 +151,7 @@ def cohort_band(rows, sample, admissions, successes, setup):
     )
     require(
         all(
-            rows[key]["state"] == "SUCCEEDED"
-            and rows[key]["revision"] == revision
-            and rows[key]["terminal_ns"] <= at
+            rows[key]["state"] == "SUCCEEDED" and rows[key]["revision"] == revision
             for key, revision in successes.items()
         ),
         "snapshot history mismatch",

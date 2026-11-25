@@ -118,6 +118,14 @@ def test_both_replays_and_width_boundaries():
     )
 
 
+def test_success_visible_after_statement_timestamp():
+    data = fixture_data()
+    sample = visibility(data)
+    # Snapshot acquisition can follow the statement timestamp.
+    sample["successes"]["set"]["w127"] = 1
+    assert j3.replay(data, [sample])["alert_inputs"]["ambiguous_count"] == 1
+
+
 def test_joint_status_and_evaluation_integrity():
     data = fixture_data()
     sample = visibility(data)
