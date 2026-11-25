@@ -169,7 +169,7 @@ def vector_tests():
             }
         )
 
-    empty = {key: "_" for key in default}
+    empty, stale = (dict.fromkeys(default, marker) for marker in ("_", "stale"))
     idle = {
         **{f"eligible:{w}": 0 for w in WINDOWS},
         "claimable_attempts": 0,
@@ -202,7 +202,7 @@ def vector_tests():
         "values": "1x30",
     }
     for name, invalid in (
-        ("disappeared target with wrong-namespace scrape", empty),
+        ("disappeared target with wrong-namespace scrape", stale),
         ("up zero", {"up": 0}),
         ("demand read failure", {"demand_ok": 0}),
         ("SQL failure under HTTP 200", {"sql_ok": 0}),
@@ -214,7 +214,7 @@ def vector_tests():
     ):
         case(
             name,
-            [(6, {}), (4, {**hot, **invalid}), (5, {**hot, **invalid}), (6, {})],
+            [(6, {}), (14, {**hot, **invalid}), (1, {})],
             {5: (), 10: (), 15: ("ScrapeAbsent",), 20: ()},
             [foreign],
         )
@@ -222,7 +222,8 @@ def vector_tests():
         "firing rules survive a gap beyond lookback and receiver timeout",
         [
             (5, hot),
-            (326, empty),
+            (1, stale),
+            (325, empty),
             (4, {"eligible:10m": 99, "oldest_claimable_age_seconds": 30}),
             (6, {}),
         ],
