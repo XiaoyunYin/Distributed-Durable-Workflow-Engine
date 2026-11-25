@@ -1,0 +1,52 @@
+{
+  "uid": "j3-observability",
+  "title": "J3 workflow observability",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {"list": [
+    {"name":"campaign","label":"Run","type":"constant","query":"j3-pilot"},
+    {"name":"namespace","label":"Workflow namespace","type":"constant","query":"j3-target"}
+  ]},
+  "annotations": {"list": [
+    {"name":"Worker scale-down","enable":true,"iconColor":"#E02F44","datasource":{"type":"grafana","uid":"-- Grafana --"},"target":{"type":"tags","tags":["j3-fault","$campaign"],"matchAny":false}},
+    {"name":"Worker restore","enable":true,"iconColor":"#299C46","datasource":{"type":"grafana","uid":"-- Grafana --"},"target":{"type":"tags","tags":["j3-restore","$campaign"],"matchAny":false}}
+  ]},
+  "panels": [
+    {"id":1,"type":"timeseries","title":"Oldest claimable attempt","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":0,"y":0,"w":12,"h":8},"fieldConfig":{"defaults":{"unit":"s","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":28.54}]},"custom":{"spanNulls":false,"thresholdsStyle":{"mode":"line"}}},"overrides":[]},"targets":[
+      {"refId":"A","expr":"j3_oldest_claimable_age_seconds{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid","legendFormat":"Demand age"}
+    ]},
+    {"id":2,"type":"timeseries","title":"Claimable attempts and worker slots","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":12,"y":0,"w":12,"h":8},"targets":[
+      {"refId":"A","expr":"j3_claimable_attempts{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid","legendFormat":"Claimable"},
+      {"refId":"B","expr":"j3_active_claims{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid","legendFormat":"Active claims"},
+      {"refId":"C","expr":"j3_ready_slots{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Ready slots"}
+    ]},
+    {"id":3,"type":"timeseries","title":"Target backlog","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":0,"y":8,"w":12,"h":8},"targets":[
+      {"refId":"A","expr":"j3_outstanding{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Outstanding workflows"},
+      {"refId":"B","expr":"j3_unpublished{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Unpublished outbox events"}
+    ]},
+    {"id":4,"type":"timeseries","title":"Lease takeovers and stale rejections","description":"Takeovers are ownership changes in the dedicated database lease ledger. Stale rejections are observed stale worker-control responses in this deployment. Both series require observer evidence.","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":12,"y":8,"w":12,"h":8},"targets":[
+      {"refId":"A","expr":"j3_lease_takeovers_total{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Lease takeovers (database)"},
+      {"refId":"B","expr":"j3_stale_rejections_total{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Stale rejections (worker-control)"}
+    ]},
+    {"id":5,"type":"timeseries","title":"Matured deadline cohorts","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":0,"y":16,"w":12,"h":8},"targets":[
+      {"refId":"A","expr":"j3_eligible{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"}","legendFormat":"{{window}} eligible"},
+      {"refId":"B","expr":"j3_bad{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"}","legendFormat":"{{window}} bad"}
+    ]},
+    {"id":6,"type":"timeseries","title":"Deadline error-budget burn","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":12,"y":16,"w":12,"h":8},"fieldConfig":{"defaults":{"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":14.4}]},"custom":{"spanNulls":false,"thresholdsStyle":{"mode":"line"}}},"overrides":[]},"targets":[
+      {"refId":"A","expr":"100 * j3_bad{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"} / (j3_eligible{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"} > 0)","legendFormat":"{{window}} burn"}
+    ]},
+    {"id":7,"type":"timeseries","title":"Source and scrape age","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":0,"y":24,"w":12,"h":8},"targets":[
+      {"refId":"A","expr":"time() - j3_sample_timestamp_seconds{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"SQL age (s)"},
+      {"refId":"B","expr":"time() - j3_demand_timestamp_seconds{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"Demand age (s)"},
+      {"refId":"C","expr":"time() - timestamp(up{job=\"j3\",campaign=\"$campaign\",namespace=\"$namespace\"})","legendFormat":"Scrape age (s)"}
+    ]},
+    {"id":8,"type":"state-timeline","title":"Alert state","datasource":{"type":"prometheus","uid":"j3-prometheus"},"gridPos":{"x":12,"y":24,"w":12,"h":8},"fieldConfig":{"defaults":{"custom":{"spanNulls":false},"mappings":[{"type":"value","options":{"0":{"text":"Inactive"},"1":{"text":"Pending"},"2":{"text":"Firing"}}}]},"overrides":[]},"targets":[
+      {"refId":"A","expr":"2 * ALERTS{alertname=\"OldestClaimable\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:valid{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"OldestClaimable"},
+      {"refId":"B","expr":"2 * ALERTS{alertname=\"DeadlineBudgetBurn\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:valid{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"DeadlineBudgetBurn"},
+      {"refId":"C","expr":"2 * ALERTS{alertname=\"ScrapeAbsent\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) ALERTS{alertname=\"ScrapeAbsent\",alertstate=\"pending\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:expected{campaign=\"$campaign\",namespace=\"$namespace\"}","legendFormat":"ScrapeAbsent"}
+    ]}
+  ]
+}

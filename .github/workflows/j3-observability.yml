@@ -6,6 +6,8 @@ on:
       - '.github/workflows/j3-observability.yml'
       - 'experiments/portfolio/observability/**'
       - 'scripts/j3_*'
+      - 'go.mod'
+      - 'go.sum'
   workflow_dispatch:
 
 permissions:
@@ -20,12 +22,41 @@ jobs:
   tooling:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+      - name: Hosted promtool and PostgreSQL fixtures
+        env:
+          GOMAXPROCS: '2'
+          J3_SQL_CONTAINER: j3-sql-test
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/j3-exporter"
+          mkdir -p "$evidence"
+          exec > >(tee "$evidence/tooling.log") 2>&1
+          prom=$(PYTHONPATH=scripts python3 -c 'from j2_overlay import PROMETHEUS; print(PROMETHEUS)')
+          python3 scripts/j3_rules.py "$evidence/promtool"
+          for args in 'check rules rules.yml' 'test rules tests.yml'; do
+            docker run --rm --entrypoint=/bin/promtool -v "$evidence/promtool:/rules:ro" \
+              -w /rules "$prom" $args
+          done
+          docker run -d --name "$J3_SQL_CONTAINER" -e POSTGRES_HOST_AUTH_METHOD=trust \
+            "$(jq -er .postgres deploy/k8s/tools.lock.json)"
+          trap 'docker logs "$J3_SQL_CONTAINER" > "$evidence/postgres.log" 2>&1; docker rm -fv "$J3_SQL_CONTAINER"' EXIT
+          timeout 60 bash -c 'until docker exec "$J3_SQL_CONTAINER" pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done'
+          go test -race -p 1 ./experiments/portfolio/observability/exporter
+          uv run --locked --only-group dev pytest -q -p no:cacheprovider \
+            --basetemp "$RUNNER_TEMP/j3-pytest" experiments/portfolio/observability/test_j3_replay.py
       - name: Build the J3 exporter
         run: bash scripts/j3_build_exporter.sh "$RUNNER_TEMP/j3-exporter"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -33,4 +64,45 @@ jobs:
         with:
           name: j3-exporter-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-exporter/
+          if-no-files-found: warn
+  overlay-pilot:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Restore locked OCI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/j3-pilot"
+          mkdir -p "$evidence"
+          exec > >(tee "$evidence/restore.log") 2>&1
+          for lock in experiments/portfolio/load-envelope/images.lock.json experiments/portfolio/observability/exporter.lock.json; do
+            name=$(basename "$lock" .lock.json)
+            artifact=$(jq -er .artifact "$lock")
+            archive="$RUNNER_TEMP/j3-$name.zip"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
+            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
+            unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
+          done
+          go test -p 1 ./experiments/portfolio/observability/probe
+      - name: Prove private overlay and foreign dispatch isolation
+        run: |
+          python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-pilot/
           if-no-files-found: warn
