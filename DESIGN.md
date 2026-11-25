@@ -108,9 +108,14 @@ such as stale ownership, lost accepted work and duplicate accepted results.
 Named crash boundaries put the engine into states a happy-path test rarely
 reaches. The reference model and Go fuzz targets exercise transitions and
 parsers. The mutation gate requires a healthy baseline and the expected
-contract-specific failure after an injected change. The README gives the
-current manifest and the committed result populations. [Named fault results](experiments/m5/f01-f11-results.json)
+contract-specific failure after an injected change. [Named fault results](experiments/m5/f01-f11-results.json)
 · [Reference model](internal/reference/model.go) · [Mutation gate](mutations/README.md).
+
+The current manifest declares 1,381 mutation cases. Tracked sources contain
+430 Go test functions, 4 Go fuzz targets, and 826 Python test functions.
+Those are declaration counts. The README records the smaller historical
+populations in the committed mutation reports. [Mutation manifest](mutations/manifest.json)
+· [Test inventory and result snapshots](README.md#correctness-evidence).
 
 The Kubernetes lifecycle checker uses durable evidence and observed
 interventions to evaluate the exercised scenarios. Its accepted report retains

@@ -102,7 +102,7 @@ capacity and independent-host recovery unevaluated.
 
 ## Correctness evidence
 
-The [mutation manifest](mutations/manifest.json) declares **1,354 cases** in
+The [mutation manifest](mutations/manifest.json) declares **1,381 cases** in
 this source tree. The committed reports are earlier snapshots. The
 [PowerShell report](mutations/results-powershell.json) records 18 passing
 cases, including 17 behavioral detections and one configuration tripwire, in
@@ -112,8 +112,8 @@ their respective case sets. Current CI checks each shell's manifest coverage
 and requires the expected detection with a passing baseline.
 [Gate rules](mutations/README.md).
 
-Source inventory for this tree contains **429 Go test functions, 4 Go fuzz
-targets and 821 Python test functions**. These are counts of declarations in
+Source inventory for this tree contains **430 Go test functions, 4 Go fuzz
+targets and 826 Python test functions**. These are counts of declarations in
 tracked sources. They include build-tagged files and exclude generated test
 instances such as parametrized cases.
 
