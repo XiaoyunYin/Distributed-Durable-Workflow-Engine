@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/j2-load-envelope.yml'
+      - '.github/workflows/j2-volume-qualification.yml'
       - 'experiments/portfolio/load-envelope/**'
       - 'scripts/j2_*'
       - 'mutations/j2-manifest.json'
@@ -12,17 +13,26 @@ on:
       - 'go.mod'
       - 'go.sum'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Unmeasured engineering job
+        type: choice
+        options:
+          - overlay
+          - qualification
+        default: overlay
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}
+  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}-${{ inputs.mode || 'pr' }}
   cancel-in-progress: false
 
 jobs:
   tooling:
+    if: github.event_name == 'pull_request' || inputs.mode == 'overlay'
     name: ${{ github.event_name == 'pull_request' && 'J2 tooling smoke' || 'J2 unmeasured overlay pilot' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 35 }}
@@ -50,17 +60,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          lock=experiments/portfolio/load-envelope/images.lock.json
-          for kind in images exporter; do
-            lock="experiments/portfolio/load-envelope/$kind.lock.json"
-            artifact=$(jq -er .artifact "$lock")
-            archive="$RUNNER_TEMP/j2-$kind.zip"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
-            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
-            unzip -q "$archive" -d "$RUNNER_TEMP/j2-$kind-layouts"
-          done
+        run: bash scripts/j2_restore_images.sh
       - name: Verify the overlay on a disposable cluster
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -75,3 +75,35 @@ jobs:
           name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-overlay-evidence/
           if-no-files-found: warn
+
+  qualification:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'
+    uses: ./.github/workflows/j2-volume-qualification.yml
+    with:
+      population: 26678
+
+  fallback:
+    needs: qualification
+    if: >-
+      ${{ !cancelled() && needs.qualification.outputs.verdict == 'failure'
+      && needs.qualification.outputs.artifact_id != ''
+      }}
+    uses: ./.github/workflows/j2-volume-qualification.yml
+    with:
+      population: 21002
+
+  qualification-verdict:
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification' }}
+    needs: [qualification, fallback]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    env:
+      PRIMARY: ${{ needs.qualification.outputs.verdict }}
+      FALLBACK: ${{ needs.fallback.outputs.verdict }}
+    steps:
+      - run: |
+          case "$PRIMARY/$FALLBACK" in
+            success/) echo "26,678 identities qualified for soak A and AB" ;;
+            failure/success) echo "21,002 identities qualified for soak A" ;;
+            *) echo "Volume qualification failed. See archived evidence."; exit 1 ;;
+          esac
