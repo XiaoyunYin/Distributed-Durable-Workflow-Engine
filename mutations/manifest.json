@@ -12502,7 +12502,7 @@
       "id": "k4b2-death-container",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_interventions.py",
-      "old": "term.get(\"containerID\", old[\"containerID\"]) == old[\"containerID\"]",
+      "old": "term.get(\"containerID\", None if multiple else old[\"containerID\"]) == old[\"containerID\"]",
       "new": "True",
       "command": [
         "uv",
@@ -23531,6 +23531,78 @@
         "-count=1"
       ],
       "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-id",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "record.get(\"container_id\") == container_id",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_when_later_restart_replaces_death[intermediate-137-explicit-False]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-exit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "record.get(\"exit_status\") == 137",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_when_later_restart_replaces_death[old-143-explicit-False]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-explicit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "and record.get(\"exit_status_source\") == \"explicit\"",
+      "new": "and True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_requires_explicit_cri_record",
+        "-q"
+      ],
+      "expected": "non-explicit CRI",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-r380-snapshot",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "retain_kill_status(lambda path, doc: save(self.output / path, doc), name, pod, after)",
+      "new": "pass",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_kill_retains_status_on_missing_ack",
+        "-q"
+      ],
+      "expected": "FileNotFoundError",
       "requires_database": false
     }
   ]

@@ -18,7 +18,7 @@ from uuid import UUID
 from dur053_k3 import CLUSTER, ROOT
 from dur053_k3_policy import DIGEST
 from dur053_k4_collectors import Streams
-from dur053_k4_interventions import kill_proof, ready
+from dur053_k4_interventions import kill_proof, ready, retain_kill_status
 from dur053_k6_b_evidence import Evidence, SmokeFailure
 from dur053_k6_b_smoke import Smoke, json_data, private_file, require
 from dur053_k6_c_render import ip_peer, policy, traffic
@@ -748,7 +748,9 @@ class Matrix(Smoke):
             "restart_count": container["restartCount"],
         }
 
-    def wait_replacement(self, actor: str, before: dict, target: dict) -> dict:
+    def wait_replacement(
+        self, cell: str, actor: str, before: dict, target: dict, death: dict
+    ) -> dict:
         def restarted():
             pod = self.get("pod", target["pod"])
             containers = pod.get("status", {}).get("containerStatuses", [])
@@ -766,14 +768,18 @@ class Matrix(Smoke):
 
         self.wait_for(restarted, "E1_REPLACEMENT_NOT_READY", seconds=90)
         after, new = self.process(actor)
-        term = kill_proof(before, after, True)
-        expect("E1_RESTART_COUNT", new["restart_count"], target["restart_count"] + 1)
+        retain_kill_status(self.evidence.write, "e1-" + cell, before, after)
+        term = kill_proof(before, after, True, cri_exit=lambda: death["cri_exit"])
         expect(
             "E1_REPLACEMENT_PROCESS_CHANGED",
             new["process_start_id"] != target["process_start_id"],
             True,
         )
-        self.previous[target["container_id"]] = self.role_log(target["pod"], actor, previous=True)
+        self.previous[target["container_id"]] = (
+            self.role_log(target["pod"], actor, previous=True)
+            if new["restart_count"] == target["restart_count"] + 1
+            else D2bMatrix.old_container_log(self, before, target)
+        )
         return {
             "identity": new,
             "termination": {k: term[k] for k in ("exitCode", "signal", "finishedAt") if k in term},
@@ -1097,7 +1103,7 @@ class Matrix(Smoke):
             "killed",
             evidence={"hold_ended_by": "process_exit", "container_id": target["container_id"]},
         )
-        replacement = self.wait_replacement(actor, initial_pod, target)
+        replacement = self.wait_replacement(cell, actor, initial_pod, target, death)
         new = replacement["identity"]
         self.evidence.write(f"{cell}-replacement.json", {**death, **replacement})
         after = self.terminal(workflow)

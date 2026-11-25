@@ -19,7 +19,7 @@ from dur053_k3 import CLUSTER, LOCK, ROOT
 from dur053_k3_policy import DIGEST
 from dur053_k4_collectors import Streams
 from dur053_k4_driver import install_chaos_backend, render_chaos_backend
-from dur053_k4_interventions import chaos_ack, kill_proof, ready
+from dur053_k4_interventions import chaos_ack, kill_proof, ready, retain_kill_status
 from dur053_k6_b_evidence import SmokeFailure
 from dur053_k6_b_smoke import ENGINE_ROLE, Smoke, json_data, require, subject
 from dur053_k6_c_deploy import ENGINE_PEER, RELAY_PEER, SINK_PEER, encoded
@@ -570,7 +570,7 @@ class Matrix(D2aMatrix):
             ),
             "D2B_KILL_STILL_PRESENT",
         )
-        result = {"death_ns": death_ns, "acknowledged_ns": acknowledged}
+        result = {"death_ns": death_ns, "acknowledged_ns": acknowledged, "cri_exit": death}
         if prefix != "d2b":
             result.update(issued_ns=issued, death_observed_ns=int(death["received"] * 10**9))
         return result
@@ -586,15 +586,20 @@ class Matrix(D2aMatrix):
             )
 
         after = self.wait_for(replacement, "D2B_REPLACEMENT_NOT_READY", seconds=75)
-        term = kill_proof(before, after, True)
+        retain_kill_status(self.evidence.write, "d2b-" + target["pod"], before, after)
+        term = kill_proof(before, after, True, cri_exit=lambda: death["cri_exit"])
         _, current = self.process("worker")
         require(
             current["session"] != target["session"]
             and current["process_start_id"] != target["process_start_id"]
-            and current["restart_count"] == target["restart_count"] + 1,
+            and current["restart_count"] > target["restart_count"],
             "D2B_WRONG_REPLACEMENT",
         )
-        self.worker_logs[target["container_id"]] = self.pod_worker_logs(target, previous=True)
+        self.worker_logs[target["container_id"]] = (
+            self.pod_worker_logs(target, previous=True)
+            if current["restart_count"] == target["restart_count"] + 1
+            else self.old_container_log(before, target).decode()
+        )
         return {
             **death,
             "replacement_ns": time.time_ns(),
@@ -602,6 +607,18 @@ class Matrix(D2aMatrix):
             "new": current,
             "termination": {k: term[k] for k in ("exitCode", "signal", "finishedAt") if k in term},
         }
+
+    def old_container_log(self, before: dict, target: dict) -> bytes:
+        return self.command(
+            "OLD_CONTAINER_LOG",
+            "docker",
+            "exec",
+            before["spec"]["nodeName"],
+            "crictl",
+            "logs",
+            target["container_id"].split("://", 1)[1],
+            timeout=5,
+        )
 
     def ingress(self) -> list[dict]:
         # Partial last rows are ignored while the writer is open. The final
