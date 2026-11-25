@@ -1,0 +1,36 @@
+name: J3 observability
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/j3-observability.yml'
+      - 'experiments/portfolio/observability/**'
+      - 'scripts/j3_*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: j3-observability
+  cancel-in-progress: false
+
+jobs:
+  tooling:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Build the J3 exporter
+        run: bash scripts/j3_build_exporter.sh "$RUNNER_TEMP/j3-exporter"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-exporter-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-exporter/
+          if-no-files-found: warn

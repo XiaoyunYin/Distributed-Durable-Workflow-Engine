@@ -1,0 +1,4 @@
+**
+!go.mod
+!go.sum
+!experiments/portfolio/observability/exporter/main.go
