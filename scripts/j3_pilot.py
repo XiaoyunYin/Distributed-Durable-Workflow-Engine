@@ -1,6 +1,7 @@
 """Run the unmeasured hosted overlay and foreign dispatch proof."""
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -74,31 +75,20 @@ class Pilot(kind.Driver):
             "j3_exporter": self.monitor_password,
             "j3_fixture": self.fixture_password,
         }[role]
-        return self.command(
-            [
-                "docker",
-                "exec",
-                "-i",
-                "-e",
-                f"PGPASSWORD={password}",
-                kind.CLUSTER + "-postgres",
-                "psql",
-                "-h",
-                "127.0.0.1",
-                "-U",
-                role,
-                "-XqAt",
-                "-d",
-                DB,
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-v",
-                "VERBOSITY=verbose",
-            ],
-            data=query,
-            allowed=allowed,
-            record=False,
-        )
+        psql = ["psql", "-h", "127.0.0.1", "-U", role, "-XqAt", "-d", DB]
+        psql.extend(["-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"])
+        docker = [
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            f"PGPASSWORD={password}",
+            kind.CLUSTER + "-postgres",
+        ]
+        return self.command(docker + psql, data=query, allowed=allowed, record=False)
+
+    def query(self, sql):
+        return self.postgres(sql).stdout.strip()
 
     def inspect(self, namespace, resource):
         return json.loads(
@@ -106,33 +96,15 @@ class Pilot(kind.Driver):
         )
 
     def rollout(self, namespace, role):
-        self.k(
-            "-n",
-            namespace,
-            "rollout",
-            "status",
-            f"deployment/{role}",
-            "--timeout=180s",
-            timeout=190,
-        )
+        target = f"deployment/{role}"
+        self.k("-n", namespace, "rollout", "status", target, "--timeout=180s", timeout=190)
 
     @contextmanager
     def forward(self, name, ports):
         with (self.output / f"{name}-forward.log").open("w") as log:
+            command = ["kubectl", "--context", "kind-" + kind.CLUSTER, "-n", NS, "port-forward"]
             process = subprocess.Popen(
-                [
-                    "kubectl",
-                    "--context",
-                    "kind-" + kind.CLUSTER,
-                    "-n",
-                    NS,
-                    "port-forward",
-                    f"deployment/{name}",
-                    *ports,
-                ],
-                env=self.env,
-                stdout=log,
-                stderr=log,
+                command + [f"deployment/{name}", *ports], env=self.env, stdout=log, stderr=log
             )
             try:
                 yield
@@ -143,9 +115,7 @@ class Pilot(kind.Driver):
 
 def clock(driver):
     before = time.time_ns()
-    value = int(
-        driver.postgres("SELECT (extract(epoch FROM clock_timestamp())*1e9)::bigint;").stdout
-    )
+    value = int(driver.query("SELECT (extract(epoch FROM clock_timestamp())*1e9)::bigint;"))
     after = time.time_ns()
     require(before <= value <= after, "database clock escaped observer bracket")
     return {"before_ns": before, "db_ns": value, "after_ns": after}
@@ -315,23 +285,8 @@ def image_evidence(driver, pins):
         )
         refs[name] = status["imageID"]
     require(refs.keys() == pins.keys(), "missing telemetry images")
-    application = driver.inspect(APP, "pods")["items"]
-    kind.running_image_digests(
-        [{"containers": p["status"]["containerStatuses"]} for p in application], driver.images
-    )
-    kind.save(
-        driver.output / "running-images.json",
-        {
-            "overlay": refs,
-            "application": [
-                {
-                    "pod": p["metadata"]["name"],
-                    "image_ids": [c["imageID"] for c in p["status"]["containerStatuses"]],
-                }
-                for p in application
-            ],
-        },
-    )
+    # setup_episode has already verified and retained the application IDs.
+    kind.save(driver.output / "running-images.json", refs)
 
 
 def database_rows(driver):
@@ -345,7 +300,7 @@ SELECT jsonb_build_object(
  'history', (SELECT jsonb_agg(to_jsonb(h)) FROM engine.transition_history h),
  'outbox', (SELECT jsonb_agg(to_jsonb(o)) FROM engine.outbox o));
 """
-    return {key: rows or [] for key, rows in json.loads(driver.postgres(sql).stdout).items()}
+    return {key: rows or [] for key, rows in json.loads(driver.query(sql)).items()}
 
 
 def worker_pods(driver):
@@ -356,7 +311,24 @@ def worker_pods(driver):
     ]
 
 
-def dispatch_proof(driver, origin, db_ip):
+def install_sender(driver, binary):
+    raw = binary.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    expected = (driver.output / "sender.sha256").read_text().split()[0]
+    require(digest == expected, "sender hash differs")
+    code = (
+        "import base64,hashlib,pathlib,sys; "
+        "body=base64.b64decode(sys.stdin.buffer.read(),validate=True); "
+        "assert hashlib.sha256(body).hexdigest()==sys.argv[2]; "
+        "path=pathlib.Path(sys.argv[1]); path.write_bytes(body); path.chmod(0o500)"
+    )
+    pod, path = driver.pod(APP, "observer")["metadata"]["name"], "/evidence/j3-loadgen"
+    command = ["-n", APP, "exec", "-i", pod, "--", "python", "-c", code, path, digest]
+    driver.k(*command, data=base64.b64encode(raw).decode(), record=False)
+    return pod, path
+
+
+def dispatch_proof(driver, origin, db_ip, observer, sender):
     pods = worker_pods(driver)
     uids = {p["metadata"]["uid"] for p in pods}
     kind.stable_worker_sessions(uids, pods)
@@ -378,99 +350,64 @@ def dispatch_proof(driver, origin, db_ip):
         "p.write_text('{\"ready_slots\":4}'); os.replace(p,'/evidence/metrics.json')",
     )
     start = datetime.fromtimestamp(origin // SECOND, UTC).isoformat()
-    observer = driver.pod(APP, "observer")["metadata"]["name"]
     seed = driver.postgres("SELECT j2_monitor.j3_seed('foreign-1');", role="j3_fixture")
     kind.save(driver.output / "foreign-seed.json", json.loads(seed.stdout))
     driver.postgres("ALTER SYSTEM SET log_statement = 'all'; SELECT pg_reload_conf();")
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        load = executor.submit(
-            driver.k,
+    options = {
+        "k4-start": start,
+        "k4-stop": "/evidence/j3-stop",
+        "url": "http://api:8080",
+        "token-file": "/identity/token",
+        "namespace": TARGET,
+        "run-id": RUN,
+        "seed": SEED,
+        "arm": "short",
+        "rate": RATE,
+        "count": COUNT,
+        "concurrency": 16,
+        "output": "/evidence/j3-arrivals.jsonl",
+    }
+    args = ["-n", APP, "exec", observer, "--", sender, "-k4"]
+    args.extend(f"-{key}={value}" for key, value in options.items())
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            load = executor.submit(driver.k, *args, timeout=95)
+            where = "WHERE namespace=" + repr(TARGET)
+            any_target = "SELECT EXISTS (SELECT FROM engine.workflow_executions " + where + ");"
+
+            def target_started():
+                if load.done():
+                    load.result()
+                return driver.query(any_target) == "t"
+
+            driver.until(target_started, 30)
+            dsn = f"postgresql://durable:{driver.password}@{db_ip}:5432/{DB}?sslmode=disable"
+            probe = ["go", "test", "-p", "1", "-v", "-count=1"]
+            probe.append("./experiments/portfolio/observability/probe")
+            driver.command(probe, timeout=45, env={**driver.env, "J3_PROBE_DSN": dsn})
+            load.result()
+    finally:
+        result = driver.k(
             "-n",
             APP,
             "exec",
             observer,
             "--",
-            "/loadgen",
-            "-k4",
-            "-k4-start",
-            start,
-            "-k4-stop",
-            "/evidence/j3-stop",
-            "-url",
-            "http://api:8080",
-            "-token-file",
-            "/identity/token",
-            "-namespace",
-            TARGET,
-            "-run-id",
-            RUN,
-            "-seed",
-            str(SEED),
-            "-arm",
-            "short",
-            "-rate",
-            str(RATE),
-            "-count",
-            str(COUNT),
-            "-concurrency",
-            "16",
-            "-output",
+            "cat",
             "/evidence/j3-arrivals.jsonl",
-            timeout=95,
+            allowed=True,
+            record=False,
         )
-        # Warm compilation happens before cluster bootstrap. Exercise the reconciler
-        # while the normal worker/relay/scheduler have committed target traffic.
-        driver.until(
-            lambda: (
-                driver.postgres(
-                    "SELECT EXISTS (SELECT FROM engine.workflow_executions "
-                    f"WHERE namespace='{TARGET}');"
-                ).stdout.strip()
-                == "t"
-            ),
-            30,
-        )
-        dsn = f"postgresql://durable:{driver.password}@{db_ip}:5432/{DB}?sslmode=disable"
-        driver.command(
-            [
-                "go",
-                "test",
-                "-p",
-                "1",
-                "-v",
-                "-count=1",
-                "./experiments/portfolio/observability/probe",
-            ],
-            timeout=45,
-            env={**driver.env, "J3_PROBE_DSN": dsn},
-        )
-        load.result()
-    journal = driver.python(APP, "observer", "print(open('/evidence/j3-arrivals.jsonl').read())")
-    (driver.output / "target-journal.jsonl").write_text(journal + "\n", encoding="utf-8")
+        journal = result.stdout
+        (driver.output / "target-journal.jsonl").write_text(journal, encoding="utf-8")
     entries = [json.loads(line) for line in journal.splitlines()]
     accepted = {row["id"] for row in entries if row.get("outcome") == "accepted"}
     require(len(accepted) == COUNT, "target loadgen acceptance missing")
-    driver.until(
-        lambda: (
-            int(
-                driver.postgres(
-                    "SELECT count(*) FROM engine.workflow_executions "
-                    f"WHERE namespace='{TARGET}' AND state='SUCCEEDED';"
-                ).stdout
-            )
-            == COUNT
-        ),
-        55,
-    )
-    driver.until(
-        lambda: (
-            driver.postgres(
-                "SELECT NOT EXISTS (SELECT FROM engine.outbox WHERE published_at IS NULL);"
-            ).stdout.strip()
-            == "t"
-        ),
-        30,
-    )
+    succeeded = "SELECT count(*) FROM engine.workflow_executions WHERE namespace=" + repr(TARGET)
+    succeeded += " AND state='SUCCEEDED';"
+    driver.until(lambda: int(driver.query(succeeded)) == COUNT, 55)
+    drained = "SELECT NOT EXISTS (SELECT FROM engine.outbox WHERE published_at IS NULL);"
+    driver.until(lambda: driver.query(drained) == "t", 30)
     driver.postgres("ALTER SYSTEM RESET log_statement; SELECT pg_reload_conf();")
     db_log = driver.command(["docker", "logs", kind.CLUSTER + "-postgres"], record=False)
     statements = [
@@ -569,46 +506,24 @@ def dashboard_evidence(driver, target, accepted):
         "Grafana dashboard differs",
     )
     kind.save(driver.output / "dashboard-api.json", {"dashboard": board, "datasource": datasource})
-    end = time.time()
+    end = int(time.time())
+    proxy = "/api/datasources/proxy/uid/j3-prometheus/api/v1/query_range"
+
+    def series(expr):
+        return json_request(13000, proxy, query=expr, start=end - 45, end=end, step=1)["data"][
+            "result"
+        ]
+
     results = {}
     for panel in board["panels"]:
         for query in panel["targets"]:
             expr = query["expr"]
             for key, value in target.items():
                 expr = expr.replace(f"${key}", value)
-            data = json_request(
-                13000,
-                "/api/datasources/proxy/uid/j3-prometheus/api/v1/query_range",
-                query=expr,
-                start=end - 45,
-                end=end,
-                step=1,
-            )["data"]["result"]
-            results[f"{panel['id']}{query['refId']}"] = data
+            results[f"{panel['id']}{query['refId']}"] = series(expr)
     kind.save(driver.output / "dashboard-ranges.json", results)
-    require(
-        all(
-            results[key]
-            for key in (
-                "1A",
-                "2A",
-                "2B",
-                "2C",
-                "3A",
-                "3B",
-                "5A",
-                "5B",
-                "6A",
-                "7A",
-                "7B",
-                "7C",
-                "8A",
-                "8B",
-                "8C",
-            )
-        ),
-        "missing dashboard panel samples",
-    )
+    required_panels = set(results) - {"4A", "4B"}  # No ownership fault in this pilot.
+    require(all(results[key] for key in required_panels), "missing dashboard panel samples")
     require(
         all(
             labels["metric"].get("namespace") == target["namespace"]
@@ -620,6 +535,20 @@ def dashboard_evidence(driver, target, accepted):
     raw = request(19188, "/visibility.jsonl")
     visibility = [json.loads(line) for line in raw.splitlines()]
     (driver.output / "visibility.jsonl").write_bytes(raw)
+    by_source = {sample["sample_ns"] / SECOND: sample for sample in visibility}
+    (source,) = series("j3_sample_timestamp_seconds")
+    by_tick = {tick: by_source[float(value)] for tick, value in source["values"]}
+    for panel, field in (("5A", "eligible"), ("5B", "bad")):
+        for result in results[panel]:
+            window = result["metric"]["window"]
+            require(
+                all(
+                    int(value) == by_tick[tick]["windows"][window][field]
+                    for tick, value in result["values"]
+                ),
+                "dashboard differs from snapshot",
+            )
+    kind.save(driver.output / "dashboard-source-times.json", source)
     observed = {key for sample in visibility for key in sample["admissions"]["set"]}
     require(
         observed == accepted
@@ -629,9 +558,9 @@ def dashboard_evidence(driver, target, accepted):
     require(not prom("ALERTS"), "pilot ended with active alerts")
 
 
-def run_overlay(driver, db_ip, pins, target):
+def run_overlay(driver, db_ip, pins, target, binary):
     require(
-        driver.postgres("SELECT count(*) FROM engine.workflow_executions;").stdout.strip() == "0",
+        driver.query("SELECT count(*) FROM engine.workflow_executions;") == "0",
         "pilot DB is not empty",
     )
     setup = clock(driver)
@@ -660,6 +589,7 @@ def run_overlay(driver, db_ip, pins, target):
         driver.rollout(NS, name)
     image_evidence(driver, pins)
     network_denials(driver)
+    observer, sender = install_sender(driver, binary)
     with (
         driver.forward(PROM, ["19090:9090"]),
         driver.forward(GRAFANA, ["13000:3000"]),
@@ -679,16 +609,16 @@ def run_overlay(driver, db_ip, pins, target):
             driver.output / "plan.json",
             {"origin_ns": origin, "target_keys": keys, "foreign_key": "foreign-1"},
         )
-        accepted = dispatch_proof(driver, origin, db_ip)
+        accepted = dispatch_proof(driver, origin, db_ip, observer, sender)
         driver.until(lambda: bool(prom(f'j3_eligible{{window="all"}} == {COUNT}')), 30)
         dashboard_evidence(driver, target, accepted)
+    sessions = driver.query(
+        "SELECT application_name || '|' || count(*) FROM pg_stat_activity "
+        "WHERE usename='j3_exporter' GROUP BY 1;"
+    )
     require(
-        driver.postgres(
-            "SELECT application_name || '|' || count(*) FROM pg_stat_activity "
-            "WHERE usename='j3_exporter' GROUP BY 1;"
-        ).stdout.strip()
-        == "j3-db-exporter|1",
-        "expected exactly one monitor session",
+        sessions == "j3-db-exporter|1" and driver.query("SHOW max_connections;") == "100",
+        "live monitor budget differs",
     )
     kind.save(driver.output / "clock.json", {"setup": setup, "closing": clock(driver)})
     log = driver.python(
@@ -703,7 +633,7 @@ def run_overlay(driver, db_ip, pins, target):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("evidence", "scratch", "runtime_layout", "exporter_layout"):
+    for name in ("evidence", "scratch", "runtime_layout", "exporter_layout", "sender"):
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
     require(
@@ -740,44 +670,20 @@ def main():
             driver.prepare_addon(addon)
         registry = kind.CLUSTER + "-registry"
         driver.created.add(registry)
-        driver.command(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                registry,
-                "--label",
-                kind.LABEL,
-                "-p",
-                "127.0.0.1:5001:5000",
-                kind.LOCK["registry"],
-            ]
-        )
+        command = ["docker", "run", "-d", "--name", registry, "--label", kind.LABEL]
+        driver.command(command + ["-p", "127.0.0.1:5001:5000", kind.LOCK["registry"]])
         driver.until(lambda: endpoint_ready(5001, "/v2/"), 30)
         for name, ref in driver.images.items():
             restore(args.runtime_layout / name, ref)
         restore(args.exporter_layout / "exporter", exporter)
         addresses = driver.cluster()
-        driver.command(
-            [
-                "docker",
-                "exec",
-                kind.CLUSTER + "-control-plane",
-                "ctr",
-                "--namespace",
-                "k8s.io",
-                "images",
-                "pull",
-                "--hosts-dir",
-                "/etc/containerd/certs.d",
-                exporter,
-            ]
-        )
+        node = ["docker", "exec", kind.CLUSTER + "-control-plane"]
+        pull = ["ctr", "--namespace", "k8s.io", "images", "pull", "--hosts-dir"]
+        driver.command(node + pull + ["/etc/containerd/certs.d", exporter])
         driver.setup_episode("kind", addresses)
         for namespace in (NS, "j3-unrelated"):
             driver.k("create", "namespace", namespace)
-        run_overlay(driver, addresses["192.0.2.1"], pins, target)
+        run_overlay(driver, addresses["192.0.2.1"], pins, target, args.sender)
         kind.save(
             args.evidence / "verdict.json", {"status": "PASS", "scope": "unmeasured overlay pilot"}
         )
@@ -791,14 +697,7 @@ def main():
         raise
     finally:
         kind.save(args.evidence / "cleanup.json", driver.cleanup())
-        kind.save(
-            args.evidence / "sha256.json",
-            {
-                str(p.relative_to(args.evidence)): hashlib.sha256(p.read_bytes()).hexdigest()
-                for p in sorted(args.evidence.rglob("*"))
-                if p.is_file() and p.name != "sha256.json"
-            },
-        )
+        kind.save(args.evidence / "sha256.json", kind.artifact_hashes(args.evidence))
 
 
 if __name__ == "__main__":

@@ -103,11 +103,7 @@ def render(db_ip, target, images):
                     "Service",
                     name,
                     NS,
-                    spec={
-                        "type": "ClusterIP",
-                        "selector": labels(name),
-                        "ports": ports,
-                    },
+                    spec={"type": "ClusterIP", "selector": labels(name), "ports": ports},
                 ),
             ]
         )
@@ -260,10 +256,7 @@ def render(db_ip, target, images):
             RECEIVER,
             NS,
             selector(RECEIVER),
-            ingress=[
-                route("from", peer(ALERTMANAGER), 8080),
-                route("from", peer(PROM), 8082),
-            ],
+            ingress=[route("from", peer(ALERTMANAGER), 8080), route("from", peer(PROM), 8082)],
         ),
     ]
     return {"apiVersion": "v1", "kind": "List", "items": manifest}

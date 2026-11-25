@@ -95,11 +95,14 @@ jobs:
             echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
             unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
           done
+          CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
+            -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
+          sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"
           go test -p 1 ./experiments/portfolio/observability/probe
       - name: Prove private overlay and foreign dispatch isolation
         run: |
           python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
-            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout"
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

@@ -158,7 +158,12 @@ def vector_tests():
             for alert in (*DOMAIN, "ScrapeAbsent")
         ]
         cases.append(
-            {"name": name, "input_series": inputs + list(extras), "alert_rule_test": checks}
+            {
+                "name": name,
+                "interval": "1s",
+                "input_series": inputs + list(extras),
+                "alert_rule_test": checks,
+            }
         )
 
     empty = {key: "_" for key in default}
@@ -230,12 +235,7 @@ def vector_tests():
     )
     case(
         "firing burn holds until fresh sufficient volume",
-        [
-            (5, hot),
-            (10, {"sql_ok": 0}),
-            (5, {"eligible:2m": 99}),
-            (6, {}),
-        ],
+        [(5, hot), (10, {"sql_ok": 0}), (5, {"eligible:2m": 99}), (6, {})],
         {0: DOMAIN, 10: (*DOMAIN, "ScrapeAbsent"), 15: DOMAIN[1:], 20: ()},
     )
     return {"rule_files": ["rules.yml"], "evaluation_interval": "5s", "tests": cases}

@@ -132,6 +132,26 @@ def test_joint_status_and_evaluation_integrity():
         j3.replay(data, [sample])
 
 
+def test_nonzero_visibility_band_cannot_cross_threshold():
+    data = fixture_data()
+    workflow = data["workflows"][17]
+    workflow["state"] = "SUCCEEDED"
+    created = data["plan"][17]["scheduled_ns"] + j3.DEADLINE - CLOSING
+    data["history"].append(
+        dict(workflow_id="w17", revision=1, new_state="SUCCEEDED", created_ns=created)
+    )
+    sample = visibility(data)
+    for counts in sample["windows"].values():
+        counts["bad"] -= 1
+    data["evaluations"][0]["firing"] = []
+    rows, _ = j3.reconcile(data)
+    band = j3.cohort_band(
+        rows, sample, sample["admissions"]["set"], sample["successes"]["set"], SETUP
+    )
+    assert (band["2m"]["lower"], band["2m"]["upper"]) == (17, 18)
+    assert j3.replay(data, [sample])["alert_inputs"]["ambiguous_count"] == 0
+
+
 @pytest.mark.parametrize("duplicate", [False, True])
 def test_bad_final_history_fails(duplicate):
     data = fixture_data()
@@ -182,16 +202,18 @@ def test_postgres_statement_visibility():
         " VALUES ('fixture',1,'hash','{}');"
     )
     data = fixture_data()
+    seeded = []
     for plan, workflow in zip(data["plan"], data["workflows"], strict=True):
         key = plan["submission_key"]
         state = workflow["state"] if key not in {"w18", "w127"} else "WAITING_ACTIVITY"
-        run(
+        seeded.append(
             f"INSERT INTO j2_monitor.j3_plan VALUES ('target','{key}',{plan['scheduled_ns']});"
             "INSERT INTO engine.workflow_executions (workflow_id,namespace,submission_key,"
             "submission_payload_hash,"
             "definition_id,definition_version,partition_id,state,revision) VALUES "
             f"('{key}','target','{key}','hash','fixture',1,0,'{state}',1);"
         )
+    run("\n".join(seeded))
 
     def final(row):
         stamp, fraction = divmod(row["created_ns"], j3.SECOND)
@@ -233,3 +255,11 @@ def test_postgres_statement_visibility():
         assert actual["sample_ns"] == T and actual["u_ns"] == SETUP
         projected = {**expected, "windows": actual["windows"]}
         assert j3.replay(data, [projected])["alert_inputs"]["ambiguous_count"] == int(blocked)
+    stalled = json.loads(
+        run(
+            "BEGIN; UPDATE engine.workflow_executions SET state='WAITING_ACTIVITY';"
+            "SELECT j2_monitor.j3_sample(); ROLLBACK;"
+        )
+    )
+    assert stalled["successes"] == {}
+    assert all(c["bad"] == c["eligible"] > 0 for c in stalled["windows"].values())

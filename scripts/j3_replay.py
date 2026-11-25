@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from j2_offline import SECOND, TERMINAL, index
+from j2_offline import SECOND, TERMINAL, index, utc_ns
 
 DEADLINE = 2_854_000_000
 WINDOWS = {"all": None, "10m": 600 * SECOND, "2m": 120 * SECOND}
@@ -207,7 +207,7 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
         and evaluations[-1]["at_ns"] == last,
         "missing or unordered rule evaluations",
     )
-    requests = index((r for r in evaluations if r["valid"]), lambda r: r["sample_ns"])
+    requests = {r["sample_ns"] for r in evaluations if r["valid"]}
     inputs = {}
     for sample, admissions, successes in snapshots(stream):
         at = sample["sample_ns"]
@@ -230,8 +230,6 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
                 and at - 5 * SECOND <= ev["demand_ns"] <= scrape,
                 f"incoherent live input: {at}",
             )
-            from j2_offline import utc_ns
-
             require(
                 utc_ns(demand["sampled_at"]) == ev["demand_ns"]
                 and demand["oldest_claimable_age_seconds"] == ev["oldest_claimable_age_seconds"]
