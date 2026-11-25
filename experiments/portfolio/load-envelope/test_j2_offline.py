@@ -55,6 +55,7 @@ def episode():
                         "workflow_id": key,
                         "aggregate_revision": 5,
                         "event_type": "activity.result",
+                        "created_at": ts(7),
                         "payload": 5,
                     }
                 ],
@@ -80,6 +81,7 @@ def test_revision_order_and_stage_delay(episode):
     for row in delayed[1]["Snapshot"]["engine.transition_history"]["rows"]:
         if row["revision"] >= 5:
             row["created_at"] = ts(9 if row["revision"] == 5 else 10)
+    delayed[1]["Snapshot"]["engine.outbox"]["rows"][0]["created_at"] = ts(9)
     delayed[3]["a"] += 2 * SECOND
     (changed,) = join(*delayed[:-1], delayed[-1] + 2 * SECOND)
     assert changed["workflow_id"] == baseline["workflow_id"]
@@ -150,9 +152,12 @@ def test_censoring_and_required_boundaries(episode, case, status):
         assert summarize([result])["end_to_end_quantiles"]["censored"] == 1
 
 
-def test_withheld_terminal_preserves_count_but_fails_drain():
+def test_withheld_terminal_preserves_count_but_fails_drain(episode):
     assert drain_identities("ab", "ab", "ab", "ab")["valid"]
-    report = drain_identities("ab", "ab", "bb", "ab")
+    episode[1]["Snapshot"]["engine.transition_history"]["rows"].pop(2)
+    rows = list(join(*episode))
+    successes = [r["workflow_id"] for r in rows if "end_to_end_ns" in r]
+    report = drain_identities("ab", "ab", [*successes, "b", "b"], "ab")
     assert report == {"valid": False, "missing": ["a"], "unexpected": [], "duplicated": ["b"]}
     assert drain_identities("b", "ab", "b", "b")["missing"] == ["a"]
 

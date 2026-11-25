@@ -1,6 +1,6 @@
 # J2 slice 1 image provenance
 
-The immutable K3 v2 source is `752711cd164c30dbb6da54d4a866f6979998e1b4` (tree `afae51b9341e397f3264b2db603753506a9ad77b`). The retained `images.json` names only `localhost:5001` images. Its archived SHA-256 is recorded in the K3 manifest and was checked against the extracted file. The source build pushed to a registry bound to the runner loopback; it did not publish the images. [Original hosted job](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/43220876354/job/131191771302)
+The immutable K3 v2 source is `752711cd164c30dbb6da54d4a866f6979998e1b4` (tree `afae51b9341e397f3264b2db603753506a9ad77b`). The retained `images.json` names only `localhost:5001` images. The extracted file matched the archived SHA-256 `ddd4629507d842a93a0f41f70828efeffc6e91463d07f7603535874442f7cb4f`. The source build pushed to a registry bound to the runner loopback. [Original hosted job](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/43220876354/job/131191771302)
 
 Retrieval inspected the 237 entries in the original Actions artifact `13949840254`. The downloaded ZIP matched Actions SHA-256 `08d3ef99912ae7bdf4d11b54594febfb6a0c8677a047534d428a0ca7a77218e4`. It contains `images.json` and the three inventories of running images. The retained artifact and the committed payload index contain no registry blobs or saved image layouts. [Original artifact metadata](https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/13949840254)
 

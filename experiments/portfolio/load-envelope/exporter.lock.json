@@ -1,0 +1,7 @@
+{
+  "image": "localhost:5001/j2-exporter@sha256:be3665b8cfe802eb86212ce78754dd24fc85846118b6c993f597d3c509e76bf8",
+  "build_head": "a70be09286a05558a7a0db8a54fcd3aa3eed789c",
+  "build_run": 45574726863,
+  "artifact": 15003881687,
+  "artifact_sha256": "319f6b8e269fdd576069010e6bf461a81748fcf6ba4a6196573fe5cc8a220b2e"
+}

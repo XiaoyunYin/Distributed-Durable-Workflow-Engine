@@ -14,11 +14,12 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 import dur053_k3 as kind_driver
-from dur053_k3 import Driver, save
-from j2_oci import restore, retain
+from dur053_k3 import Driver, running_image_digests, save
+from j2_oci import restore
 from j2_overlay import EXPORTER, J2, PROM, PROMETHEUS, budget, registered_budget, render
 
-NS = "j2-overlay-pilot"
+APP_NS = "j2-overlay-pilot"
+NS = "j2-telemetry"
 DB = "j2_overlay_pilot"
 OTHER = "j2-unrelated"
 
@@ -46,7 +47,7 @@ def require(condition, message):
 
 def apply_app(driver, endpoints):
     _, objects = driver.render("kind", endpoints)
-    objects = json.loads(json.dumps(objects).replace("dur053-kind", NS))
+    objects = json.loads(json.dumps(objects).replace("dur053-kind", APP_NS))
     for o in objects:
         if o["kind"] == "ScaledObject":
             o["metadata"].setdefault("annotations", {}).update(
@@ -59,6 +60,7 @@ def apply_app(driver, endpoints):
     save(driver.output / "application-rendered.json", objects)
     driver.databases.add(DB)
     driver.sql(f'CREATE DATABASE "{DB}"')
+    driver.k("create", "namespace", APP_NS)
     driver.k("create", "namespace", NS)
     driver.k("create", "namespace", OTHER)
     for name, values in (
@@ -68,7 +70,7 @@ def apply_app(driver, endpoints):
         ),
         ("campaign-demand", {"token": driver.demand_token}),
     ):
-        secret(driver, name, values)
+        secret(driver, name, values, APP_NS)
     driver.apply(
         {
             "apiVersion": "v1",
@@ -94,7 +96,7 @@ def apply_app(driver, endpoints):
             {
                 "apiVersion": "v1",
                 "kind": "Endpoints",
-                "metadata": {"name": name, "namespace": NS},
+                "metadata": {"name": name, "namespace": APP_NS},
                 "subsets": [{"addresses": [{"ip": ip}], "ports": [{"name": "tcp", "port": port}]}],
             }
         )
@@ -104,7 +106,7 @@ def apply_app(driver, endpoints):
         )
         driver.k(
             "-n",
-            NS,
+            APP_NS,
             "wait",
             "--for=condition=complete",
             f"job/{name}",
@@ -114,22 +116,24 @@ def apply_app(driver, endpoints):
     driver.apply({"apiVersion": "v1", "kind": "List", "items": objects})
     for o in objects:
         if o["kind"] == "Deployment":
-            rollout(driver, o["metadata"]["name"])
+            rollout(driver, o["metadata"]["name"], APP_NS)
 
 
-def secret(driver, name, fields):
+def secret(driver, name, fields, namespace=NS):
     driver.apply(
         {
             "apiVersion": "v1",
             "kind": "Secret",
-            "metadata": {"name": name, "namespace": NS},
+            "metadata": {"name": name, "namespace": namespace},
             "stringData": fields,
         }
     )
 
 
-def rollout(driver, name):
-    driver.k("-n", NS, "rollout", "status", f"deployment/{name}", "--timeout=180s", timeout=190)
+def rollout(driver, name, namespace=NS):
+    driver.k(
+        "-n", namespace, "rollout", "status", f"deployment/{name}", "--timeout=180s", timeout=190
+    )
 
 
 def postgres_probe(driver, password, sql, superuser=False):
@@ -162,7 +166,8 @@ def check_db_denial(driver, password):
     readonly = postgres_probe(
         driver,
         password,
-        "SHOW transaction_read_only; SHOW statement_timeout; SELECT count(*) FROM j2_monitor.sample();",
+        "SHOW transaction_read_only; SHOW statement_timeout; "
+        "SELECT count(*) FROM j2_monitor.sample();",
     )
     require(
         readonly.returncode == 0 and readonly.stdout.splitlines() == ["on", "2s", "1"],
@@ -191,7 +196,7 @@ def check_db_denial(driver, password):
 
 def check_network(driver):
     ip = driver.pod(NS, EXPORTER)["status"]["podIP"]
-    api = json.loads(driver.k("-n", NS, "get", "svc", "api", "-o", "json").stdout)["spec"][
+    api = json.loads(driver.k("-n", APP_NS, "get", "svc", "api", "-o", "json").stdout)["spec"][
         "clusterIP"
     ]
     worker = driver.images["worker"]
@@ -240,7 +245,7 @@ try:
 except TimeoutError:
     print('TCP timeout')
 """
-    allowed = driver.python(NS, "observer", write_probe.replace("sys.argv[1]", repr(api)))
+    allowed = driver.python(APP_NS, "observer", write_probe.replace("sys.argv[1]", repr(api)))
     require(allowed in {"400", "401", "403", "422"}, "application route positive control failed")
     denied = driver.k(
         "-n",
@@ -343,7 +348,7 @@ def check_scrapes(driver):
             actual = sorted(
                 {float(value) for _, value in series["j2_sample_timestamp_seconds"][0]["values"]}
             )
-            gaps = [b - a for a, b in zip(actual, actual[1:])]
+            gaps = [b - a for a, b in zip(actual, actual[1:], strict=False)]
             require(len(actual) >= 5 and max(gaps) <= 5, "exporter samples are missing or stale")
             save(
                 driver.output / "freshness.json",
@@ -358,6 +363,7 @@ def main():
     parser.add_argument("evidence", type=Path)
     parser.add_argument("scratch", type=Path)
     parser.add_argument("layouts", type=Path)
+    parser.add_argument("exporter_layout", type=Path)
     args = parser.parse_args()
     require(
         os.environ.get("GITHUB_ACTIONS") == "true"
@@ -371,6 +377,7 @@ def main():
     driver.monitor_password = secrets.token_hex(32)
     lock = json.loads((J2 / "images.lock.json").read_bytes())
     driver.images = {name: lock[name] for name in ("runtime", "worker")}
+    exporter = json.loads((J2 / "exporter.lock.json").read_bytes())["image"]
     try:
         driver.install()
         for addon in ("calico", "keda"):
@@ -402,28 +409,24 @@ def main():
         )
         for name, image in driver.images.items():
             restore(args.layouts / name, image)
-        tag = "localhost:5001/j2-exporter:pilot"
+        restore(args.exporter_layout / "exporter", exporter)
+        addresses = driver.cluster()
+        # Register the loopback reference with the node's registry mirror before kubelet starts it.
         driver.command(
             [
                 "docker",
-                "build",
-                "--provenance=false",
-                "--platform=linux/amd64",
-                "-t",
-                tag,
-                "-f",
-                str(J2 / "exporter/Dockerfile"),
-                ".",
-            ],
-            timeout=900,
+                "exec",
+                kind_driver.CLUSTER + "-control-plane",
+                "ctr",
+                "--namespace",
+                "k8s.io",
+                "images",
+                "pull",
+                "--hosts-dir",
+                "/etc/containerd/certs.d",
+                exporter,
+            ]
         )
-        driver.command(["docker", "push", tag])
-        (exporter,) = json.loads(
-            driver.command(["docker", "inspect", "--format", "{{json .RepoDigests}}", tag]).stdout
-        )
-        retain(driver.output / "exporter", exporter)
-        save(driver.output / "exporter-image.json", {"image": exporter})
-        addresses = driver.cluster()
         apply_app(driver, addresses)
         password = driver.monitor_password
         db_ip = addresses["192.0.2.1"]
@@ -432,7 +435,7 @@ def main():
             driver.password,
             (J2 / "exporter/monitor.sql")
             .read_text()
-            .replace(":'namespace'", f"'{NS}'")
+            .replace(":'namespace'", f"'{APP_NS}'")
             .replace(":'password'", f"'{password}'"),
             superuser=True,
         )
@@ -451,23 +454,32 @@ def main():
         rollout(driver, PROM)
         check_scrapes(driver)
         sessions = driver.sql(
-            "SELECT application_name, count(*) FROM pg_stat_activity WHERE usename='j2_exporter' GROUP BY 1",
+            "SELECT application_name, count(*) FROM pg_stat_activity "
+            "WHERE usename='j2_exporter' GROUP BY 1",
             DB,
         )
-        require(sessions == "j2-db-exporter|1", "live monitor connection budget differs")
-        save(driver.output / "monitor-connections.json", {"pg_stat_activity": sessions})
+        limit = driver.sql("SELECT rolconnlimit FROM pg_roles WHERE rolname='j2_exporter'", DB)
+        require(
+            sessions == "j2-db-exporter|1" and limit == "1",
+            "live monitor connection budget differs",
+        )
+        save(
+            driver.output / "monitor-connections.json",
+            {"pg_stat_activity": sessions, "role_limit": int(limit)},
+        )
+        app_pods = json.loads(driver.k("-n", APP_NS, "get", "pods", "-o", "json").stdout)["items"]
+        running_image_digests(
+            [{"containers": p["status"]["containerStatuses"]} for p in app_pods], driver.images
+        )
         pods = json.loads(driver.k("-n", NS, "get", "pods", "-o", "json").stdout)["items"]
         for pod in pods:
             app = pod["metadata"].get("labels", {}).get("app")
-            pin = {PROM: PROMETHEUS, EXPORTER: exporter}.get(app)
+            pin = {PROM: PROMETHEUS, EXPORTER: exporter}[app]
             for c in pod["status"].get("containerStatuses", []):
                 require(c["restartCount"] == 0, "pod restarted during overlay pilot")
-                if not pin:
-                    pin = next((v for v in driver.images.values() if v == c["image"]), None)
-                if pin:
-                    require(
-                        c["imageID"].endswith(pin.split("@")[1]), f"running image differs for {app}"
-                    )
+                require(
+                    c["imageID"].endswith(pin.split("@")[1]), f"running image differs for {app}"
+                )
         check_network(driver)
         save(
             driver.output / "verdict.json", {"status": "PASS", "scope": "unmeasured overlay pilot"}
@@ -475,7 +487,8 @@ def main():
     except BaseException as error:
         save(driver.output / "verdict.json", {"status": "FAIL", "error": str(error)})
         if driver.cluster_started:
-            driver.k("-n", NS, "get", "pods,events", "-o", "json", allowed=True)
+            for namespace in (APP_NS, NS):
+                driver.k("-n", namespace, "get", "pods,events", "-o", "json", allowed=True)
         raise
     finally:
         save(driver.output / "cleanup.json", driver.cleanup())

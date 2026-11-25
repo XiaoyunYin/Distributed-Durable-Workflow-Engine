@@ -9,7 +9,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 J2 = ROOT / "experiments/portfolio/load-envelope"
-PROMETHEUS = "prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7"
+PROMETHEUS = (
+    "prom/prometheus:v3.13.0@sha256:"
+    "c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7"
+)
 EXPORTER = "j2-exporter"
 PROM = "j2-prometheus"
 
