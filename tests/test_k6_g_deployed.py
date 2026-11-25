@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from contextlib import nullcontext
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock
@@ -15,6 +16,7 @@ from dur053_k6_chaos import Target  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
     CONTROL_PATH,
     IDLE_RELATIONS,
+    STALE_PATH,
     Json,
     canonical,
     idle_sources,
@@ -83,6 +85,53 @@ def test_stale_call_and_continuity_use_predecessor_after_peer_registration(tmp_p
     )
     driver.call.assert_called_once_with("old-pod", "call-1", "old")
     assert observation["before"] == observation["after"] == old
+
+
+def test_stale_parity_uses_private_fault_sources(tmp_path: Path) -> None:
+    episode = object.__new__(Episode)
+    episode.cell = {"cell": "hook-5"}
+    episode.scratch = tmp_path
+    episode.frames = tmp_path / "frames"
+    episode.evidence = Mock(root=tmp_path / "results")
+    episode.evidence.step.side_effect = lambda _: nullcontext()
+    source = episode.frames / STALE_PATH
+    source.parent.mkdir(parents=True)
+    original = canonical({"call": {}, "hold": {}, "journal": "original"})
+    source.write_bytes(original)
+    expected = {
+        "Committed": "STALE_CHALLENGE_COMMITTED",
+        "MissingACK": "required_proof_missing:stale_challenge_ack",
+        "MissingBackend": "required_proof_missing:stale_challenge_backend",
+        "MissingProgress": "required_proof_missing:stale_challenge_successor_progress",
+        "MissingRejection": "required_proof_missing:stale_challenge_rejection",
+        "N5Harness": "STALE_CHALLENGE_ORIGIN",
+        "WrongOrder": "STALE_CHALLENGE_ORDER",
+    }
+
+    def invoke(args: tuple[str, ...], label: str, timeout: int) -> tuple[int, bytes]:
+        _, name, mode = label.split("/")
+        if mode == "live":
+            assert args[:6] == ("sudo", "unshare", "--mount", "--propagation", "private", "--"), (
+                "live fixtures must have private mounts"
+            )
+            assert Path(args[11]) == source
+            staged = Path(args[10])
+            assert staged == tmp_path / f"stale-proof-{name}.json"
+            assert staged.read_bytes() != original
+            assert timeout == 140
+        else:
+            assert args[:4] == ("sudo", "unshare", "--net", "--")
+            assert timeout == 20
+        assert source.read_bytes() == original
+        code = expected[name]
+        kind = "violation" if code.startswith("STALE_CHALLENGE_") else "missing"
+        return 1, canonical(
+            {"confirmation": {"reason": code}, "findings": [{"kind": kind, "code": code}]}
+        )
+
+    episode.stale_parity({"external_dir": str(episode.frames)}, "checker", invoke)
+    assert episode.evidence.step.call_count == len(expected)
+    assert source.read_bytes() == original
 
 
 def runtime_inputs() -> tuple[Json, Json, Json]:

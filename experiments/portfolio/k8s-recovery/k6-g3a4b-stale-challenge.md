@@ -7,7 +7,11 @@ G exercises `hook-5-0` on the existing Phase G kind topology with the E2 schedul
 The continuation collects the new PostgreSQL-backed predicate fixtures in the
 existing Phase G kind job. Each negative replay reuses the deployed episode's
 sealed evidence and takes a fresh live read-only cut before network-isolated
-offline replay. The PostgreSQL K6 fixtures job gains no service-backed cases.
+offline replay. Up to three read-only checkers run concurrently after fencing.
+Each sees the live collector and a privately bind-mounted fault source. The
+sealed reconciliation deadline and all job timeouts still apply. Role and grant
+setup runs before replay. The PostgreSQL K6 fixtures job gains no service-backed
+cases.
 
 | Cell | Independent sources and joins | Required ordering and outcomes |
 | --- | --- | --- |

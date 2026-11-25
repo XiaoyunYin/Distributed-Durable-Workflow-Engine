@@ -24022,6 +24022,24 @@
       ],
       "expected": "medium-3 verdict:",
       "requires_database": false
+    },
+    {
+      "id": "k6g3a4b2-stale-replay-mount",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "\"--propagation\",\n                    \"private\",",
+      "new": "\"--propagation\",\n                    \"shared\",",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k6_g_deployed.py::test_stale_parity_uses_private_fault_sources",
+        "-q"
+      ],
+      "expected": "live fixtures must have private mounts",
+      "requires_database": false
     }
   ]
 }

@@ -1331,40 +1331,69 @@ class Episode(Matrix):
             ]
         else:
             cases.append(("Committed", "call", "outcome", "COMMITTED", "STALE_CHALLENGE_COMMITTED"))
-        for name, section, field, value, reason in cases:
-            with self.evidence.step("stale-parity-" + name):
-                variant = copy.deepcopy(original)
-                target = variant
-                for key in section.split(".") if section else ():
-                    target = target[key]
-                target[field] = value
-                atomic(source, canonical(variant))
-                folder = self.evidence.root / "stale-parity" / name
-                folder.mkdir(parents=True)
-                bundle = folder / "public"
-                private = self.scratch / f"stale-parity-{name}.json"
-                private_file(private, canonical({**config, "episode_dir": str(bundle)}))
-                label = "stale-parity/" + name
-                code, live = invoke(
-                    ("sudo", checker, "-k6-live-v1", str(private)), label + "/live", 140
-                )
-                offline_code, offline = invoke(
-                    ("sudo", "unshare", "--net", "--", checker, "-k6-offline-v1", str(bundle)),
-                    label + "/offline",
-                    20,
-                )
-                kind = "violation" if reason.startswith("STALE_CHALLENGE_") else "missing"
-                expected = reason if kind == "violation" else "required_proof_missing:" + reason
-                require(code == offline_code == 1 and live == offline, "G_STALE_FIXTURE_PARITY")
-                result = json.loads(live)
-                require(
-                    len(result["findings"]) == 1
-                    and result["findings"][0]["code"] == expected
-                    and result["findings"][0]["kind"] == kind
-                    and result["confirmation"]["reason"] == expected,
-                    "G_STALE_FIXTURE_RESULT_" + name,
-                )
-        atomic(source, canonical(original))
+
+        def exercise(name: str, section: str, field: str, value: object, reason: str) -> None:
+            variant = copy.deepcopy(original)
+            target = variant
+            for key in section.split(".") if section else ():
+                target = target[key]
+            target[field] = value
+            fault = self.scratch / f"stale-proof-{name}.json"
+            atomic(fault, canonical(variant))
+            folder = self.evidence.root / "stale-parity" / name
+            folder.mkdir(parents=True)
+            bundle = folder / "public"
+            private = self.scratch / f"stale-parity-{name}.json"
+            private_file(private, canonical({**config, "episode_dir": str(bundle)}))
+            label = "stale-parity/" + name
+            # Each checker sees the live collector and its own immutable fault
+            # file. The bind mount disappears with the checker process.
+            code, live = invoke(
+                (
+                    "sudo",
+                    "unshare",
+                    "--mount",
+                    "--propagation",
+                    "private",
+                    "--",
+                    "sh",
+                    "-ec",
+                    'mount --bind "$1" "$2"; shift 2; exec "$@"',
+                    "stale-parity",
+                    str(fault),
+                    str(source),
+                    checker,
+                    "-k6-live-v1",
+                    str(private),
+                ),
+                label + "/live",
+                140,
+            )
+            offline_code, offline = invoke(
+                ("sudo", "unshare", "--net", "--", checker, "-k6-offline-v1", str(bundle)),
+                label + "/offline",
+                20,
+            )
+            kind = "violation" if reason.startswith("STALE_CHALLENGE_") else "missing"
+            expected = reason if kind == "violation" else "required_proof_missing:" + reason
+            require(code == offline_code == 1 and live == offline, "G_STALE_FIXTURE_PARITY")
+            result = json.loads(live)
+            require(
+                len(result["findings"]) == 1
+                and result["findings"][0]["code"] == expected
+                and result["findings"][0]["kind"] == kind
+                and result["confirmation"]["reason"] == expected,
+                "G_STALE_FIXTURE_RESULT_" + name,
+            )
+
+        # Quiet cuts keep their original per-episode deadline. Replay only
+        # after fencing writers. Acquisition is read-only and runs no role or
+        # grant setup. Reporting stays on the coordinator thread.
+        with ThreadPoolExecutor(max_workers=3) as workers:
+            futures = [(case[0], workers.submit(exercise, *case)) for case in cases]
+            for name, result in futures:
+                with self.evidence.step("stale-parity-" + name):
+                    result.result()
 
     def inject(self, gates: Path, phase: str, checker_done: Callable[[], bool]) -> Json:
         request = gates / f"{phase}.json"
