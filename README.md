@@ -2,10 +2,11 @@
 
 [![CI](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/workflows/ci.yml)
 
-**Problem:** recover committed workflows safely across scheduler failover,
-duplicate delivery, worker retries, and uncertain external effects. **Stack:**
-Go, PostgreSQL, Kafka, Python, Docker, OpenTelemetry, and Prometheus, plus a
-bounded retrieval-and-approval incident-investigation example.
+A workflow engine that recovers committed work when schedulers lose ownership,
+workers restart or messages arrive twice. A Go API and scheduler coordinate
+through PostgreSQL, Kafka delivers task notices, and Python workers run
+activities. Durable claims, receipts and approval grants let the engine
+recover progress and surface uncertain external actions for reconciliation.
 
 ## Architecture
 
@@ -20,158 +21,106 @@ flowchart LR
   S --> E[Approval-gated effects]
 ```
 
+The [design document](DESIGN.md) explains committed state and recovery,
+the major trade-offs, and how this engine's semantics compare with Temporal,
+DBOS, Restate and AWS Step Functions.
+
+## Measured results
+
+- **Kubernetes lifecycle recovery.** On single-host, single-node kind on
+  GitHub-hosted runners, the synthetic short- and long-workflow campaign
+  retained 161 episode records, with 160 passing and one invalid. The measured
+  windows contain **118,038 accepted submissions**, summed from the
+  per-episode `accepted` counters. The campaign safety checks recorded
+  **zero lost or duplicated accepted submissions and zero stale result
+  commits**, including in the retained invalid episode. The exercised faults
+  were rollouts, process kills, worker scale-down, and voluntary eviction
+  under a PodDisruptionBudget. [Lifecycle report](experiments/portfolio/k8s-recovery/k4-v1/acceptance/results.md#safety)
+  · [Episode data](experiments/portfolio/k8s-recovery/k4-v1/acceptance/k4-summary.json).
+- **Graceful worker drain.** On the same single-host kind setup, abandoned
+  attempts fell from **39 of 58** active at intervention in the baseline
+  to **0 of 59** with drain enabled. The totals join 15 valid matched pairs
+  to their episode records and sum each arm's abandonment counts and active
+  attempts. The short-workflow comparison used five pairs each for worker
+  rollout, scale-down, and voluntary eviction.
+  [Paired episode data](experiments/portfolio/k8s-recovery/k4-v1/acceptance/k4-summary.json).
+- **Lease recovery.** A single-host Docker Desktop/WSL2 process-fault
+  study recorded **60 takeovers, 60 useful recoveries, 180 fenced stale-owner
+  writes, and zero false takeovers**. The harness had one affected workflow
+  per episode across 60 crash or pause episodes, with 10 episodes per
+  fault and lease-setting combination. Useful recovery meant committing a
+  replacement attempt for the affected work. [Lease study](experiments/m7/dur027/results.json).
+- **Scheduler sweep.** At an offered **2 workflows/s**, one scheduler
+  completed a median 1.37–1.64 workflows/s across the sequential and
+  fan-out/fan-in pure workloads. Two schedulers reached 1.97–1.98
+  workflows/s. The single-host Docker Desktop/WSL2 engine harness used four
+  fixed worker processes and three runs per configuration, with 24 measured
+  workflows per run. The numbers describe this direct engine-path harness.
+  [Scheduler sweep](experiments/m7/dur026/results.json).
+- **Checkpoint trade-off.** After an in-process panic, every-chunk
+  checkpointing took **7.6×** the boundary-only median completion time and
+  cut median replay by **99 chunks**. The single-host Docker Desktop/WSL2
+  harness ran a 200-chunk activity with one SHA-256 work unit per chunk and
+  three panic runs per checkpoint setting.
+  [Checkpoint study](experiments/m7/dur028/results.json).
+- **Dispatch comparison.** Direct PostgreSQL notification had a **35.6 ms**
+  median terminal latency versus **51.4 ms** via Kafka. The ready-to-claim
+  comparison was unresolved. The single-host Docker Desktop/WSL2 study used
+  one pure activity per workflow and three runs per dispatch configuration,
+  with 24 measured workflows per run. [Dispatch comparison](experiments/m7/dur035/results.json).
+- **Safeguard ablations.** Within-profile latency and throughput spreads
+  ranged from **11.7% to 15.8%**, leaving the cost of the safeguards
+  unresolved. The single-host Docker Desktop/WSL2 engine harness ran an
+  eight-step pure workflow, with three runs per profile and 24 measured
+  workflows per run. Separate negative controls exposed missing history, delayed
+  dispatch without the outbox, and stale-owner writes.
+  [Safeguard ablations](experiments/m7/dur034/results.json).
+
+The kind studies cover lifecycle changes on one host. The local engine-path
+studies use bounded fixtures. These measurements leave deployed system
+capacity and independent-host recovery unevaluated.
+
 ## Evidence highlights
 
-- **AWS lease fencing:** the four-arm DUR-049 campaign's independent checker
-  found zero superseded-epoch transitions; the preserved worker's late result
-  was rejected as `STALE_ATTEMPT`. [Network episode](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/network-isolation.json).
-  Cold standby, one region and one dependency host; not database-host durability.
-- **Local recovery:** 60 takeovers, 60 useful recoveries, 180 fenced stale-owner
-  writes and zero false takeovers. [60-episode study](experiments/portfolio/local-recovery/local-410041/summary.json).
-  Docker Desktop/WSL2 process faults, not independent-host recovery.
-- **Named faults:** 48/48 cases (16 boundaries × 3 seeds) passed the independent
-  invariant checker. [Campaign evidence](experiments/m5/f01-f11-results.json).
-  This is a bounded case set, not a universal exactly-once proof.
-- **Regression gate:** all 17 selected behavioral safety mutations were
-  detected in [hosted CI](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466),
-  alongside a reference model and Go fuzz targets. [Mutation results](mutations/results-powershell.json).
-  The gate covers representative guards, not every line.
-- **Production-path approval safety:** the incident remediation traversed the
-  PostgreSQL-backed API, engine, source-corpus lookup, approval grant, and
-  effect service; the attack matrix rejected resource, argument, revision,
-  grant-reuse, and pre-approval-dispatch changes. [DUR-033A integration](internal/incident/production_integration_test.go).
-- **HTTP-to-worker recovery trace:** normal and worker-recovery runs reached
-  terminal state through PostgreSQL, outbox, Kafka, and the worker path.
-  [DUR-048 protocol](experiments/m8/dur042-pilot/protocol.json) ·
-  [recovery evidence](experiments/m8/dur042-pilot/recovery/recovery.json).
+- **Lease fencing.** In the preserved-process network isolation episode of
+  the four-arm AWS single-region study, the original worker's late result was
+  rejected as `STALE_ATTEMPT`. The campaign used a controller-started cold
+  standby and a shared dependency host. [Network isolation episode](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/network-isolation.json)
+  · [Failure case study](experiments/portfolio/recruiter/failure-case-study.md).
+- **Recovery through the deployed path.** A normal run and a worker-kill run
+  in the single-host Compose pure-activity pilot reached durable terminal
+  state through HTTP, PostgreSQL, the outbox, Kafka and the worker.
+  [Pilot and traces](experiments/m8/dur042-pilot/).
+- **Approval binding.** A PostgreSQL integration test exercises the API,
+  workflow engine and effect service with a synthetic incident. It rejects
+  changed resources, arguments or revisions, grant reuse and dispatch before
+  approval. [Integration test](internal/incident/production_integration_test.go).
+- **Admission control.** In the opt-in load-test namespace, submissions
+  that would exceed the configured limit on active workflows or pending
+  outbox records receive HTTP `429` with `Retry-After`.
+  [Admission guard](internal/state/admission.go) · [API contract test](internal/api/server_test.go).
 
-## Engineering focus
+## Correctness evidence
 
-- Partition ownership and lease-epoch fencing.
-- Durable workflow recovery and reconciliation.
-- Transactional outbox/inbox, duplicate delivery and offset safety.
-- Approval-bound effects and explicit uncertain-outcome handling.
-- Falsifiable fault evidence, an independent reference model and fuzzing.
+The [mutation manifest](mutations/manifest.json) declares **1,381 cases** in
+this source tree. The committed reports are earlier snapshots. The
+[PowerShell report](mutations/results-powershell.json) records 18 passing
+cases, including 17 behavioral detections and one configuration tripwire, in
+one hosted run. The [Bash report](mutations/results-bash.json) records 58
+passing cases against an earlier working-tree overlay. The reports cover
+their respective case sets. Current CI checks each shell's manifest coverage
+and requires the expected detection with a passing baseline.
+[Gate rules](mutations/README.md).
 
-## Measurements
+Source inventory for this tree contains **430 Go test functions, 4 Go fuzz
+targets and 826 Python test functions**. These are counts of declarations in
+tracked sources. They include build-tagged files and exclude generated test
+instances such as parametrized cases.
 
-- Crash/pause lease takeover tracked the tested TTLs, and the 60-episode
-  checker recorded useful recovery with zero false takeovers. [DUR-027](experiments/m7/dur027/results.json)
-- Two schedulers met 2 offered workflows/s where one did not, through the
-  in-process engine path with four fixed worker processes; single-host
-  Docker Desktop/WSL2, not end-to-end deployed capacity. [DUR-026](experiments/m7/dur026/results.json)
-- Safeguard ablations exposed the targeted missing-history, missing-outbox,
-  and stale-lease behaviors. No safeguard-cost effect is promoted: per-profile
-  latency and throughput spreads ranged from 11.7% to 15.8% over three
-  repeats. [DUR-034](experiments/m7/dur034/results.json)
-- Notification-direct beat Kafka at the resolved terminal stage; ready-to-claim
-  was unresolved in the named campaign. [DUR-035](experiments/m7/dur035/results.json)
-- Every-chunk checkpointing took 7.6× the boundary-only median at one
-  SHA-256 work unit per chunk, under an in-process panic model; not a crossover
-  estimate. [DUR-028](experiments/m7/dur028/results.json)
-
-PostgreSQL fences transitions by lease epoch, workflow revision, and attempt
-token; uncertain external effects stop for reconciliation. This educational
-project makes no production-readiness or universal exactly-once claim.
-
-More: [failure case study](experiments/portfolio/recruiter/failure-case-study.md) ·
-[role-specific resume claims](experiments/portfolio/recruiter/claim-evidence.md) ·
-[scripted demo](demos/recruiter-demo.gif) ([tape and instructions](demos/README.md)).
-
-### Deployed HTTP-to-worker pilot
-
-The local Compose pilot exercises HTTP submission → PostgreSQL → transactional
-outbox → Kafka → Python worker → durable receipt, with a normal run and a
-worker-kill recovery run. Both artifacts require accepted work to reach a
-terminal state; the recovery trace is exported as a coherent W3C trace, and
-pure activity produces no effect span because the approved effect service does
-not run. [DUR-048 pilot evidence](experiments/m8/dur042-pilot/)
-
-This is local Compose evidence, not AWS, host-failure, production-throughput,
-or external-effect evidence.
-
-The four-arm [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/protocol.json)
-recorded zero superseded-epoch transitions; in its preserved-process network
-arm, the original worker's late result was rejected as `STALE_ATTEMPT`
-([episode](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/network-isolation.json)).
-The peer was a controller-started cold standby in one region. Owner-lock
-reaping, campaign-only timeout overrides, failed-attempt history, cleanup, and
-the limits of these measurements are documented in the campaign records and
-[failure case study](experiments/portfolio/recruiter/failure-case-study.md).
-
-## Future work
-
-DUR-050 capacity/pilot runs (including protocol step 2), DUR-052 operations
-dashboard and oldest-work alert, DUR-053 Kubernetes deployment/recovery work,
-and DUR-054 release/supply-chain work are deferred until after the user's
-AI-infrastructure project. No capacity/SLO result or Kubernetes/EKS deployment
-claim is made here.
-
-### Scoped recovery case study
-
-The committed local portfolio run exercised two failure modes: an owner process
-crash and an owner pause followed by stale resumption. Across 60 episodes it
-recorded 60 takeovers, 60 useful recoveries, 180 fenced stale-owner writes,
-and zero false takeovers. The source harness confirmed the crash targets were
-dead and the paused owners were stale after resumption. The [protocol and
-summary](experiments/portfolio/local-recovery/local-410041/summary.json) carry
-the seed, counts, and timing ranges.
-
-This is local Docker Desktop/WSL2 process evidence, not a two-host or
-database-host durability result. One case — a scheduler stalled
-while holding the lease-row lock — is intentionally excluded from the
-`local-410041` arm; the repair itself is verified separately.
-The local result therefore demonstrates stale-owner fencing and affected-work
-progress within its boundary; the excluded lock-held arm is a campaign-scope
-limitation, not an unresolved repair.
-
-The lease-contention repair is independently reviewed and verified. It preserves
-the in-transaction lease fence while bounding lock acquisition and scheduler
-iterations. The new preserved-process isolation result is recorded in the
-[scenario-1 summary](experiments/portfolio/local-recovery/isolation-410099/summary.json).
-
-Supporting AI evidence remains separately scoped: the live-model evaluation
-achieved 4/20 safe outcomes per retrieval arm, versus 20/20 for its fixture
-control. Adversarial excess proposal-change rates were 2/20 defended versus
-6/20 plain above their clean-clean baselines. These are small synthetic studies,
-not production model-quality claims. [Evaluation evidence](experiments/m7/dur029/live-evaluation.json)
-
-A separately versioned PostgreSQL FTS/pgvector/RRF and MCP study used
-`gpt-6-luna`, which abstained on all 20 held-out cases. Its 4/20 primary-safe
-result matches the unchanged baseline, so there was no measured improvement in
-primary safety; its 0/16 document-dependent result also matches baseline. Both
-development candidates abstained on all 10/10 cases. For the 16 answerable
-cases, fixture evidence omits the expected action and parameters, so the 16
-"false abstentions" are false relative to fixture labels, not demonstrated
-model errors. This benchmark cannot distinguish a careful model from a
-non-functional one on those cases.
-
-Hybrid versus dense retrieval is the more informative within-study comparison:
-MRR was 0.657 versus 0.453 and ranking Recall@K was 0.889 versus 0.867 on 120
-held-out queries. The keyword arm's 0.400 is structural on this template:
-conjunctive `plainto_tsquery` matches only `bad_configuration` and
-`connection_pool`, with per-family recall 1.0/1.0/0/0/0. These synthetic
-retrieval metrics are template-bound.
-
-All 120 injection-matrix runs abstained with `NO_PROPOSAL`, so the 0/20 excess
-for each profile is uninformative about injection resistance in either
-direction; the study provides no evidence of injection resistance. The
-separate canary scan found 0 leaks across 120 runs x five surfaces. These
-bounded synthetic results do not establish production quality. [DUR-055 study
-and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
-
-DUR-056's synthetic study of 60 independent held-out keys with one model scored 18/60 safe
-without retrieval and 56-60/60 with retrieval (+38 to +42 paired cases); there
-were zero wrong-parameter proposals. In the hybrid injection matrix, attack
-success was 26/60 plain versus 0/60 defended, safe-under-attack was 21/60 versus
-60/60, and there were zero raw leaks across five canary surfaces. Corrected
-retrieval metrics use 54 relevant queries: keyword 1.000/1.000, dense
-0.972/0.914, and hybrid 1.000/0.981 Recall@3/MRR. The synthetic fixture and
-one-model, 60-key sample limit these results; DUR-029 is non-comparable. See
-the [DUR-056 report](experiments/m8/dur056-solvable-agent-study/gate-b-results-run-001-20260929.md)
-and [R211 supplement](experiments/m8/dur056-solvable-agent-study/retrieval-metrics-supplement-run-001-r211-v1-20260929.md).
-
-The published counts retain per-split labels: one held-out key conflicts with a development chunk in the 126-chunk search corpus, although that chunk was absent from all 10 delivered lists for the case; see [R214 collision and sensitivity supplement](experiments/m8/dur056-solvable-agent-study/key-collision-supplement-run-001-r214-v1-20260929.md).
+The [claim-to-evidence map](experiments/portfolio/recruiter/claim-evidence.md)
+links to the retained backend, platform and incident-agent studies.
+[Experiment reproduction notes](experiments/README.md) ·
+[Scripted demo](demos/recruiter-demo.gif) ([tape and instructions](demos/README.md)).
 
 ## Run locally
 
@@ -243,46 +192,9 @@ docker compose --env-file .env -f deploy/local/compose.yaml up -d --wait
 
 Adding `--volumes` to `down` permanently deletes local dependency data.
 
-## Design and evidence
-
-- [Experiment reproduction notes](experiments/README.md)
-- [Portfolio recovery campaign scope](experiments/portfolio/README.md)
-
-### Evidence map
-
-The committed fault, measurement, and mutation artifacts are the source of
-truth for the claims above. The current deployment exposes bounded Prometheus
-counters and gauges for leases, claims, results, relay activity, database work,
-workers, and reconciliation age. The local DUR-048 pilot also exports an
-end-to-end HTTP-to-Kafka-worker trace for its normal and recovery cases; that
-trace is local pilot evidence, not production observability.
-The [mutation manifest](mutations/manifest.json) declares the selected cases. The checked-in
-[PowerShell results](mutations/results-powershell.json)
-and [Bash results](mutations/results-bash.json) are from hosted run
-[`35941481466`](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466)
-on `4f98911`; each records all 18 cases. Both workflow jobs passed on two
-consecutive attempts.
-The Bash and PowerShell mutation gates each run in two parallel shards with
-isolated stacks and migration-complete databases. `Mutation gate coverage`
-requires complete results from both shells. [Gate layout and timings](mutations/README.md#current-ci-layout-and-timing).
-The bounded AWS recovery evidence is published
-separately; the required Kubernetes campaign remains future work.
-Internal study notes stay local; only concise claim boundaries
-and reproducible evidence links are published here.
-
 ## Operating limits
 
-- APIs are development-only, unauthenticated, and localhost-bound by default.
-  Do not expose them to untrusted clients.
-- **Lease-contention repair, verified:**
-  a scheduler stalled inside a transaction can retain the lease-row lock beyond
-  lease expiry and block takeover. Independent review verified the committed
-  repair: it bounds lock acquisition and scheduler iterations with a
-  distinct retryable error while preserving the fence.
-- The AWS campaign establishes bounded application-host and network-isolation
-  recovery only; it does not establish database HA, multi-region durability,
-  sustained production load, or arbitrary exactly-once effects.
-- Historical studies, deterministic fixtures, and the deployed pure-activity
-  demo have different scopes; their results are not interchangeable.
-- The existing `v0.1.0` tag identifies `7e4137d`; this branch includes later
-  corrections. No tag is moved by this documentation cleanup.
+The single-host Compose and kind deployments share PostgreSQL and Kafka
+with the application. The default demo runs pure activities. The API is a
+local development surface and is unauthenticated by default.
+[Measured boundaries and known limitations](DESIGN.md#known-limitations).
