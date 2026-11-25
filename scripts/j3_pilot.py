@@ -412,18 +412,32 @@ def dispatch_proof(driver, origin, db_ip, observer, sender):
     db_log = driver.command(["docker", "logs", kind.CLUSTER + "-postgres"], record=False)
     statements = [
         line
-        for line in db_log.stderr.splitlines()
-        if "WHERE namespace = $1 AND workflow_id > $2" in line
-        or "parameters: $1 = 'j3-target'" in line
+        for line in (db_log.stdout + db_log.stderr).splitlines()
+        if "WHERE namespace = $1 AND workflow_id > $2" in line or f"$1 = '{TARGET}'" in line
     ]
     (driver.output / "scheduler-scan.log").write_text(
         "\n".join(statements) + "\n", encoding="utf-8"
     )
+    schedulers = [
+        p
+        for p in driver.inspect(APP, "pods")["items"]
+        if p["metadata"]["labels"].get("app") == "scheduler"
+    ]
+    scopes = {
+        p["metadata"]["name"]: next(
+            v["value"]
+            for v in p["spec"]["containers"][0]["env"]
+            if v["name"] == "RUNTIME_NAMESPACE"
+        )
+        for p in schedulers
+    }
     require(
-        any("workflow_id > $2" in line for line in statements)
-        and any("'j3-target'" in line for line in statements),
-        "no target scheduler repair scan evidence",
+        scopes
+        and set(scopes.values()) == {TARGET}
+        and any("workflow_id > $2" in line for line in statements),
+        "missing scoped repair scan",
     )
+    kind.save(driver.output / "scheduler-scopes.json", scopes)
     data = database_rows(driver)
     kind.save(driver.output / "durable-rows.json", data)
     foreign = "j3-fixture-foreign-1"

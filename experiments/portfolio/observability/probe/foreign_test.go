@@ -3,6 +3,7 @@ package probe_test
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -31,7 +32,16 @@ func TestForeignDemandAndReconciler(t *testing.T) {
 		t.Fatalf("foreign demand mismatch: %+v, %v", foreign, err)
 	}
 	t.Logf("real demand query: %+v", foreign)
-	part, err := partition.ID("j3-fixture-foreign-1")
+	foreignID := "j3-fixture-foreign-1"
+	targetWork, err := store.RuntimeWork(ctx, "j3-target", "", 100)
+	if err != nil || slices.Contains(targetWork, foreignID) {
+		t.Fatalf("target repair scan included foreign work: %v, %v", targetWork, err)
+	}
+	foreignWork, err := store.RuntimeWork(ctx, "j3-foreign", "", 100)
+	if err != nil || !slices.Equal(foreignWork, []string{foreignID}) {
+		t.Fatalf("foreign repair scan: %v, %v", foreignWork, err)
+	}
+	part, err := partition.ID(foreignID)
 	if err != nil {
 		t.Fatal(err)
 	}
