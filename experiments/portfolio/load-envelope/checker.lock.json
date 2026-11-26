@@ -1,0 +1,22 @@
+{
+  "source": "adda4709fff18e39c6a395d074f04923d160014a",
+  "tree": "2058507a67d95efa47017139dc2eff7e2d0ec781",
+  "go_version": "go1.27.4",
+  "package": "./cmd/dur049-checker",
+  "go_mod_sha256": "07af4ea627eee7b7a7f20254189568d0013f7134d31c4ff75a4568dcbcf014de",
+  "go_sum_sha256": "7b8192c191d52d8a791d7849f67a24b1e5a34ca23ed51e953b0909aaf4a0a634",
+  "env": {
+    "CGO_ENABLED": "0",
+    "GOOS": "linux",
+    "GOARCH": "amd64",
+    "GOAMD64": "v1",
+    "GOMAXPROCS": "2",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "GOENV": "off",
+    "GOFLAGS": "",
+    "GOEXPERIMENT": ""
+  },
+  "flags": ["-p", "1", "-mod=readonly", "-buildvcs=false", "-trimpath", "-ldflags=-s -w"],
+  "sha256": "63865be55385d925c55e1480dc95ef6743b9af017f19463fd595105ae7752f9c"
+}

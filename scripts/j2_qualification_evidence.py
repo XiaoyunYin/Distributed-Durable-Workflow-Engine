@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 
 from dur053_pilot import witness_events
-from dur053_prerequisites import trace_document
+from j2_checker_report import indexed_report
 from j2_offline import SECOND, clock_bounds, drain_identities, join, sender
 
 VOLUMES = (26678, 21002)
@@ -66,16 +66,15 @@ def seal(directory, result):
     write(directory / "freeze.json", {"qualification": result, "files": index})
 
 
-def checked_report(path):
-    report = read(path)
+def checked_report(report):
     require(report["status"] == "PASS" and report["valid"] is True, "checker rejected evidence")
     require(report["campaign"]["valid"] is True, "checker campaign failed")
     return report
 
 
 def check_replay_verdict(directory):
-    live = checked_report(directory / "live-checker.json")
-    replay = read(directory / "offline-checker.json")
+    live = checked_report(indexed_report(directory / "live-checker.json")[0])
+    replay, _ = indexed_report(directory / "offline-checker.json")
     require(
         replay["status"] in {"PASS", "FAIL"}
         and replay["valid"] is (replay["status"] == "PASS")
@@ -101,19 +100,21 @@ def verdict(report):
 
 
 def extract(directory):
-    live = directory / "live-checker.json"
-    raw = live.read_text(encoding="utf-8")
-    (directory / "snapshot.json").write_bytes(trace_document(raw).encode())
+    _, tables = indexed_report(
+        directory / "live-checker.json", snapshot=directory / "snapshot.json"
+    )
+    write(directory / "live-checker-tables.json", tables)
 
 
 def verify(directory):
     plan = read(directory / "plan.json")
     arrivals = read(directory / "arrivals.json")
-    live = checked_report(directory / "live-checker.json")
+    live = checked_report(indexed_report(directory / "live-checker.json")[0])
     expected_verdict = verdict(live)
     live_ids = live["workflow_ids"]
     del live
-    replay = checked_report(directory / "offline-checker.json")
+    replay, table_inventory = indexed_report(directory / "offline-checker.json", join_trace=True)
+    checked_report(replay)
     require_capacity(
         expected_verdict == verdict(replay), "checker_mismatch", "live/offline verdict drift"
     )
@@ -191,9 +192,7 @@ def verify(directory):
         "phase_join_counts": statuses,
         "clock_bracket_ns": uncertainty,
         "witness_events": len(witnessed),
-        "tables": {
-            name: {k: table[k] for k in ("count", "sha256")} for name, table in tables.items()
-        },
+        "tables": table_inventory,
     }
 
 
@@ -269,12 +268,14 @@ def closeout(directory):
     artifact = os.environ.get("ARTIFACT_ID", "")
     digest = os.environ.get("ARTIFACT_DIGEST", "")
     elapsed = None
+    engineering_margin = None
     try:
         require(
             artifact.isdecimal() and re.fullmatch("[a-f0-9]{64}", digest),
             "evidence upload missing",
         )
         result = read(directory / "freeze.json")["qualification"]
+        engineering_margin = result.get("scheduled_end_through_export_seconds")
         exported = result.get("export_completed_unix_ns")
         if exported is not None:
             require(type(exported) is int and exported > 0, "invalid export timestamp")
@@ -292,6 +293,13 @@ def closeout(directory):
             f"artifact `{artifact or 'unavailable'}` · SHA-256 `{digest or 'unavailable'}`",
             file=output,
         )
+        if type(engineering_margin) in (int, float):
+            target = "met" if engineering_margin <= 480 else "missed"
+            print(
+                f"Scheduled end through live export: {engineering_margin:.3f} s. "
+                f"480 s engineering target {target}.",
+                file=output,
+            )
     print(f"{disposition}: {reason}", flush=True)
 
 

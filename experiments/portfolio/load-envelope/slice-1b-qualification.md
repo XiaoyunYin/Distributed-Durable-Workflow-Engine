@@ -49,3 +49,5 @@ Attempt 1 used tooling commit `a61be6aca29c9eb1d08219cdadd11db2f41887fa`. Both j
 The live checkers exited 137 after 464.39 s and 281.53 s, respectively. Both pod cgroups recorded `oom_kill=4` and `oom_group_kill=1` while kubelet still reported the observers running with zero restarts. Each node's kernel log identifies the checker in the observer pod's memory cgroup. RSS at kill is the sum of anonymous, file-backed and shared RSS from that kernel line. The live resource sampler retained 458 primary and 278 fallback samples, with maximum gaps of 1.053 s and 1.050 s, respectively.
 
 Both jobs reached teardown with empty live checker reports. Offline replay was unperformed. Both cleanups passed, both ZIPs matched their Actions digests, and all 127 freeze entries verified in each archive. The terminal verdict job confirmed both `capacity_failure` results and ended the dispatch.
+
+The subsequent checker revision, standalone binary pin and pre-qualification are recorded in [slice 1c checker tooling](slice-1c-checker.md).

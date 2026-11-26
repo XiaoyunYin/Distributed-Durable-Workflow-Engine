@@ -21,6 +21,15 @@ from urllib.request import urlopen
 import dur053_k3 as kind
 from dur053_k3_policy import single_witness_session
 from dur053_prerequisites import export_witness
+from j2_checker import (
+    CHECKER,
+    CONTAINER_CHECKER,
+    INSTALL,
+    MOUNTED_CHECKER,
+    POD_CHECKER,
+    verify_binary,
+)
+from j2_checker_report import indexed_report, markers
 from j2_offline import SECOND, utc_ns
 from j2_overlay import EXPORTER, J2, PROM, ROOT
 from j2_qualification_evidence import (
@@ -70,30 +79,6 @@ METRICS = (
         for kind in ("lock", "lwlock", "io", "ipc", "client", "timeout", "other")
     ),
 )
-CHECKER = """
-import json, resource, subprocess, sys
-status = subprocess.run(["/checker", *sys.argv[1:]]).returncode
-peak = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-measurement = {"exit_status": status, "peak_rss_kib": peak}
-print("J2_CHECKER " + json.dumps(measurement), file=sys.stderr, flush=True)
-sys.exit(status if status >= 0 else 128 - status)
-"""
-OFFLINE_CHECKER = (
-    """
-from pathlib import Path
-def cgroup():
-    root = Path("/sys/fs/cgroup")
-    return {name: (root / ("memory." + name)).read_text().strip()
-            for name in ("max", "peak", "events")}
-try:
-"""
-    + "\n".join("    " + line for line in CHECKER.strip().splitlines())
-    + """
-finally:
-    print("J2_CGROUP " + json.dumps(cgroup()), file=sys.stderr, flush=True)
-"""
-)
-
 # Each digest covers the primary key and the PostgreSQL row version that owns
 # the persisted bytes. A committed update changes the version even if counts
 # stay flat. This DB is dedicated to one application namespace.
@@ -116,7 +101,7 @@ SELECT json_build_object(
 
 
 class Qualification(J2Driver):
-    def __init__(self, output, scratch):
+    def __init__(self, output, scratch, checker):
         super().__init__(output, scratch)
         self.live_reservation = 300 * 60
         self.monitor_password = secrets.token_hex(32)
@@ -126,6 +111,25 @@ class Qualification(J2Driver):
         self.observer = None
         self.workers = []
         self.container_groups = {}
+        self.checker = checker.resolve()
+        self.checker_lock = verify_binary(self.checker)
+
+    def install_checker(self):
+        with self.checker.open("rb") as binary:
+            status = self.run_stage(
+                "install-checker",
+                self.exec_args(
+                    "python", "-c", INSTALL, POD_CHECKER, self.checker_lock["sha256"], stdin=True
+                ),
+                60,
+                stdin=binary,
+            )
+        require(status == 0, "could not install verified observer checker")
+
+    def checker_args(self, *args):
+        return self.exec_args(
+            "python", "-c", CHECKER, POD_CHECKER, self.checker_lock["sha256"], *args
+        )
 
     @property
     def node_exec(self):
@@ -497,6 +501,9 @@ class Qualification(J2Driver):
         limits = (
             ["--memory", str(memory), "--memory-swap", str(memory), "--cpus=1"] if memory else []
         )
+        tooling = (
+            ["-v", f"{self.checker}:{MOUNTED_CHECKER}:ro"] if name == "offline-checker" else []
+        )
         self.command(
             [
                 "docker",
@@ -511,6 +518,7 @@ class Qualification(J2Driver):
                 "--cap-drop=ALL",
                 "--security-opt=no-new-privileges",
                 *limits,
+                *tooling,
                 "--entrypoint",
                 "python",
                 "-v",
@@ -564,9 +572,7 @@ class Qualification(J2Driver):
 
     def clock(self):
         return json.loads(
-            self.command(
-                self.exec_args("/checker", "-clock-probe"), record=False, timeout=20
-            ).stdout
+            self.command(self.checker_args("-clock-probe"), record=False, timeout=20).stdout
         )
 
 
@@ -768,6 +774,7 @@ def workload(driver, count, plan, result):
         if p["metadata"].get("labels", {}).get("app") == "observer"
     )
     driver.workers = [p for p in pods if p["metadata"].get("labels", {}).get("app") == "worker"]
+    driver.install_checker()
     driver.command(["docker", "pull", driver.images["worker"]], timeout=180)
     probes = {"setup": driver.clock()}
     with prometheus(driver) as query, watch(driver) as (expected, errors):
@@ -793,7 +800,7 @@ def workload(driver, count, plan, result):
                 ) as sampler:
                     status = driver.run_stage(
                         "live-checker",
-                        driver.exec_args("python", "-c", CHECKER, *checker, "-namespace", APP),
+                        driver.checker_args(*checker, "-namespace", APP),
                         DRAIN_SECONDS,
                         stdout="live-checker.json",
                         monitor_errors=errors,
@@ -813,7 +820,7 @@ def workload(driver, count, plan, result):
                 retain_scrapes(driver, query, start, time.time(), count)
             raise
         if status == 1:
-            report = read(driver.output / "live-checker.json")
+            report, _ = indexed_report(driver.output / "live-checker.json")
             expected_ids = {r["workflow_id"] for r in read(driver.output / "arrivals.json")["rows"]}
             seen = report.get("workflow_ids", [])
             seen_ids = set(seen)
@@ -872,7 +879,9 @@ def workload(driver, count, plan, result):
         "offline-checker",
         [
             "-c",
-            OFFLINE_CHECKER,
+            CONTAINER_CHECKER,
+            MOUNTED_CHECKER,
+            driver.checker_lock["sha256"],
             "-arrivals",
             "/qualification/arrivals.json",
             "-witness-export",
@@ -890,11 +899,20 @@ def workload(driver, count, plan, result):
     }
     require(
         all(
-            r["exit_status"] == 0 and r["peak_rss_kib"] > 0
+            r["exit_status"] == 0
+            and r["peak_rss_kib"] > 0
+            and r["checker_sha256"] == driver.checker_lock["sha256"]
             for r in result["checker_processes"].values()
         ),
         "missing checker process metrics",
     )
+    for mode, first in (("live", "load"), ("offline", "offline_decode")):
+        phases = markers(driver.output / f"{mode}-checker.stderr", "J2_PHASE")
+        require(
+            [phase["phase"] for phase in phases]
+            == [first, "hash", "check", "campaign_check", "write"],
+            f"incomplete checker phase evidence: {mode}",
+        )
     memory = marker(driver.output / "offline-checker.stderr", "J2_CGROUP")
     require(
         int(memory["max"]) == OBSERVER_LIMIT and int(memory["peak"]) > 0,
@@ -943,7 +961,7 @@ def diagnostics(driver):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("count", type=int, choices=VOLUMES)
-    for path in ("evidence", "scratch", "layouts", "exporter_layout"):
+    for path in ("evidence", "scratch", "layouts", "exporter_layout", "checker"):
         parser.add_argument(path, type=Path)
     args = parser.parse_args()
     require(
@@ -954,7 +972,7 @@ def main():
     )
     args.scratch.mkdir()
     kind.CLUSTER, kind.LABEL = "j2-volume", "j2.volume=owned"
-    driver = Qualification(args.evidence, args.scratch)
+    driver = Qualification(args.evidence, args.scratch, args.checker)
     started = time.monotonic()
     run_id = (
         f"j2-volume-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}-{args.count}"
@@ -978,6 +996,7 @@ def main():
         "profile": PROFILE,
         "scope": "unmeasured qualification",
         "planned_identities": args.count,
+        "checker": driver.checker_lock,
     }
     try:
         install_profile(driver, args.layouts, args.exporter_layout, APP, DB, unrelated=None)
@@ -1005,6 +1024,12 @@ def main():
         except Exception as error:
             result["diagnostic_error"] = str(error)
         result["population_started"] = driver.population_started
+        result["checker_phases"] = {}
+        for mode in ("live", "offline"):
+            path = driver.output / f"{mode}-checker.stderr"
+            if path.exists():
+                with suppress(ValueError, OSError):
+                    result["checker_phases"][mode] = markers(path, "J2_PHASE")
         try:
             write(args.evidence / "cleanup.json", driver.cleanup())
         except Exception as error:

@@ -31,13 +31,25 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Reproduce the locked checker
+        id: checker
+        shell: bash
+        continue-on-error: true
+        run: |
+          mkdir "$RUNNER_TEMP/j2-volume-evidence"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-tooling/checker" 2>&1 | tee "$RUNNER_TEMP/j2-volume-evidence/checker-build.log"
       - name: Restore the retained images
         id: restore
+        if: steps.checker.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir "$RUNNER_TEMP/j2-volume-evidence"
           set -o pipefail
           bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-volume-evidence/image-restore.log"
       - name: Qualify the rebuilt registered profile
@@ -46,7 +58,8 @@ jobs:
         continue-on-error: true
         run: |
           python3 scripts/j2_qualify_volume.py "$J2_VOLUME" "$RUNNER_TEMP/j2-volume-evidence" \
-            "$RUNNER_TEMP/j2-volume-scratch" "$RUNNER_TEMP/j2-images-layouts" "$RUNNER_TEMP/j2-exporter-layouts"
+            "$RUNNER_TEMP/j2-volume-scratch" "$RUNNER_TEMP/j2-images-layouts" "$RUNNER_TEMP/j2-exporter-layouts" \
+            "$RUNNER_TEMP/j2-tooling/checker"
       - name: Retain frozen evidence
         id: upload
         if: always()
