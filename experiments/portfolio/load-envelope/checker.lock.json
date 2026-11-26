@@ -3,8 +3,8 @@
   "tree": "2058507a67d95efa47017139dc2eff7e2d0ec781",
   "go_version": "go1.27.4",
   "package": "./cmd/dur049-checker",
-  "go_mod_sha256": "07af4ea627eee7b7a7f20254189568d0013f7134d31c4ff75a4568dcbcf014de",
-  "go_sum_sha256": "7b8192c191d52d8a791d7849f67a24b1e5a34ca23ed51e953b0909aaf4a0a634",
+  "go_mod_sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324",
+  "go_sum_sha256": "61f476ff35b34f635b5aba7bc57682b53abef48a967553f5c1182db979f92627",
   "env": {
     "CGO_ENABLED": "0",
     "GOOS": "linux",

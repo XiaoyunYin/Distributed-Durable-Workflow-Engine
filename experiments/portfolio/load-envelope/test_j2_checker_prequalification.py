@@ -1,5 +1,6 @@
 import csv
 import json
+import subprocess
 import sys
 from collections import Counter
 from hashlib import sha256
@@ -18,6 +19,17 @@ from j2_prequalify_checker import (  # noqa: E402
     checker_gates,
 )
 from j2_qualification_evidence import read, verify, write  # noqa: E402
+
+
+def test_checker_lock_hashes_match_committed_go_module_blobs():
+    root = Path(__file__).resolve().parents[3]
+    lock_path = root / "experiments/portfolio/load-envelope/checker.lock.json"
+    lock = json.loads(lock_path.read_bytes())
+    for filename, key in (("go.mod", "go_mod_sha256"), ("go.sum", "go_sum_sha256")):
+        blob = subprocess.check_output(
+            ["git", "cat-file", "blob", f"{lock['source']}:{filename}"], cwd=root
+        )
+        assert sha256(blob).hexdigest() == lock[key]
 
 
 def test_indexed_report_handles_raw_payloads_without_reencoding(tmp_path):

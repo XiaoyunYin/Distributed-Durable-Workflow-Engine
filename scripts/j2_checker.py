@@ -114,6 +114,10 @@ def build(target):
         subprocess.run(
             [
                 "git",
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.eol=lf",
                 "archive",
                 f"--output={archive}",
                 lock["source"],
