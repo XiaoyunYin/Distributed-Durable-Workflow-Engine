@@ -787,10 +787,14 @@ def run_overlay(driver, db_ip, pins, target, binary):
         "live monitor budget differs",
     )
     kind.save(driver.output / "clock.json", data["clock"])
-    matches = notifications(
+    delivery_evidence = notifications(
         list(jsonl(path)), result["alert_inputs"]["transitions"], target, origin, data["end_ns"]
     )
-    require(not matches, "unexpected receiver notifications during pilot")
+    kind.save(
+        driver.output / "setup-incidents.json",
+        {"setup_incidents": delivery_evidence["setup_incidents"]},
+    )
+    require(not delivery_evidence["matches"], "unexpected receiver notifications during pilot")
 
 
 def hosted_arguments(description):

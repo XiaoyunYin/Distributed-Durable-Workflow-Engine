@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from contextlib import ExitStack, suppress
+from http.client import HTTPException
 from math import ceil
 from statistics import median
 
@@ -16,6 +17,7 @@ from j2_offline import utc_ns
 from j3_diagnostics import retain_postgres_log, runner_pressure
 from j3_episode import (
     COMMIT_NS,
+    RULE_SETTLE_SECONDS,
     CheckerError,
     EpisodeFailure,
     Sampler,
@@ -42,7 +44,7 @@ from j3_evidence import (
     slot_occupancy,
     target_only_attainment,
 )
-from j3_overlay import APP, EXPORTER, FOREIGN, GRAFANA, J3, NS, PROM
+from j3_overlay import ALERTMANAGER, APP, EXPORTER, FOREIGN, GRAFANA, J3, NS, PROM
 from j3_pilot import (
     DB,
     Pilot,
@@ -54,6 +56,7 @@ from j3_pilot import (
     endpoint_ready,
     hosted_arguments,
     install_sender,
+    json_request,
     locked_images,
     prepare_overlay,
     prom,
@@ -61,11 +64,13 @@ from j3_pilot import (
     request,
     retain_monitor_logs,
 )
+from j3_prometheus import epoch_ns
 from j3_replay import DEADLINE, DOMAIN, SECOND, replay, require
 from j3_schedule import ARRIVAL_RATE, FORECAST_CAP, restored_rate
 
 ROOT = J3.parents[2]
 BASE_STOP = 2220
+ALERT_SETUP_SECONDS = 30
 
 
 class Qualification(Pilot):
@@ -419,11 +424,67 @@ def check_final_window(evaluations, transitions, origin, bounds):
     )
 
 
+def settled_alert_state(target):
+    # Read the two raw evaluation timestamps behind the live settle margin.
+    at_ns = (time.time_ns() - RULE_SETTLE_SECONDS * SECOND) // 1_000_000 * 1_000_000
+    at = at_ns / SECOND
+    labels = ",".join(f"{key}={json.dumps(value)}" for key, value in target.items())
+    rows = prom(f'{{{labels},__name__=~"j3:expected|j3:valid"}}[12s]', at=at)
+    samples = {row["metric"]["__name__"]: row["values"][-2:] for row in rows}
+    expected = samples.get("j3:expected", [])
+    if len(rows) != 2 or len(expected) != 2 or samples.get("j3:valid") != expected:
+        return None
+    (first, first_value), (last, last_value) = expected
+    first_ns, last_ns = epoch_ns(first), epoch_ns(last)
+    if (
+        first_value != "1"
+        or last_value != "1"
+        or last_ns - first_ns != 5 * SECOND
+        or not 0 <= at_ns - last_ns < 5 * SECOND
+    ):
+        return None
+    up = f'up{{{labels},job="j3"}}'
+    if not prom(f"({up} == 1) and (time() - timestamp({up}) <= 5)", at=at):
+        return None
+    alerts = json_request(19093, "/api/v2/alerts")
+    require(isinstance(alerts, list), "invalid Alertmanager alert list")
+    if any(
+        all(alert["labels"].get(key) == value for key, value in target.items()) for alert in alerts
+    ):
+        return None
+    if prom(f'ALERTS{{{labels},alertstate=~"pending|firing"}}'):
+        return None
+    return {"query_ns": at_ns, "valid_evaluations_ns": [first_ns, last_ns]}
+
+
+def wait_for_settled_alerts(driver, target):
+    evidence = None
+
+    def ready():
+        nonlocal evidence
+        try:
+            evidence = settled_alert_state(target)
+        except (OSError, HTTPException):
+            return False
+        return evidence is not None
+
+    try:
+        with driver.forward(ALERTMANAGER, ["19093:9093"]):
+            driver.until(ready, ALERT_SETUP_SECONDS)
+    except TimeoutError as error:
+        with suppress(Exception):
+            receiver_log(driver)
+        raise ValueError(
+            f"setup alert state did not settle within {ALERT_SETUP_SECONDS} seconds"
+        ) from error
+    kind.save(driver.output / "alert-arming.json", evidence)
+
+
 def run_episode(driver, pins, target, arm, run, setup, observer, binary, duration, bounds):
     with ExitStack() as stack:
         for role, port in ((PROM, "19090:9090"), (GRAFANA, "13000:3000"), (EXPORTER, "19188:9188")):
             stack.enter_context(driver.forward(role, [port]))
-        driver.until(lambda: endpoint_ready(19090, "/-/ready") and bool(prom("j3:valid")), 30)
+        driver.until(lambda: endpoint_ready(19090, "/-/ready"), 30)
         driver.until(lambda: endpoint_ready(13000, "/api/dashboards/uid/j3-observability"), 45)
         sampler = stack.enter_context(Sampler(driver, pins, arm))
         driver.until(lambda: sampler.latest and len(sampler.latest["slots"]) == 4, 10)
@@ -432,6 +493,7 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
             len(initial) == 2 and all(r["event"] == "session" for r in initial),
             "episode witness volume contains prior activity",
         )
+        wait_for_settled_alerts(driver, target)
         origin = (time.time_ns() // SECOND + 20) * SECOND
         sampler.origin = origin
         stop = origin + duration * SECOND
@@ -489,9 +551,11 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                 "published replay did not reconcile the target population",
             )
             transitions = result["alert_inputs"]["transitions"]
+            delivery_evidence = notifications(receiver, transitions, target, origin, end)
+            kind.save(driver.output / "notification-pairs.json", delivery_evidence["matches"])
             kind.save(
-                driver.output / "notification-pairs.json",
-                notifications(receiver, transitions, target, origin, end),
+                driver.output / "setup-incidents.json",
+                {"setup_incidents": delivery_evidence["setup_incidents"]},
             )
             events = worker_ledgers(driver, sampler.inventories.copy(), sampler.latest["witness"])
             if arm == "outage":

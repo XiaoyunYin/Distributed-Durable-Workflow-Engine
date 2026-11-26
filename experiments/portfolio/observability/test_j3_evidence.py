@@ -667,12 +667,85 @@ def test_receiver_requires_resolution_matching_a_real_prometheus_transition():
         resolved,
         {"heartbeat": "end", "received_ns": 30 * SECOND},
     ]
-    assert len(notifications(rows, transitions, target, SECOND, 25 * SECOND)) == 2
+    evidence = notifications(rows, transitions, target, SECOND, 25 * SECOND)
+    assert [pair["transition"] for pair in evidence["matches"]] == transitions
+    assert evidence["setup_incidents"] == []
     with pytest.raises(ValueError, match="unexpected or unpaired"):
         notifications(rows, transitions[:1], target, SECOND, 25 * SECOND)
     resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:19Z"
     with pytest.raises(ValueError, match="missing resolved"):
         notifications(rows, transitions, target, SECOND, 25 * SECOND)
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("closed", None),
+        ("unresolved", "setup incident unresolved at origin"),
+        ("late_firing_repeat", "setup incident unresolved at origin"),
+        ("orphan", "setup incident resolution has no matching firing"),
+        ("wrong_fingerprint", "setup incident resolution has no matching firing"),
+        ("wrong_start", "setup incident resolution has no matching firing"),
+        ("late_receipt", "setup incident delivery reached episode origin"),
+        ("late_end", "setup incident has invalid resolution time"),
+        ("in_window", "unexpected or unpaired receiver delivery"),
+    ],
+)
+def test_receiver_classifies_only_closed_setup_incidents(case, error):
+    target = {"namespace": "target", "campaign": "run"}
+    alert = {
+        "labels": {**target, "alertname": "ScrapeAbsent"},
+        "fingerprint": "setup",
+        "startsAt": "1970-01-01T00:00:05Z",
+    }
+
+    def receipt(status, received, **fields):
+        return {
+            "received_ns": received * SECOND,
+            "http_status": 204,
+            "status": status,
+            "alerts": [{**alert, "status": status, **fields}],
+        }
+
+    firing = receipt("firing", 6, endsAt="0001-01-01T00:00:00Z")
+    resolved = receipt("resolved", 9, endsAt="1970-01-01T00:00:08Z")
+    deliveries = [firing, resolved]
+    if case == "unresolved":
+        deliveries = [firing]
+    elif case == "late_firing_repeat":
+        resolved["received_ns"] = 8 * SECOND
+        deliveries.append(receipt("firing", 9, endsAt="0001-01-01T00:00:00Z"))
+    elif case == "orphan":
+        deliveries = [resolved]
+    elif case == "wrong_fingerprint":
+        resolved["alerts"][0]["fingerprint"] = "other"
+    elif case == "wrong_start":
+        resolved["alerts"][0]["startsAt"] = "1970-01-01T00:00:06Z"
+    elif case == "late_receipt":
+        resolved["received_ns"] = 10 * SECOND
+    elif case == "late_end":
+        resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:10Z"
+    elif case == "in_window":
+        deliveries.append(receipt("firing", 11, startsAt="1970-01-01T00:00:10Z"))
+    rows = [
+        {"heartbeat": "start", "received_ns": 0},
+        *deliveries,
+        {"heartbeat": "end", "received_ns": 30 * SECOND},
+    ]
+    if error:
+        with pytest.raises(ValueError, match=error):
+            notifications(rows, [], target, 10 * SECOND, 25 * SECOND)
+    else:
+        evidence = notifications(rows, [], target, 10 * SECOND, 25 * SECOND)
+        assert evidence == {
+            "matches": [],
+            "setup_incidents": [
+                {
+                    "firing": [{**firing["alerts"][0], "received_ns": 6 * SECOND}],
+                    "resolved": [{**resolved["alerts"][0], "received_ns": 9 * SECOND}],
+                }
+            ],
+        }
 
 
 def test_prometheus_joins_original_visibility_ns_and_rejects_missing_scrape_fields():

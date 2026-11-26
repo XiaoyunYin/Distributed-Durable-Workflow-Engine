@@ -7,7 +7,7 @@ from j3_replay import ALERTS, DEADLINE, SECOND, require, unique
 
 
 def notifications(rows, transitions, target, start_ns, end_ns):
-    """Pair receiver deliveries to observed Prometheus transitions by incident."""
+    """Verify setup closures and pair measured deliveries with observed transitions."""
     require(len(rows) >= 2, "missing receiver heartbeats")
     first, last = rows[0], rows[-1]
     times = [row["received_ns"] for row in rows]
@@ -19,6 +19,7 @@ def notifications(rows, transitions, target, start_ns, end_ns):
         "receiver evidence does not enclose the episode",
     )
     deliveries = []
+    setup = {}
     for row in rows[1:-1]:
         require(
             row.get("http_status") == 204
@@ -35,7 +36,33 @@ def notifications(rows, transitions, target, start_ns, end_ns):
                 and delivery["status"] in {"firing", "resolved"},
                 "unexpected receiver labels, status or fingerprint",
             )
-            deliveries.append({**delivery, "received_ns": row["received_ns"]})
+            received = row["received_ns"]
+            d = {**delivery, "received_ns": received}
+            started = utc_ns(d["startsAt"])
+            if started >= start_ns:
+                deliveries.append(d)
+                continue
+            require(
+                started <= received < start_ns, "setup incident delivery reached episode origin"
+            )
+            key = (labels["alertname"], d["fingerprint"], started)
+            if d["status"] == "firing":
+                setup.setdefault(key, {"firing": [], "resolved": []})["firing"].append(d)
+            else:
+                require(key in setup, "setup incident resolution has no matching firing")
+                require(
+                    started <= utc_ns(d["endsAt"]) <= received,
+                    "setup incident has invalid resolution time",
+                )
+                setup[key]["resolved"].append(d)
+    require(
+        all(
+            incident["resolved"]
+            and incident["firing"][-1]["received_ns"] <= incident["resolved"][-1]["received_ns"]
+            for incident in setup.values()
+        ),
+        "setup incident unresolved at origin",
+    )
 
     incidents = {}
     matched = []
@@ -79,7 +106,7 @@ def notifications(rows, transitions, target, start_ns, end_ns):
         ),
         "unexpected or unpaired receiver delivery",
     )
-    return matched
+    return {"matches": matched, "setup_incidents": list(setup.values())}
 
 
 def foreign_positive(witness, evaluations, seeds, foreign):
