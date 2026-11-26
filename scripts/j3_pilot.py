@@ -76,7 +76,7 @@ class Pilot(kind.Driver):
     def secret(self, namespace, name, **data):
         self.apply(obj("v1", "Secret", name, namespace, stringData=data))
 
-    def postgres(self, query, *, role="durable", allowed=False):
+    def postgres(self, query, *, role="durable", allowed=False, timeout=180):
         password = {
             "durable": self.password,
             "j3_exporter": self.monitor_password,
@@ -92,7 +92,9 @@ class Pilot(kind.Driver):
             f"PGPASSWORD={password}",
             kind.CLUSTER + "-postgres",
         ]
-        return self.command(docker + psql, data=query, allowed=allowed, record=False)
+        return self.command(
+            docker + psql, data=query, allowed=allowed, record=False, timeout=timeout
+        )
 
     def query(self, sql):
         return self.postgres(sql).stdout.strip()

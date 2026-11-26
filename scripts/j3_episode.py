@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from math import ceil
@@ -12,6 +13,7 @@ from threading import Event, Thread
 
 import dur053_k3 as kind
 from j2_offline import attempt_key, drain_identities, utc_ns
+from j3_admission_diagnostics import outstanding_journal, retain_sender_context
 from j3_evidence import jsonl
 from j3_overlay import APP, NS, RECEIVER
 from j3_pilot import json_request, prom
@@ -264,16 +266,28 @@ class Sender:
                 self.finish_client()
                 self.export()
             except BaseException as error:
-                with suppress(Exception):
-                    self.retain_failure(error)
-                with suppress(Exception):
-                    self.abort()
-                if self.exit_record is None:
+                seen = time.time_ns()
+                with ThreadPoolExecutor(max_workers=1) as diagnostics:
+                    with suppress(RuntimeError):
+                        diagnostics.submit(retain_sender_context, self.driver, APP, seen)
                     with suppress(Exception):
-                        self.read_exit(probe_name="sender-exit-probe-after-abort.json")
-                with suppress(Exception):
-                    self.export()
+                        self.retain_failure(error)
+                    with suppress(Exception):
+                        self.abort()
+                    if self.exit_record is None:
+                        with suppress(Exception):
+                            self.read_exit(probe_name="sender-exit-probe-after-abort.json")
+                    with suppress(Exception):
+                        self.export()
+                    with suppress(Exception):
+                        self.retain_outstanding()
                 raise
+
+    def retain_outstanding(self):
+        output = self.driver.output
+        kind.save(
+            output / "sender-outstanding.json", outstanding_journal(output / "target-journal.jsonl")
+        )
 
     def observer_exec(self, code, *args):
         return self.driver.k(
@@ -454,7 +468,11 @@ class Sender:
             return self.reconcile_journal()
         except Exception as error:
             with suppress(Exception):
+                retain_sender_context(self.driver, APP, time.time_ns())
+            with suppress(Exception):
                 self.retain_failure(error)
+            with suppress(Exception):
+                self.retain_outstanding()
             raise
 
     def reconcile_journal(self):

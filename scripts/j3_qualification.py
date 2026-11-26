@@ -14,6 +14,7 @@ from statistics import median
 
 import dur053_k3 as kind
 from j2_offline import utc_ns
+from j3_admission_diagnostics import arm_resources
 from j3_diagnostics import retain_postgres_log, runner_pressure
 from j3_episode import (
     COMMIT_NS,
@@ -493,6 +494,7 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
             len(initial) == 2 and all(r["event"] == "session" for r in initial),
             "episode witness volume contains prior activity",
         )
+        stack.enter_context(arm_resources(driver, APP))
         wait_for_settled_alerts(driver, target)
         origin = (time.time_ns() // SECOND + 20) * SECOND
         sampler.origin = origin

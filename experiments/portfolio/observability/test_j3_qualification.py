@@ -1,14 +1,18 @@
 import json
 import sys
 from contextlib import nullcontext
+from io import BytesIO
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+import j3_admission_diagnostics as admission  # noqa: E402
 import j3_diagnostics as diagnostics  # noqa: E402
+import j3_episode as episode  # noqa: E402
 import j3_qualification as j3  # noqa: E402
 
 
@@ -218,3 +222,180 @@ def test_failed_postgres_log_capture_retains_partial_diagnostics(tmp_path, monke
     diagnostics.retain_postgres_log(driver, 123_000_000_007, required=False)
     assert (tmp_path / "postgres-container.log").read_text() == "partial [REDACTED]\n"
     assert "error" in json.loads((tmp_path / "postgres-log.json").read_bytes())
+
+
+def test_resource_sample_parsers_retain_devices_and_distinguish_missing_counters():
+    rows = list(
+        admission.node_resource_rows(
+            [
+                "100\tobserver/observer/observer\tcpu.stat\tok\t"
+                "usage_usec 783;nr_throttled 3;throttled_usec 991\n",
+                "100\tapi/api-1/api\tio.stat\tok\t8:0 rbytes=12 wbytes=42;259:2 rios=3 wios=4\n",
+                "100\tapi/api-1/api\tio.stat\tok\t\n",
+                "100\tapi/api-2/api\tio.stat\terror\tunreadable\n",
+                "bad line\n",
+            ]
+        )
+    )
+    assert rows[0]["at_ns"] == 100 and rows[0]["cgroup"] == "observer/observer/observer"
+    assert rows[0]["counters"] == {"usage_usec": 783, "nr_throttled": 3, "throttled_usec": 991}
+    assert rows[1]["counters"] == {
+        "8:0": {"rbytes": 12, "wbytes": 42},
+        "259:2": {"rios": 3, "wios": 4},
+    }
+    assert rows[2]["counters"] == {} and rows[3]["counters"] is None
+    assert rows[3]["error"] == "unreadable" and rows[4]["raw"] == "bad line"
+    assert admission.parse_diskstats("8 0 sda 0 1 2\n259 2 nvme0n1 3 4 5\n") == {
+        "8:0": {"name": "sda", "counters": [0, 1, 2]},
+        "259:2": {"name": "nvme0n1", "counters": [3, 4, 5]},
+    }
+
+
+def test_sender_miss_retains_resources_postgres_api_and_outstanding_journal(tmp_path, monkeypatch):
+    proc, cgroup = tmp_path / "proc", tmp_path / "cgroup"
+    for role, pid in (("postgres", 201), ("kafka", 202)):
+        name = f"docker-{role}-id.scope"
+        (proc / str(pid)).mkdir(parents=True)
+        (proc / str(pid) / "cgroup").write_text(f"0::/system.slice/{name}\n", encoding="ascii")
+        group = cgroup / "system.slice" / name
+        group.mkdir(parents=True)
+        (group / "cpu.stat").write_text(
+            "usage_usec 123\nnr_throttled 2\nthrottled_usec 5\n", encoding="ascii"
+        )
+        if role == "postgres":
+            (group / "io.stat").write_text("8:0 rbytes=4 wbytes=8\n", encoding="ascii")
+    (proc / "diskstats").write_text("8 0 sda 1 2 3\n", encoding="ascii")
+    pods = [
+        {
+            "metadata": {"name": name, "uid": f"u{i}", "labels": {"app": role}},
+            "status": {
+                "containerStatuses": [{"name": role, "containerID": f"containerd://cid{i}"}]
+            },
+        }
+        for i, (name, role) in enumerate(
+            (("observer", "observer"), ("api-1", "api"), ("api-2", "api")), 1
+        )
+    ]
+    sent = "2026-11-26T20:00:00Z"
+    first = {
+        "event": "arrival",
+        "key": "outstanding",
+        "sent": sent,
+        "outcome": "uncertain",
+        "status": 0,
+        "error": "",
+    }
+    missed = {**first, "key": "miss", "sent": None, "outcome": "unsent", "error": "capacity-missed"}
+    accepted = {**first, "outcome": "accepted", "status": 200}
+    journal = "".join(
+        json.dumps(row) + "\n" for row in [{"event": "plan"}, first, missed, accepted]
+    )
+    pg_started = Event()
+
+    def result(stdout="", stderr=""):
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr=stderr)
+
+    def command(args, **_kwargs):
+        if args[1] == "inspect":
+            return result(
+                "postgres-id 201\n" if args[-1].endswith("-postgres") else "kafka-id 202\n"
+            )
+        if args[3:5] == ["crictl", "inspect"]:
+            return result(json.dumps({"info": {"pid": 100 + int(args[-1][-1])}}))
+        index = int(args[-1].split("/")[2]) - 100
+        return result(f"0::/kubepods.slice/podu{index}/cri-containerd-cid{index}.scope\n")
+
+    def k(*args, **kwargs):
+        if args[2] == "get":
+            assert "app in (observer,api)" in args
+            return result(json.dumps({"items": pods}))
+        if args[2] == "logs":
+            assert pg_started.is_set() and "app=api" in args and "--tail=-1" in args
+            return result("api-1 and api-2 with fixture-password\n")
+        if episode.READ_SENDER_EXIT in args:
+            return result(
+                json.dumps({"record": json.dumps(exit_record), "journal_last_line": None})
+            )
+        if episode.OBSERVER_PROCESSES in args:
+            return result("[]")
+        if args[-2:] == ("cat", episode.JOURNAL):
+            assert pg_started.wait(1)
+            return result(journal)
+        assert "-i" in args and "data" in kwargs
+        return result()
+
+    def postgres(query, **kwargs):
+        assert "BEGIN READ ONLY" in query and "pg_stat_activity" in query and "pg_locks" in query
+        assert kwargs == {"allowed": True, "timeout": 6}
+        pg_started.set()
+        return result('{"pg_stat_activity":[{"wait_event":"WALSync"}],"pg_locks":[]}')
+
+    class Process:
+        pid = 42
+        returncode = 1
+
+        def poll(self):
+            return self.returncode
+
+    class NodeProcess(Process):
+        stdin = BytesIO()
+        returncode = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            pass
+
+        def wait(self, timeout):
+            assert timeout == 3
+
+    def popen(args, **kwargs):
+        if args[0] == "kubectl":
+            return Process()
+        assert args[:3] == ["docker", "exec", "-i"] and admission.NODE_SAMPLE in args
+        assert any(arg.startswith("api/api-2/api=") for arg in args)
+        kwargs["stdout"].write(
+            b"100\tobserver/observer/observer\tcpu.stat\tok\t"
+            b"usage_usec 5;nr_throttled 3;throttled_usec 2\n"
+        )
+        kwargs["stdout"].flush()
+        return NodeProcess()
+
+    driver = SimpleNamespace(
+        output=tmp_path,
+        env={},
+        k=k,
+        command=command,
+        postgres=postgres,
+        password="fixture-password",
+    )
+    exit_record = {"returncode": 1, "closed": False, "exited_ns": 100}
+    rows = [{"namespace": "target", "scheduled_ns": j3.SECOND}]
+    sender = episode.Sender(driver, "observer", "sender", rows, "test", 0, j3.SECOND)
+    monkeypatch.setattr(admission.subprocess, "Popen", popen)
+    with (
+        pytest.raises(ValueError, match="sender exited with status 1"),
+        admission.arm_resources(driver, "app", proc=proc, cgroup_root=cgroup),
+        sender.run(),
+    ):
+        sender.check_running()
+
+    def saved(filename):
+        return json.loads((tmp_path / filename).read_bytes())
+
+    node = saved("arm-node-resources.jsonl")
+    host = saved("arm-runner-resources.jsonl")
+    snapshot = saved("sender-postgres-snapshot.json")
+    journal_report = saved("sender-outstanding.json")
+    assert node["counters"]["nr_throttled"] == 3
+    assert host["cgroups"]["postgres"]["io.stat"]["8:0"]["wbytes"] == 8
+    assert host["cgroups"]["kafka"]["cpu.stat"]["throttled_usec"] == 5
+    assert "kafka/io.stat" in host["errors"] and "8:0" in host["diskstats"]
+    assert snapshot["postgres_started_ns"] >= snapshot["failure_seen_ns"]
+    assert snapshot["snapshot"]["pg_stat_activity"][0]["wait_event"] == "WALSync"
+    assert (tmp_path / "sender-api.log").read_text() == "api-1 and api-2 with [REDACTED]\n"
+    assert journal_report["boundary"] == "first_failed_arrival"
+    assert journal_report["failed_arrival"] == missed
+    assert journal_report["outstanding"] == [first]
+    assert journal_report["terminal_after_boundary"] == {"outstanding": accepted}
