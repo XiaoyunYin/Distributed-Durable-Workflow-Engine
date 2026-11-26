@@ -3,8 +3,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+import j3_diagnostics as diagnostics  # noqa: E402
 import j3_qualification as j3  # noqa: E402
 
 
@@ -77,7 +80,12 @@ def test_two_fresh_episodes_render_separate_packages(tmp_path, monkeypatch):
     monkeypatch.setattr(
         driver, "query", lambda sql: "100" if sql.startswith("SHOW") else "j3-db-exporter|1"
     )
-    monkeypatch.setattr(j3, "prepare_overlay", lambda *args: {})
+
+    def prepare_overlay(*args, diagnostics):
+        assert diagnostics
+        return {}
+
+    monkeypatch.setattr(j3, "prepare_overlay", prepare_overlay)
     monkeypatch.setattr(j3, "install_sender", lambda *args: ("observer", "/evidence/j3-loadgen"))
 
     addresses = {"192.0.2.1": "10.0.0.1", "192.0.2.2": "10.0.0.2"}
@@ -97,3 +105,35 @@ def test_two_fresh_episodes_render_separate_packages(tmp_path, monkeypatch):
 
     assert driver.cleanup()["status"] == "PASS"
     assert ["kind", "delete", "cluster", "--name", j3.kind.CLUSTER] in commands
+
+
+def test_pressure_is_retained_on_episode_error(tmp_path):
+    proc = tmp_path / "proc"
+    (proc / "pressure").mkdir(parents=True)
+    (proc / "loadavg").write_text("0.03 0.02 0.01 1/20 100\n", encoding="ascii")
+    (proc / "pressure/cpu").write_text("some avg10=1.00 total=3\n", encoding="ascii")
+    with (
+        pytest.raises(ValueError, match="episode error"),
+        diagnostics.runner_pressure(tmp_path, proc),
+    ):
+        raise ValueError("episode error")
+    sample, *_ = [
+        json.loads(line) for line in (tmp_path / "runner-pressure.jsonl").read_text().splitlines()
+    ]
+    assert sample["loadavg"] == "0.03 0.02 0.01 1/20 100"
+    assert sample["cpu"] == "some avg10=1.00 total=3"
+    assert "io" in sample["errors"]
+    assert sample["at_ns"] > 0 and sample["monotonic_ns"] > 0
+
+
+def test_failed_postgres_log_capture_retains_partial_diagnostics(tmp_path, monkeypatch):
+    driver = SimpleNamespace(output=tmp_path, env={}, password="secret")
+
+    def run(command, **kwargs):
+        assert command[:5] == ["docker", "logs", "--timestamps", "--since", "123.000000007"]
+        raise diagnostics.subprocess.TimeoutExpired(command, 30, output=b"partial secret\n")
+
+    monkeypatch.setattr(diagnostics.subprocess, "run", run)
+    diagnostics.retain_postgres_log(driver, 123_000_000_007, required=False)
+    assert (tmp_path / "postgres-container.log").read_text() == "partial [REDACTED]\n"
+    assert "error" in json.loads((tmp_path / "postgres-log.json").read_bytes())

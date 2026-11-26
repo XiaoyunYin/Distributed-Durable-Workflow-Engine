@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -161,14 +162,24 @@ def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
     assert ready_slots([pod], {}) == []
 
 
-def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(tmp_path):
-    def pod(name, terminating=False):
+@pytest.mark.parametrize("batch_timeout", [False, True])
+def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(
+    tmp_path, monkeypatch, batch_timeout
+):
+    clock = SimpleNamespace(time_ns=lambda: 100, monotonic_ns=iter((30, 50)).__next__)
+    monkeypatch.setattr("j3_slots.time", clock)
+
+    def pod(name, ip, terminating=False):
         metadata = {"name": name, "uid": name}
         if terminating:
             metadata["deletionTimestamp"] = "2026-01-01T00:00:00Z"
         return {
             "metadata": metadata,
-            "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}]},
+            "status": {
+                "phase": "Running",
+                "podIP": ip,
+                "conditions": [{"type": "Ready", "status": "True"}],
+            },
             "spec": {
                 "containers": [{"name": "worker", "env": [{"name": "WORKER_SLOTS", "value": "2"}]}]
             },
@@ -177,24 +188,29 @@ def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(tmp_pa
     class Driver:
         output = tmp_path
         metric = None
+        reads = 0
 
         def k(self, _flag, _app, _verb, name, *_args, **_kwargs):
-            assert name != "terminating"
-            if name == "missing":
-                raise TimeoutError("worker witness timed out")
-            return type(
-                "Result",
-                (),
-                {
-                    "stdout": json.dumps(
-                        {
-                            "complete": True,
-                            "pod_name": name,
-                            "pod_uid": name,
-                            "session": "live",
-                        }
-                    )
-                },
+            self.reads += 1
+            assert name == "observer"
+            assert json.loads(_args[-1]) == {"live": "10.0.0.1", "missing": "10.0.0.2"}
+            assert "connection.request('GET','/witness')" in _args[-2]
+            if batch_timeout:
+                raise TimeoutError("observer exec timed out")
+            return SimpleNamespace(
+                stdout=json.dumps(
+                    {
+                        "live": {
+                            "witness": {
+                                "complete": True,
+                                "pod_name": "live",
+                                "pod_uid": "live",
+                                "session": "live",
+                            }
+                        },
+                        "missing": {"error": "worker witness timed out"},
+                    }
+                )
             )
 
         def python(self, _ns, _receiver, code, **_kwargs):
@@ -206,13 +222,17 @@ def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(tmp_pa
         "app",
         "telemetry",
         "receiver",
-        [pod("live"), pod("missing"), pod("terminating", True)],
+        [pod("live", "10.0.0.1"), pod("missing", "10.0.0.2"), pod("terminating", "10.0.0.3", True)],
+        observer_pod="observer",
     )
-    assert sample["slots"] == ["live-0", "live-1"]
-    assert list(sample["errors"]) == ["missing"]
+    assert driver.reads == 1
+    assert sample["witness_transport"] == "observer_http"
+    assert sample["witness_read_ns"] == 20
+    assert sample["slots"] == ([] if batch_timeout else ["live-0", "live-1"])
+    assert set(sample["errors"]) == ({"live", "missing"} if batch_timeout else {"missing"})
     assert sample["pods"][2]["terminating"]
     assert json.loads((tmp_path / "ready-slots.jsonl").read_bytes()) == sample
-    assert '"ready_slots": 2' in driver.metric
+    assert f'"ready_slots": {len(sample["slots"])}' in driver.metric
 
 
 def test_foreign_positive_requires_both_hot_windows_at_the_quiet_target_sample():

@@ -3,13 +3,32 @@
 import json
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
+from ipaddress import ip_address
 
 from j3_replay import require
 
-WORKER_WITNESS = """import json,urllib.request
-with urllib.request.urlopen('http://127.0.0.1:8081/witness',timeout=3) as response:
-    print(json.dumps(json.load(response)))
+WORKER_WITNESS = """import http.client,json,sys
+from concurrent.futures import ThreadPoolExecutor
+
+def read(item):
+    uid,ip=item
+    connection=http.client.HTTPConnection(ip,8081,timeout=3)
+    try:
+        connection.request('GET','/witness')
+        response=connection.getresponse()
+        if response.status != 200:
+            return uid, {'error':f'witness HTTP {response.status}'}
+        body=response.read(65537)
+        if len(body) > 65536:
+            return uid, {'error':'witness response too large'}
+        return uid, {'witness':json.loads(body)}
+    except (OSError,ValueError,http.client.HTTPException) as error:
+        return uid, {'error':str(error)}
+    finally:
+        connection.close()
+
+with ThreadPoolExecutor(max_workers=2) as pool:
+    print(json.dumps(dict(pool.map(read,json.loads(sys.argv[1]).items()))))
 """
 
 
@@ -59,50 +78,70 @@ def ready_slots(pods, witnesses):
     return sorted(slots)
 
 
-def sample_ready_slots(driver, app, receiver_namespace, receiver, pods, *, receiver_pod=None):
+def sample_ready_slots(
+    driver, app, receiver_namespace, receiver, pods, *, observer_pod, receiver_pod=None
+):
     sampled = time.time_ns()
     statuses = [worker_status(pod) for pod in pods]
-
-    def read(pod):
-        status = worker_status(pod)
-        try:
-            result = driver.k(
-                "-n",
-                app,
-                "exec",
-                status["name"],
-                "-c",
-                "worker",
-                "--",
-                "python",
-                "-c",
-                WORKER_WITNESS,
-                record=False,
-                timeout=5,
-            )
-            witness = json.loads(result.stdout)
-            slots = ready_slots([pod], {status["uid"]: witness})
-        except (
-            OSError,
-            subprocess.SubprocessError,
-            RuntimeError,
-            ValueError,
-            AttributeError,
-        ) as error:
-            return status["uid"], None, [], str(error)
-        return status["uid"], witness, slots, None
-
-    record = {"sample_ns": sampled, "pods": statuses, "witness": {}, "slots": [], "errors": {}}
+    record = {
+        "sample_ns": sampled,
+        "pods": statuses,
+        "witness": {},
+        "slots": [],
+        "errors": {},
+        "witness_transport": "observer_http",
+        "witness_read_ns": 0,
+    }
     try:
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            for uid, witness, slots, error in executor.map(
-                read, (pod for pod, status in zip(pods, statuses, strict=True) if status["ready"])
-            ):
+        requested = {}
+        eligible = [(pod, s["uid"]) for pod, s in zip(pods, statuses, strict=True) if s["ready"]]
+        for pod, uid in eligible:
+            try:
+                requested[uid] = str(ip_address(pod["status"].get("podIP")))
+            except ValueError:
+                record["errors"][uid] = "Ready worker has no valid pod IP"
+        replies = {}
+        if requested:
+            start = time.monotonic_ns()
+            try:
+                result = driver.k(
+                    "-n",
+                    app,
+                    "exec",
+                    observer_pod,
+                    "-c",
+                    "observer",
+                    "--",
+                    "python",
+                    "-c",
+                    WORKER_WITNESS,
+                    json.dumps(requested),
+                    record=False,
+                    timeout=5,
+                )
+                replies = json.loads(result.stdout)
+                require(
+                    isinstance(replies, dict) and replies.keys() == requested.keys(),
+                    "observer returned an incomplete worker batch",
+                )
+            except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as error:
+                replies = {uid: {"error": str(error)} for uid in requested}
+            finally:
+                record["witness_read_ns"] = time.monotonic_ns() - start
+        for pod, uid in eligible:
+            if uid not in replies:
+                continue
+            try:
+                reply = replies[uid]
+                require("error" not in reply, reply.get("error"))
+                witness = reply["witness"]
+                require(isinstance(witness, dict), "worker witness is not a JSON object")
+                slots = ready_slots([pod], {uid: witness})
+            except (KeyError, TypeError, ValueError, AttributeError) as error:
+                record["errors"][uid] = str(error)
+            else:
                 record["slots"].extend(slots)
-                if error is None:
-                    record["witness"][uid] = witness
-                else:
-                    record["errors"][uid] = error
+                record["witness"][uid] = witness
         record["slots"].sort()
         require(len(record["slots"]) == len(set(record["slots"])) <= 4, "duplicate slots or surge")
         metric = {"ready_slots": len(record["slots"]), "ready_slots_sample_ns": sampled}

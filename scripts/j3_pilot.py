@@ -20,6 +20,7 @@ import dur053_k3 as kind
 from j2_oci import restore
 from j2_offline import attempt_key, utc_ns
 from j2_overlay import J2, obj
+from j3_diagnostics import enable_exporter_diagnostics
 from j3_evidence import jsonl, notifications
 from j3_overlay import (
     APP,
@@ -346,7 +347,7 @@ def pilot_dispatch_proof(driver, origin, db_ip, observer, sender):
     pods = worker_pods(driver)
     uids = {p["metadata"]["uid"] for p in pods}
     kind.stable_worker_sessions(uids, pods)
-    slots = sample_ready_slots(driver, APP, NS, RECEIVER, pods)["slots"]
+    slots = sample_ready_slots(driver, APP, NS, RECEIVER, pods, observer_pod=observer)["slots"]
     require(len(slots) == 4, "expected four witnessed Ready slots before the pilot")
     start = datetime.fromtimestamp(origin // SECOND, UTC).isoformat()
     seed = driver.postgres("SELECT j2_monitor.j3_seed('foreign-1');", role="j3_fixture")
@@ -467,18 +468,22 @@ def pilot_dispatch_proof(driver, origin, db_ip, observer, sender):
         if r["token_hash"]
     }
     kind.stable_worker_sessions(uids, worker_pods(driver))
+    inventories = sample_ready_slots(driver, APP, NS, RECEIVER, pods, observer_pod=observer)[
+        "witness"
+    ]
     witnessed, ledgers = [], []
     for pod in pods:
         name = pod["metadata"]["name"]
-        code = """import json,pathlib,urllib.request
-i=json.load(urllib.request.urlopen('http://127.0.0.1:8081/witness',timeout=3))
-root=pathlib.Path('/witness') / i['pod_name']
-assert [p.name for p in root.glob('*.jsonl')]==[i['file']]
-print(json.dumps({'inventory':i,'data':(root / i['file']).read_text()}))
+        inv = inventories[pod["metadata"]["uid"]]
+        code = """import json,pathlib,sys
+root=pathlib.Path('/witness') / sys.argv[1]
+assert [p.name for p in root.glob('*.jsonl')]==[sys.argv[2]]
+print(json.dumps((root / sys.argv[2]).read_text()))
 """
-        result = driver.k("-n", APP, "exec", name, "--", "python", "-c", code, record=False)
-        exported = json.loads(result.stdout)
-        inv, raw = exported["inventory"], exported["data"]
+        result = driver.k(
+            "-n", APP, "exec", name, "--", "python", "-c", code, name, inv["file"], record=False
+        )
+        raw = json.loads(result.stdout)
         rows = [json.loads(line) for line in raw.splitlines()]
         require(
             inv["complete"]
@@ -694,7 +699,7 @@ def retain_monitor_logs(driver, *, required):
         )
 
 
-def prepare_overlay(driver, db_ip, pins, target):
+def prepare_overlay(driver, db_ip, pins, target, *, diagnostics=False):
     require(
         driver.query("SELECT count(*) FROM engine.workflow_executions;") == "0",
         "episode DB is not empty",
@@ -709,6 +714,8 @@ def prepare_overlay(driver, db_ip, pins, target):
             ":'u_ns'", repr(str(width))
         )
     )
+    if diagnostics:
+        enable_exporter_diagnostics(driver)
     sql = (J3 / "foreign.sql").read_text().replace(":'foreign'", repr(FOREIGN))
     driver.postgres(sql.replace(":'password'", repr(driver.fixture_password)))
     db_denials(driver)
@@ -754,7 +761,7 @@ def run_overlay(driver, db_ip, pins, target, binary):
         )
         accepted = pilot_dispatch_proof(driver, origin, db_ip, observer, sender)
         driver.until(lambda: bool(prom(f'j3_eligible{{window="all"}} == {COUNT}')), 30)
-        sample_ready_slots(driver, APP, NS, RECEIVER, worker_pods(driver))
+        sample_ready_slots(driver, APP, NS, RECEIVER, worker_pods(driver), observer_pod=observer)
         driver.until(lambda: bool(prom("j3_ready_slots == 4")), 5)
         try:
             dashboard_evidence(driver, target, accepted)

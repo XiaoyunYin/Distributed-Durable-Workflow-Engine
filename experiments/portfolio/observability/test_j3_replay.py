@@ -5,12 +5,15 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import j3_replay as j3  # noqa: E402
+from j3_diagnostics import enable_exporter_diagnostics  # noqa: E402
 
 T = 1_767_226_800 * j3.SECOND
 SETUP, CLOSING = 1_000_000, 3_000_000
@@ -173,7 +176,7 @@ def test_bad_final_history_fails(duplicate):
 
 
 @pytest.mark.skipif(not os.getenv("J3_SQL_CONTAINER"), reason="hosted PostgreSQL fixture required")
-def test_postgres_statement_visibility():
+def test_postgres_statement_visibility(tmp_path):
     psql = [
         "docker",
         "exec",
@@ -311,3 +314,32 @@ def test_postgres_statement_visibility():
         "2m": {"eligible": 92, "bad": 92},
         "10m": {"eligible": 101, "bad": 101},
     }
+
+    settings = "SHOW session_preload_libraries; SHOW log_min_duration_statement;"
+    owner_settings = run(settings)
+
+    def postgres(query, *, role="postgres"):
+        return subprocess.run(
+            [*psql, "-U", role], input=query, text=True, capture_output=True, timeout=10, check=True
+        )
+
+    enable_exporter_diagnostics(SimpleNamespace(output=tmp_path, postgres=postgres))
+    assert run(settings) == owner_settings
+    postgres("SELECT pg_sleep(0.55) /* j3_role_diagnostic */;", role="j3_exporter")
+    expected_logs = [
+        "Query Text: SELECT pg_sleep(0.55) /* j3_role_diagnostic */",
+        "statement: SELECT pg_sleep(0.55) /* j3_role_diagnostic */",
+    ]
+    for _ in range(20):
+        result = subprocess.run(
+            ["docker", "logs", os.environ["J3_SQL_CONTAINER"]],
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        if all(entry in result.stdout + result.stderr for entry in expected_logs):
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail("role-scoped slow statement or auto_explain evidence missing")

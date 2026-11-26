@@ -31,7 +31,16 @@ The real partition-lease probe runs only in the unmeasured `pilot` mode.
 Episode artifacts retain the exporter and Prometheus container logs. The
 exporter's `J3_CYCLE` records include SQL and demand durations, JSON decode time,
 wire bytes, total cycle time and failure classes. The qualification sampler also
-records its wall time and process CPU deltas.
+records its wall time and process CPU deltas. Each qualification episode adds
+the timestamped PostgreSQL container log and one-second runner load and CPU and
+I/O pressure samples. Slow statement logging and nested plans at 500 ms are
+scoped to the `j3_exporter` login. Plan analysis uses row instrumentation with
+per-node timings disabled. [PostgreSQL role defaults](https://www.postgresql.org/docs/18/sql-alterrole.html) ·
+[PostgreSQL auto_explain](https://www.postgresql.org/docs/18/auto-explain.html).
+
+The observer reads the Ready workers' `/witness` endpoints in one batch over
+the existing observer-to-worker TCP/8081 route. The sample records its batch
+duration and any read failures. An unwitnessed worker supplies zero slots.
 
 The `sql-benchmark` dispatch compares the deployed and candidate SQL using the
 same candidate exporter and pinned PostgreSQL. Each starts with 20,000 synthetic
@@ -52,6 +61,10 @@ result as `same_snapshot_projection_equal`. [Registered SQL, lines 29–58](prot
 The benchmark uses a local demand stub. The pod-inventory CPU comparison uses the pinned
 kubectl and a synthetic API, so its results cover inventory calls and parsing.
 The job packages the candidate OCI layout for sealing after measurements pass.
+The exporter lock uses the pinned build from
+[benchmark run 45780147776](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45780147776).
+The workflow checks the archive and build inputs against the lock. Each
+episode verifies the running exporter digest before arming.
 
 `scripts/j3_schedule.py OUTPUT OUTAGE1 OUTAGE2 OUTAGE3 --measurements FILE`
 uses actual PostgreSQL admission and terminal commit times. It records the rate

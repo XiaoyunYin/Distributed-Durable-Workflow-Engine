@@ -356,12 +356,17 @@ class Sampler:
         append(self.driver.output / "processes.jsonl", {"at_ns": time.time_ns(), "pods": processes})
         require(processes == self.processes, "application or telemetry process was replaced")
         workers = [p for p in app if p["metadata"]["labels"].get("app") == "worker"]
+        (observer,) = [
+            p["metadata"]["name"] for p in app if p["metadata"]["labels"].get("app") == "observer"
+        ]
         (receiver,) = [
             p["metadata"]["name"]
             for p in telemetry
             if p["metadata"]["labels"].get("app") == RECEIVER
         ]
-        sample = sample_ready_slots(self.driver, APP, NS, RECEIVER, workers, receiver_pod=receiver)
+        sample = sample_ready_slots(
+            self.driver, APP, NS, RECEIVER, workers, observer_pod=observer, receiver_pod=receiver
+        )
         require(
             self.latest is None
             or 0 < sample["sample_ns"] - self.latest["sample_ns"] <= SLOT_MAX_GAP,

@@ -108,7 +108,11 @@ jobs:
             echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
             unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
           done
-          sha256sum -c "$RUNNER_TEMP/j3-exporter-layout/source.sha256"
+          exporter_layout="$RUNNER_TEMP/j3-exporter-layout"
+          exporter_lock=experiments/portfolio/observability/exporter.lock.json
+          sha256sum -c "$exporter_layout/source.sha256"
+          diff <(jq -er .build_head "$exporter_lock") "$exporter_layout/source.txt"
+          diff <(jq -er .binary_sha256 "$exporter_lock") "$exporter_layout/binary.sha256"
           CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
             -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
           sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"

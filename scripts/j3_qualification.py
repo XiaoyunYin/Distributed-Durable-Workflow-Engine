@@ -13,6 +13,7 @@ from statistics import median
 
 import dur053_k3 as kind
 from j2_offline import utc_ns
+from j3_diagnostics import retain_postgres_log, runner_pressure
 from j3_episode import (
     COMMIT_NS,
     CheckerError,
@@ -123,7 +124,7 @@ class Qualification(Pilot):
         self.setup_episode("kind", addresses)
         for namespace in (NS, "j3-unrelated"):
             self.k("create", "namespace", namespace)
-        setup = prepare_overlay(self, addresses["192.0.2.1"], pins, target)
+        setup = prepare_overlay(self, addresses["192.0.2.1"], pins, target, diagnostics=True)
         observer, sender = install_sender(self, binary)
         self.until(lambda: not self.inspect(APP, "hpa")["items"], 30)
         sessions = self.query(
@@ -562,15 +563,29 @@ def run_qualification(driver, args, addresses, pins):
         )
         save_verdict()
         start = time.time_ns()
-        try:
-            setup, observer, binary = driver.fresh_episode(addresses, pins, target, args.sender)
-            origin, end = run_episode(
-                driver, pins, target, arm, f"j3-{name}", setup, observer, binary, duration, bounds
-            )
-        except Exception:
-            retain_monitor_logs(driver, required=False)
-            raise
-        retain_monitor_logs(driver, required=True)
+        with runner_pressure(out):
+            try:
+                setup, observer, binary = driver.fresh_episode(addresses, pins, target, args.sender)
+                origin, end = run_episode(
+                    driver,
+                    pins,
+                    target,
+                    arm,
+                    f"j3-{name}",
+                    setup,
+                    observer,
+                    binary,
+                    duration,
+                    bounds,
+                )
+            except Exception:
+                retain_postgres_log(driver, start, required=False)
+                retain_monitor_logs(driver, required=False)
+                raise
+            try:
+                retain_postgres_log(driver, start, required=True)
+            finally:
+                retain_monitor_logs(driver, required=True)
         if reset:
             driver.reset()
         runs[name].update(
