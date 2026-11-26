@@ -278,26 +278,33 @@ def test_postgres_statement_visibility():
         .replace(":'foreign'", "'foreign'")
         .replace(":'password'", "'fixture'")
     )
-    run("""
+    seed_before = int(run("SELECT (extract(epoch FROM clock_timestamp()) * 1e9)::bigint;"))
+    foreign_sample = seed_before + 20 * j3.SECOND
+    created = (foreign_sample - 40 * j3.SECOND) / j3.SECOND
+    run(f"""
         INSERT INTO j2_monitor.j3_plan
-        SELECT 'foreign', 'foreign-' || i, 1767226800000000000 - (i + 30) * 1000000000::bigint
+        SELECT 'foreign', 'foreign-' || i, {foreign_sample} - (i + 30) * 1000000000::bigint
         FROM generate_series(1, 101) s(i);
         SELECT j2_monitor.j3_seed(submission_key) FROM j2_monitor.j3_plan WHERE namespace='foreign';
-        UPDATE engine.workflow_executions SET created_at=to_timestamp(1767226760)
+        UPDATE engine.workflow_executions SET created_at=to_timestamp({created})
           WHERE namespace='foreign';
-        UPDATE engine.activity_attempts SET created_at=to_timestamp(1767226760)
+        UPDATE engine.activity_attempts SET created_at=to_timestamp({created})
           WHERE workflow_id LIKE 'j3-fixture-foreign-%';
         """)
-    witness = json.loads(
-        run(
-            (HERE / "foreign-witness.sql")
-            .read_text()
-            .replace(":'foreign'", "'foreign'")
-            .replace(":'sample_ns'", str(T))
-            .replace(":'u_ns'", str(SETUP))
+    sql = (HERE / "foreign-witness.sql").read_text()
+
+    def positive_witness(sample):
+        return json.loads(
+            run(
+                sql.replace(":'foreign'", "'foreign'")
+                .replace(":'sample_ns'", str(sample))
+                .replace(":'u_ns'", str(SETUP))
+            )
         )
-    )
-    assert witness["namespace"] == "foreign" and witness["sample_ns"] == T
+
+    assert positive_witness(seed_before)["claimable_attempts"] == 0
+    witness = positive_witness(foreign_sample)
+    assert witness["namespace"] == "foreign" and witness["sample_ns"] == foreign_sample
     assert witness["claimable_attempts"] == 101
     assert witness["oldest_claimable_age_ns"] == 40 * j3.SECOND
     assert witness["windows"] == {

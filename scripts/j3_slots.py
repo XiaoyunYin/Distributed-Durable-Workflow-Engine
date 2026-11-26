@@ -1,6 +1,7 @@
 """Publish the Ready-slot witness used by the J3 dashboard."""
 
 import json
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -62,28 +63,48 @@ def sample_ready_slots(driver, app, receiver_namespace, receiver, pods):
     sampled = time.time_ns()
     statuses = [worker_status(pod) for pod in pods]
 
-    def read(status):
-        result = driver.k(
-            "-n",
-            app,
-            "exec",
-            status["name"],
-            "-c",
-            "worker",
-            "--",
-            "python",
-            "-c",
-            WORKER_WITNESS,
-            record=False,
-            timeout=5,
-        )
-        return status["uid"], json.loads(result.stdout)
+    def read(pod):
+        status = worker_status(pod)
+        try:
+            result = driver.k(
+                "-n",
+                app,
+                "exec",
+                status["name"],
+                "-c",
+                "worker",
+                "--",
+                "python",
+                "-c",
+                WORKER_WITNESS,
+                record=False,
+                timeout=5,
+            )
+            witness = json.loads(result.stdout)
+            slots = ready_slots([pod], {status["uid"]: witness})
+        except (
+            OSError,
+            subprocess.SubprocessError,
+            RuntimeError,
+            ValueError,
+            AttributeError,
+        ) as error:
+            return status["uid"], None, [], str(error)
+        return status["uid"], witness, slots, None
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        witnesses = dict(executor.map(read, (p for p in statuses if p["ready"])))
-    record = {"sample_ns": sampled, "pods": statuses, "witness": witnesses}
+    record = {"sample_ns": sampled, "pods": statuses, "witness": {}, "slots": [], "errors": {}}
     try:
-        record["slots"] = ready_slots(pods, witnesses)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            for uid, witness, slots, error in executor.map(
+                read, (pod for pod, status in zip(pods, statuses, strict=True) if status["ready"])
+            ):
+                record["slots"].extend(slots)
+                if error is None:
+                    record["witness"][uid] = witness
+                else:
+                    record["errors"][uid] = error
+        record["slots"].sort()
+        require(len(record["slots"]) == len(set(record["slots"])) <= 4, "duplicate slots or surge")
         metric = {"ready_slots": len(record["slots"]), "ready_slots_sample_ns": sampled}
         driver.python(
             receiver_namespace,

@@ -78,9 +78,11 @@ def checker_failure(uid, group, before, polls, kernel_lines):
         for key, value in oom_counts(poll["files"]).items()
     )
     relative = group.removeprefix("/sys/fs/cgroup")
+    # The Linux OOM summary prints kernfs paths from the host hierarchy.
+    # The kind node's /proc membership can omit the Docker cgroup ancestors.
     oom_log = any(
         "oom-kill:" in line
-        and any(path == relative or path.startswith(relative + "/") for path in paths)
+        and any(path.endswith(relative) or relative + "/" in path for path in paths)
         for line in kernel_lines
         if (paths := re.findall(r"(?:oom_memcg|task_memcg)=([^,\s]+)", line))
     )
@@ -280,3 +282,12 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
         "missing or invalid observer/checker resource evidence",
     )
     return json.loads((output / "checker.json").read_bytes())
+
+
+def checker_outcome(output):
+    report = output / "checker-failure.json"
+    if report.is_file():
+        criterion = json.loads(report.read_bytes()).get("criterion")
+        if criterion in {"oom", "restart"}:
+            return "capacity"
+    return "invalid"

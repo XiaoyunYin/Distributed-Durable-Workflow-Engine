@@ -56,6 +56,8 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
 
     up = metric("up")
     up_ticks = sorted(up)
+    slots = metric("j3_ready_slots")
+    slot_ticks = sorted(slots)
     expected = metric("j3:expected")
     at_ticks = sorted(t for t in expected if start_ns <= t <= end_ns)
     require(
@@ -75,6 +77,7 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
             "demand_timestamp_seconds",
             "claimable_attempts",
             "oldest_claimable_age_seconds",
+            "sql_oldest_claimable_seconds",
         )
     }
     windows = {
@@ -88,14 +91,18 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
 
     evaluations = []
     for at in at_ticks:
+        i = bisect_right(up_ticks, at) - 1
+        slot_i = bisect_right(slot_ticks, at) - 1
         row = {
             "at_ns": at,
             "rule_ok": True,
             "valid": at in valid,
             "firing": [alert for alert, values in firing.items() if at in values],
+            "up": int(up[up_ticks[i]][1]) if i >= 0 else None,
         }
+        if slot_i >= 0 and at - slot_ticks[slot_i] <= 5 * SECOND:
+            row["ready_slots"] = int(slots[slot_ticks[slot_i]][1])
         if row["valid"]:
-            i = bisect_right(up_ticks, at) - 1
             require(i >= 0, "valid evaluation has no matching scrape")
             scrape = up_ticks[i]
             require(up[scrape][1] == "1" and valid[at][1] == "1", "invalid success marker")
@@ -124,5 +131,9 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
                     for window, values in windows.items()
                 },
             )
+            if signals["sql_oldest_claimable_seconds"]:
+                row["sql_oldest_claimable_seconds"] = float(
+                    value_at(signals["sql_oldest_claimable_seconds"], scrape)
+                )
         evaluations.append(row)
     return evaluations

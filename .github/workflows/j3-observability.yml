@@ -9,6 +9,14 @@ on:
       - 'go.mod'
       - 'go.sum'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Hosted J3 run
+        type: choice
+        options:
+          - pilot
+          - qualification
+        default: pilot
 
 permissions:
   contents: read
@@ -51,7 +59,7 @@ jobs:
               -w /rules "$prom" $args
           done
           docker run -d --name "$J3_SQL_CONTAINER" -e POSTGRES_HOST_AUTH_METHOD=trust \
-            "$(jq -er .postgres deploy/k8s/tools.lock.json)"
+            "$(jq -er .postgres deploy/k8s/tools.lock.json)" -c track_commit_timestamp=on
           trap 'docker logs "$J3_SQL_CONTAINER" > "$evidence/postgres.log" 2>&1; docker rm -fv "$J3_SQL_CONTAINER"' EXIT
           timeout 60 bash -c 'until docker exec "$J3_SQL_CONTAINER" pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done'
           go test -race -p 1 ./experiments/portfolio/observability/exporter
@@ -65,14 +73,18 @@ jobs:
           name: j3-exporter-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-exporter/
           if-no-files-found: warn
-  overlay-pilot:
+  hosted:
     if: github.event_name == 'workflow_dispatch'
+    name: ${{ inputs.mode == 'qualification' && 'Qualification' || 'Overlay pilot' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: ${{ inputs.mode == 'qualification' && 350 || 35 }}
     env:
       GOMAXPROCS: '2'
       PYTHONDONTWRITEBYTECODE: '1'
+      J3_MODE: ${{ inputs.mode }}
     steps:
+      - name: Record job start
+        run: echo "J3_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -84,7 +96,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          evidence="$RUNNER_TEMP/j3-pilot"
+          evidence="$RUNNER_TEMP/j3-$J3_MODE"
           mkdir -p "$evidence"
           exec > >(tee "$evidence/restore.log") 2>&1
           for lock in experiments/portfolio/load-envelope/images.lock.json experiments/portfolio/observability/exporter.lock.json; do
@@ -98,14 +110,29 @@ jobs:
           CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
             -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
           sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"
-          go test -p 1 ./experiments/portfolio/observability/probe
+          if [[ "$J3_MODE" == pilot ]]; then
+            go test -p 1 ./experiments/portfolio/observability/probe
+          else
+            prom=$(PYTHONPATH=scripts python3 -c 'from j3_overlay import PINS,PROM; print(PINS[PROM])')
+            python3 scripts/j3_rules.py "$evidence/promtool"
+            for args in 'check rules rules.yml' 'test rules tests.yml'; do
+              docker run --rm --entrypoint=/bin/promtool -v "$evidence/promtool:/rules:ro" \
+                -w /rules "$prom" $args
+            done
+          fi
       - name: Prove private overlay and foreign dispatch isolation
+        if: inputs.mode == 'pilot'
         run: |
           python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
+      - name: Qualify outage, controls and full-volume identity drain
+        if: inputs.mode == 'qualification'
+        run: |
+          python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-qualification" "$RUNNER_TEMP/j3-scratch" \
             "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: j3-pilot-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/j3-pilot/
+          name: j3-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-${{ inputs.mode }}/
           if-no-files-found: warn

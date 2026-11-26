@@ -12,9 +12,19 @@ from j3_replay import SECOND, require
 ARRIVAL_RATE = Fraction("7.136100570066256")
 OUTAGE = 300
 RESTORED_LIMIT = 540
-FORECAST_BASE = 226
 FORECAST_CAP = 350
 BASELINE_ARRIVALS = ceil(2220 * ARRIVAL_RATE)
+RESERVED_MINUTES = {
+    "bootstrap": 25,
+    "primary": 47,
+    "matched_healthy": 47,
+    "foreign": 30,
+    "scrape_loss": 22,
+    "primary_export_reset": 10,
+    "matched_healthy_export_reset": 10,
+    "foreign_export_reset": 10,
+    "final_evidence": 25,
+}
 
 
 def restored_rate(evidence):
@@ -83,7 +93,7 @@ def restored_rate(evidence):
     }
 
 
-def derive(rates):
+def derive(rates, measured_seconds=None):
     """Use rational arithmetic through the ceil and cap comparisons."""
     rates = [Fraction(str(rate)) for rate in rates]
     require(len(rates) == 3 and all(rate >= 0 for rate in rates), "expected three restored rates")
@@ -101,7 +111,18 @@ def derive(rates):
 
     recovery = ARRIVAL_RATE * OUTAGE / (mu - ARRIVAL_RATE)
     delta = 60 * ceil(max(0, recovery - RESTORED_LIMIT) / 60)
-    forecast = FORECAST_BASE + 2 * delta // 60
+    if measured_seconds is not None:
+        require(measured_seconds.keys() == RESERVED_MINUTES.keys(), "missing forecast allowances")
+        require(
+            all(type(value) is int and value > 0 for value in measured_seconds.values()),
+            "invalid qualification duration",
+        )
+    measurements = measured_seconds or dict.fromkeys(RESERVED_MINUTES, 0)
+    allowances = {
+        name: max(minutes * 60, measurements[name]) for name, minutes in RESERVED_MINUTES.items()
+    }
+    # The measurements use baseline arms. Charge the extension to both arms.
+    forecast_seconds = sum(allowances.values()) + 2 * delta
     final_window = [1620 + delta, 2220 + delta]
     common = {
         "final_healthy_window_s": final_window,
@@ -111,8 +132,8 @@ def derive(rates):
     }
     return {
         **result,
-        "status": "HALT" if forecast > FORECAST_CAP else "SEALED",
-        "reason": "forecast_over_cap" if forecast > FORECAST_CAP else None,
+        "status": "HALT" if forecast_seconds > FORECAST_CAP * 60 else "SEALED",
+        "reason": "forecast_over_cap" if forecast_seconds > FORECAST_CAP * 60 else None,
         "T_s": float(recovery),
         "T_ratio": str(recovery),
         "delta_s": delta,
@@ -130,7 +151,14 @@ def derive(rates):
         },
         "matched_healthy": common,
         "arrival_volume": ceil(common["stop_s"] * ARRIVAL_RATE),
-        "forecast_minutes": forecast,
+        "forecast_base_minutes": sum(RESERVED_MINUTES.values()) + 2 * delta // 60,
+        "forecast_measured_seconds": measured_seconds,
+        "forecast_allowance_seconds": allowances,
+        "forecast_extended_arm_seconds": {
+            name: allowances[name] + delta for name in ("primary", "matched_healthy")
+        },
+        "forecast_seconds": forecast_seconds,
+        "forecast_minutes": forecast_seconds / 60,
     }
 
 
@@ -138,6 +166,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("outages", nargs=3, type=Path)
+    parser.add_argument("--measurements", required=True, type=Path)
     args = parser.parse_args()
     result = {"status": "INVALID", "outages": []}
     rates = []
@@ -147,7 +176,7 @@ def main():
             rate, evidence = restored_rate(json.loads(path.read_bytes()))
             rates.append(rate)
             result["outages"].append({"evidence": str(path), **evidence})
-        result.update(derive(rates))
+        result.update(derive(rates, json.loads(args.measurements.read_bytes())))
     except (KeyError, OSError, TypeError, ValueError) as error:
         result["error"] = str(error)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

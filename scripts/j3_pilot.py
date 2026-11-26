@@ -44,6 +44,8 @@ COUNT, RATE, RUN, SEED = 70, 7.136100570066256, "j3-pilot", 530001
 
 
 class Pilot(kind.Driver):
+    target_namespace = TARGET
+
     def topics(self, action, *, kafka=None):
         super().topics(action, kafka=kafka or kind.CLUSTER + "-kafka")
 
@@ -56,7 +58,7 @@ class Pilot(kind.Driver):
                     for var in container.get("env", []):
                         if var["name"] == "RUNTIME_NAMESPACE":
                             var.clear()
-                            var.update(name="RUNTIME_NAMESPACE", value=TARGET)
+                            var.update(name="RUNTIME_NAMESPACE", value=self.target_namespace)
         kind.save(self.output / "application-rendered.json", objects)
 
     def command_output(self, stdout, stderr):
@@ -207,7 +209,9 @@ print(json.dumps(results))
     )
     actual = json.loads(result.stdout)
     require(
-        actual[:2] == [401, TARGET] and actual[2] in {404, 405} and actual[3] == "TCP timeout",
+        actual[:2] == [401, driver.target_namespace]
+        and actual[2] in {404, 405}
+        and actual[3] == "TCP timeout",
         f"unexpected private API probe: {actual}",
     )
     ip = driver.pod(NS, EXPORTER)["status"]["podIP"]
@@ -563,22 +567,21 @@ def dashboard_evidence(driver, target, accepted):
     observed = {key for sample in visibility for key in sample["admissions"]["set"]}
     require(
         observed == accepted
-        and any(sample["windows"]["all"]["eligible"] == COUNT for sample in visibility),
+        and any(sample["windows"]["all"]["eligible"] == len(accepted) for sample in visibility),
         "missing or foreign exporter admission identities",
     )
     require(not prom("ALERTS"), "pilot ended with active alerts")
 
 
-def pilot_replay(driver, target, keys, origin, setup):
+def collect_replay_inputs(driver, target, origin, end):
     output = driver.output
-    end = time.time_ns()
-    closing = clock(driver)
     span = (end - origin) // SECOND + 12
     labels = ",".join(f"{key}={json.dumps(value)}" for key, value in target.items())
     observed_at = f"{end // SECOND}.{end % SECOND:09d}"
     matrices = []
     for qualifier in (
         'job="j3"',
+        '__name__="j3_ready_slots"',
         '__name__=~"j3:.*"',
         '__name__="ALERTS",alertstate="firing"',
     ):
@@ -590,7 +593,15 @@ def pilot_replay(driver, target, keys, origin, setup):
     kind.save(output / "prometheus-raw.json", {"matrices": matrices, "rule_group": group})
     path = output / "visibility.jsonl"
     path.write_bytes(request(19188, "/visibility.jsonl"))
-    evaluations = evaluation_rows(matrices, jsonl(path), target, origin, end, group["rules"])
+    return evaluation_rows(matrices, jsonl(path), target, origin, end, group["rules"])
+
+
+def pilot_replay(driver, target, keys, origin, setup):
+    output = driver.output
+    end = time.time_ns()
+    closing = clock(driver)
+    evaluations = collect_replay_inputs(driver, target, origin, end)
+    path = output / "visibility.jsonl"
     raw = json.loads((output / "durable-rows.json").read_bytes())
     data = {
         "namespace": TARGET,
@@ -646,14 +657,16 @@ def receiver_log(driver):
     return path
 
 
-def run_overlay(driver, db_ip, pins, target, binary):
+def prepare_overlay(driver, db_ip, pins, target):
     require(
         driver.query("SELECT count(*) FROM engine.workflow_executions;") == "0",
-        "pilot DB is not empty",
+        "episode DB is not empty",
     )
     setup = clock(driver)
     width = setup["after_ns"] - setup["before_ns"]
-    sql = (J3 / "exporter/monitor.sql").read_text().replace(":'namespace'", repr(TARGET))
+    sql = (
+        (J3 / "exporter/monitor.sql").read_text().replace(":'namespace'", repr(target["namespace"]))
+    )
     driver.postgres(
         sql.replace(":'password'", repr(driver.monitor_password)).replace(
             ":'u_ns'", repr(str(width))
@@ -677,6 +690,11 @@ def run_overlay(driver, db_ip, pins, target, binary):
         driver.rollout(NS, name)
     image_evidence(driver, pins)
     network_denials(driver)
+    return setup
+
+
+def run_overlay(driver, db_ip, pins, target, binary):
+    setup = prepare_overlay(driver, db_ip, pins, target)
     observer, sender = install_sender(driver, binary)
     with (
         driver.forward(PROM, ["19090:9090"]),
@@ -728,8 +746,8 @@ def run_overlay(driver, db_ip, pins, target, binary):
     require(not matches, "unexpected receiver notifications during pilot")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def hosted_arguments(description):
+    parser = argparse.ArgumentParser(description=description)
     for name in ("evidence", "scratch", "runtime_layout", "exporter_layout", "sender"):
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
@@ -740,13 +758,42 @@ def main():
     )
     args.evidence.mkdir(exist_ok=True)
     args.scratch.mkdir()
-    kind.CLUSTER, kind.LABEL = "j3-overlay", "j3.overlay=owned"
-    driver = Pilot(args.evidence, args.scratch)
+    return args
+
+
+def locked_images(driver):
     driver.monitor_password, driver.fixture_password = (secrets.token_hex(32) for _ in range(2))
     runtime = json.loads((J2 / "images.lock.json").read_bytes())
     exporter = json.loads((J3 / "exporter.lock.json").read_bytes())["image"]
     driver.images = {name: runtime[name] for name in ("runtime", "worker")}
     pins = {**PINS, EXPORTER: exporter, RECEIVER: driver.images["worker"]}
+    return runtime, pins
+
+
+def bootstrap(driver, args, pins):
+    driver.install()
+    for addon in ("calico", "keda"):
+        driver.prepare_addon(addon)
+    registry = kind.CLUSTER + "-registry"
+    driver.created.add(registry)
+    command = ["docker", "run", "-d", "--name", registry, "--label", kind.LABEL]
+    driver.command(command + ["-p", "127.0.0.1:5001:5000", kind.LOCK["registry"]])
+    driver.until(lambda: endpoint_ready(5001, "/v2/"), 30)
+    for name, ref in driver.images.items():
+        restore(args.runtime_layout / name, ref)
+    restore(args.exporter_layout / "exporter", pins[EXPORTER])
+    addresses = driver.cluster()
+    node = ["docker", "exec", kind.CLUSTER + "-control-plane"]
+    pull = ["ctr", "--namespace", "k8s.io", "images", "pull", "--hosts-dir"]
+    driver.command(node + pull + ["/etc/containerd/certs.d", pins[EXPORTER]])
+    return addresses
+
+
+def main():
+    args = hosted_arguments(__doc__)
+    kind.CLUSTER, kind.LABEL = "j3-overlay", "j3.overlay=owned"
+    driver = Pilot(args.evidence, args.scratch)
+    runtime, pins = locked_images(driver)
     target = {"campaign": f"j3-pilot-{os.environ['GITHUB_RUN_ID']}", "namespace": TARGET}
     kind.save(
         args.evidence / "run.json",
@@ -762,21 +809,7 @@ def main():
         },
     )
     try:
-        driver.install()
-        for addon in ("calico", "keda"):
-            driver.prepare_addon(addon)
-        registry = kind.CLUSTER + "-registry"
-        driver.created.add(registry)
-        command = ["docker", "run", "-d", "--name", registry, "--label", kind.LABEL]
-        driver.command(command + ["-p", "127.0.0.1:5001:5000", kind.LOCK["registry"]])
-        driver.until(lambda: endpoint_ready(5001, "/v2/"), 30)
-        for name, ref in driver.images.items():
-            restore(args.runtime_layout / name, ref)
-        restore(args.exporter_layout / "exporter", exporter)
-        addresses = driver.cluster()
-        node = ["docker", "exec", kind.CLUSTER + "-control-plane"]
-        pull = ["ctr", "--namespace", "k8s.io", "images", "pull", "--hosts-dir"]
-        driver.command(node + pull + ["/etc/containerd/certs.d", exporter])
+        addresses = bootstrap(driver, args, pins)
         driver.setup_episode("kind", addresses)
         for namespace in (NS, "j3-unrelated"):
             driver.k("create", "namespace", namespace)

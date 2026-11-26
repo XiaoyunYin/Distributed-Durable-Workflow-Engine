@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from j3_schedule import ARRIVAL_RATE, SECOND, derive, restored_rate  # noqa: E402
+from j3_schedule import ARRIVAL_RATE, RESERVED_MINUTES, SECOND, derive, restored_rate  # noqa: E402
 
 
 def rates_for(t):
@@ -56,6 +56,24 @@ def test_seal_uses_exact_boundaries_and_shifts_both_arms(t, delta, forecast, sta
     count = result["arrival_volume"]
     assert count - 1 < (2220 + delta) * ARRIVAL_RATE <= count
     assert result["baseline_arrivals"] == 15843
+
+
+def test_measured_forecast_halts_when_the_base_forecast_passes():
+    measurements = {name: 60 * minutes + 1 for name, minutes in RESERVED_MINUTES.items()}
+    measurements["bootstrap"] = 10  # Keep the reservation for a faster allowance.
+    result = derive(rates_for(4260), measurements)
+    assert result["forecast_base_minutes"] == 350
+    assert result["forecast_seconds"] == 350 * 60 + len(measurements) - 1
+    assert result["status"] == "HALT"
+    assert result["reason"] == "forecast_over_cap"
+    assert result["forecast_allowance_seconds"]["bootstrap"] == 25 * 60
+    assert result["forecast_extended_arm_seconds"] == {
+        "primary": 47 * 60 + 3720 + 1,
+        "matched_healthy": 47 * 60 + 3720 + 1,
+    }
+    del measurements["final_evidence"]
+    with pytest.raises(ValueError, match="missing forecast allowances"):
+        derive(rates_for(4260), measurements)
 
 
 def outage(last):

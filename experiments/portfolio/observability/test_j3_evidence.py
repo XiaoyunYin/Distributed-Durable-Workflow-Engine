@@ -1,4 +1,6 @@
 import copy
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -6,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+from j3_episode import GUARD_SENDER  # noqa: E402
 from j3_evidence import (  # noqa: E402
     SECOND,
     foreign_isolation,
@@ -15,11 +18,12 @@ from j3_evidence import (  # noqa: E402
     target_only_attainment,
 )
 from j3_prometheus import evaluation_rows  # noqa: E402
-from j3_resources import cgroup_paths, checker_failure  # noqa: E402
-from j3_slots import ready_slots  # noqa: E402
+from j3_resources import cgroup_paths, checker_failure, checker_outcome  # noqa: E402
+from j3_slots import ready_slots, sample_ready_slots  # noqa: E402
 
 UID = "abc-def"
 GROUP = "/sys/fs/cgroup/kubepods.slice/kubepods-burstable-podabc_def.slice"
+HOST_GROUP = "/system.slice/docker-kind-node.scope" + GROUP.removeprefix("/sys/fs/cgroup")
 
 
 def test_observer_resolves_pod_group_from_container_membership():
@@ -47,6 +51,26 @@ def test_observer_resolves_pod_group_from_container_membership():
             ["oom-kill: task_memcg=" + GROUP.removeprefix("/sys/fs/cgroup") + "/runtime"],
             "oom",
         ),
+        (
+            UID,
+            "Error",
+            0,
+            0,
+            [
+                "[725.77] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),"
+                f"oom_memcg={HOST_GROUP},task_memcg={HOST_GROUP}/cri-containerd-xyz.scope,"
+                "task=checker,pid=30191,uid=65532"
+            ],
+            "oom",
+        ),
+        (
+            UID,
+            "Error",
+            0,
+            0,
+            [f"oom-kill: task_memcg={HOST_GROUP}-sibling/runtime,task=checker"],
+            "unexplained_checker_exit",
+        ),
     ],
 )
 def test_checker_failure_uses_pod_identity_and_positive_oom_evidence(
@@ -71,6 +95,55 @@ def test_missing_checker_status_and_cgroup_evidence_is_unexplained():
     assert checker_failure(UID, GROUP, {}, [{"files": {}}], []) == "unexplained_checker_exit"
 
 
+@pytest.mark.parametrize(
+    ("criterion", "outcome"),
+    [("oom", "capacity"), ("restart", "capacity"), ("unexplained_checker_exit", "invalid")],
+)
+def test_runner_classifies_only_the_recorded_checker_criterion(tmp_path, criterion, outcome):
+    assert checker_outcome(tmp_path) == "invalid"
+    (tmp_path / "checker-failure.json").write_text(
+        json.dumps({"criterion": criterion, "untrusted_text": "oom restart"})
+    )
+    assert checker_outcome(tmp_path) == outcome
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_sender_guard_stops_on_a_terminal_miss(tmp_path, accepted):
+    journal, abort, armed = (tmp_path / name for name in ("journal", "abort", "armed"))
+    first = {"event": "arrival", "key": "one", "outcome": "uncertain", "status": 0, "error": ""}
+    last = {"event": "closed"} if accepted else {**first, "error": "transport-error"}
+    records = [
+        {"event": "plan"},
+        first,
+        *([{**first, "outcome": "accepted", "status": 200}] if accepted else []),
+        last,
+    ]
+    content = "".join(json.dumps(row) + "\n" for row in records)
+    child = (
+        f"from pathlib import Path; Path({str(journal)!r}).write_bytes({content.encode()!r});"
+        + ("" if accepted else "import time; time.sleep(20)")
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            GUARD_SENDER,
+            str(journal),
+            str(abort),
+            str(armed),
+            sys.executable,
+            "-c",
+            child,
+        ],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert armed.is_file() and result.returncode == (0 if accepted else 1)
+    if not accepted:
+        assert json.loads(result.stderr)["error"] == "transport-error"
+
+
 def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
     pod = {
         "metadata": {"name": "worker-a", "uid": "uid-a"},
@@ -86,6 +159,60 @@ def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
         ready_slots([pod], {})
     pod["metadata"]["deletionTimestamp"] = "2026-01-01T00:00:00Z"
     assert ready_slots([pod], {}) == []
+
+
+def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(tmp_path):
+    def pod(name, terminating=False):
+        metadata = {"name": name, "uid": name}
+        if terminating:
+            metadata["deletionTimestamp"] = "2026-01-01T00:00:00Z"
+        return {
+            "metadata": metadata,
+            "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}]},
+            "spec": {
+                "containers": [{"name": "worker", "env": [{"name": "WORKER_SLOTS", "value": "2"}]}]
+            },
+        }
+
+    class Driver:
+        output = tmp_path
+        metric = None
+
+        def k(self, _flag, _app, _verb, name, *_args, **_kwargs):
+            assert name != "terminating"
+            if name == "missing":
+                raise TimeoutError("worker witness timed out")
+            return type(
+                "Result",
+                (),
+                {
+                    "stdout": json.dumps(
+                        {
+                            "complete": True,
+                            "pod_name": name,
+                            "pod_uid": name,
+                            "session": "live",
+                        }
+                    )
+                },
+            )
+
+        def python(self, _ns, _receiver, code, **_kwargs):
+            self.metric = code
+
+    driver = Driver()
+    sample = sample_ready_slots(
+        driver,
+        "app",
+        "telemetry",
+        "receiver",
+        [pod("live"), pod("missing"), pod("terminating", True)],
+    )
+    assert sample["slots"] == ["live-0", "live-1"]
+    assert list(sample["errors"]) == ["missing"]
+    assert sample["pods"][2]["terminating"]
+    assert json.loads((tmp_path / "ready-slots.jsonl").read_bytes()) == sample
+    assert '"ready_slots": 2' in driver.metric
 
 
 def test_foreign_positive_requires_both_hot_windows_at_the_quiet_target_sample():
