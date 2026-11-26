@@ -657,6 +657,43 @@ def receiver_log(driver):
     return path
 
 
+def retain_monitor_logs(driver, *, required):
+    status = {}
+    for role in (EXPORTER, PROM):
+        for previous in (False, True):
+            name = f"{role}{'-previous' if previous else ''}"
+            try:
+                result = driver.k(
+                    "-n",
+                    NS,
+                    "logs",
+                    f"deployment/{role}",
+                    "--timestamps=true",
+                    *(["--previous"] if previous else []),
+                    allowed=True,
+                    record=False,
+                    timeout=15,
+                )
+            except (OSError, RuntimeError, ValueError) as error:
+                status[name] = {"error": str(error)}
+                continue
+            status[name] = {"exit": result.returncode, "stderr": result.stderr}
+            if not previous or result.returncode == 0:
+                (driver.output / f"{name}-container.log").write_text(
+                    result.stdout,
+                    encoding="utf-8",
+                )
+            if role == EXPORTER and not previous:
+                status[name]["cycle_timings"] = result.stdout.count(" J3_CYCLE ")
+    kind.save(driver.output / "monitor-logs.json", status)
+    if required:
+        require(
+            all(status[role].get("exit") == 0 for role in (EXPORTER, PROM))
+            and status[EXPORTER]["cycle_timings"] > 0,
+            "missing monitor logs or exporter cycle diagnostics",
+        )
+
+
 def prepare_overlay(driver, db_ip, pins, target):
     require(
         driver.query("SELECT count(*) FROM engine.workflow_executions;") == "0",
@@ -814,12 +851,14 @@ def main():
         for namespace in (NS, "j3-unrelated"):
             driver.k("create", "namespace", namespace)
         run_overlay(driver, addresses["192.0.2.1"], pins, target, args.sender)
+        retain_monitor_logs(driver, required=True)
         kind.save(
             args.evidence / "verdict.json", {"status": "PASS", "scope": "unmeasured overlay pilot"}
         )
     except Exception as error:
         kind.save(args.evidence / "verdict.json", {"status": "FAIL", "error": str(error)})
         if driver.cluster_started:
+            retain_monitor_logs(driver, required=False)
             for ns in (NS, APP):
                 driver.k("-n", ns, "get", "pods,events", "-o", "json", allowed=True)
                 for name in pins if ns == NS else ("scheduler", "relay", "worker", "demand"):

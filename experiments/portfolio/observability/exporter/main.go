@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -37,6 +38,8 @@ type projection struct {
 	Outstanding int64             `json:"outstanding"`
 	Unpublished int64             `json:"unpublished"`
 	SQLAge      float64           `json:"sql_oldest_claimable_seconds"`
+	wireBytes   int
+	decodeNS    int64
 }
 
 type demand struct {
@@ -85,9 +88,11 @@ func readProjection(ctx context.Context, db *sql.DB) (*projection, error) {
 		return nil, err
 	}
 	var p projection
+	start := time.Now()
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
+	p.decodeNS, p.wireBytes = time.Since(start).Nanoseconds(), len(raw)
 	if !fresh(time.Unix(0, p.At), time.Now()) || p.Admissions == nil || p.Successes == nil {
 		return nil, errors.New("missing or stale projection")
 	}
@@ -131,15 +136,51 @@ type sampler struct {
 	previous *projection
 }
 
+type cycleTiming struct {
+	StartedNS      int64  `json:"started_ns"`
+	SQLNS          int64  `json:"sql_ns"`
+	DemandNS       int64  `json:"demand_ns"`
+	CycleNS        int64  `json:"cycle_ns"`
+	SQLDecodeNS    int64  `json:"sql_decode_ns"`
+	SQLBytes       int    `json:"sql_bytes"`
+	SQLFailure     string `json:"sql_failure,omitempty"`
+	DemandFailure  string `json:"demand_failure,omitempty"`
+	EvidenceFailed bool   `json:"evidence_failed,omitempty"`
+}
+
+func failureClass(err error) string {
+	var pg *pgconn.PgError
+	switch {
+	case err == nil:
+		return ""
+	case errors.As(err, &pg):
+		return "postgres_" + pg.Code
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return fmt.Sprintf("%T", err)
+	}
+}
+
 func (s *sampler) collect(ctx context.Context, sqlRead func(context.Context) (*projection, error), demandRead func(context.Context) (*demand, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+	start := time.Now()
+	timing := cycleTiming{StartedNS: start.UnixNano()}
+	defer func() {
+		timing.CycleNS = time.Since(start).Nanoseconds()
+		raw, _ := json.Marshal(timing)
+		log.Printf("J3_CYCLE %s", raw)
+	}()
 	p, sqlErr := sqlRead(ctx)
+	timing.SQLNS, timing.SQLFailure = time.Since(start).Nanoseconds(), failureClass(sqlErr)
+	demandStart := time.Now()
 	d, demandErr := demandRead(ctx)
-	if sqlErr != nil || demandErr != nil {
-		log.Printf("monitor cycle failed: sql_ok=%t demand_ok=%t", sqlErr == nil, demandErr == nil)
-	}
+	timing.DemandNS, timing.DemandFailure = time.Since(demandStart).Nanoseconds(), failureClass(demandErr)
 	if p != nil {
+		timing.SQLDecodeNS, timing.SQLBytes = p.decodeNS, p.wireBytes
 		evidence := struct {
 			At          int64             `json:"sample_ns"`
 			Uncertainty int64             `json:"u_ns"`
@@ -150,9 +191,11 @@ func (s *sampler) collect(ctx context.Context, sqlRead func(context.Context) (*p
 		}{p.At, p.Uncertainty, p.Windows, delta(s.previous.Admissions, p.Admissions),
 			delta(s.previous.Successes, p.Successes), d}
 		if err := json.NewEncoder(s.evidence).Encode(evidence); err != nil {
+			timing.EvidenceFailed = true
 			return err
 		}
 		if err := s.evidence.Sync(); err != nil {
+			timing.EvidenceFailed = true
 			return err
 		}
 		s.previous = p

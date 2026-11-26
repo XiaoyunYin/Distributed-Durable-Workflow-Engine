@@ -58,6 +58,7 @@ from j3_pilot import (
     prom,
     receiver_log,
     request,
+    retain_monitor_logs,
 )
 from j3_replay import DEADLINE, DOMAIN, SECOND, replay, require
 from j3_schedule import ARRIVAL_RATE, FORECAST_CAP, restored_rate
@@ -561,10 +562,15 @@ def run_qualification(driver, args, addresses, pins):
         )
         save_verdict()
         start = time.time_ns()
-        setup, observer, binary = driver.fresh_episode(addresses, pins, target, args.sender)
-        origin, end = run_episode(
-            driver, pins, target, arm, f"j3-{name}", setup, observer, binary, duration, bounds
-        )
+        try:
+            setup, observer, binary = driver.fresh_episode(addresses, pins, target, args.sender)
+            origin, end = run_episode(
+                driver, pins, target, arm, f"j3-{name}", setup, observer, binary, duration, bounds
+            )
+        except Exception:
+            retain_monitor_logs(driver, required=False)
+            raise
+        retain_monitor_logs(driver, required=True)
         if reset:
             driver.reset()
         runs[name].update(

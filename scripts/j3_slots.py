@@ -59,7 +59,7 @@ def ready_slots(pods, witnesses):
     return sorted(slots)
 
 
-def sample_ready_slots(driver, app, receiver_namespace, receiver, pods):
+def sample_ready_slots(driver, app, receiver_namespace, receiver, pods, *, receiver_pod=None):
     sampled = time.time_ns()
     statuses = [worker_status(pod) for pod in pods]
 
@@ -106,13 +106,25 @@ def sample_ready_slots(driver, app, receiver_namespace, receiver, pods):
         record["slots"].sort()
         require(len(record["slots"]) == len(set(record["slots"])) <= 4, "duplicate slots or surge")
         metric = {"ready_slots": len(record["slots"]), "ready_slots_sample_ns": sampled}
-        driver.python(
-            receiver_namespace,
-            receiver,
+        code = (
             "import os,pathlib; p=pathlib.Path('/evidence/metrics.tmp'); "
-            f"p.write_text({json.dumps(metric)!r}); os.replace(p,'/evidence/metrics.json')",
-            record=False,
+            f"p.write_text({json.dumps(metric)!r}); os.replace(p,'/evidence/metrics.json')"
         )
+        if receiver_pod is None:
+            driver.python(receiver_namespace, receiver, code, record=False)
+        else:
+            driver.k(
+                "-n",
+                receiver_namespace,
+                "exec",
+                receiver_pod,
+                "--",
+                "python",
+                "-c",
+                code,
+                record=False,
+                timeout=5,
+            )
     finally:
         with (driver.output / "ready-slots.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record) + "\n")

@@ -16,6 +16,7 @@ on:
         options:
           - pilot
           - qualification
+          - sql-benchmark
         default: pilot
 
 permissions:
@@ -74,7 +75,7 @@ jobs:
           path: ${{ runner.temp }}/j3-exporter/
           if-no-files-found: warn
   hosted:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'sql-benchmark'
     name: ${{ inputs.mode == 'qualification' && 'Qualification' || 'Overlay pilot' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.mode == 'qualification' && 350 || 35 }}
@@ -107,6 +108,7 @@ jobs:
             echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
             unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
           done
+          sha256sum -c "$RUNNER_TEMP/j3-exporter-layout/source.sha256"
           CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
             -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
           sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"
@@ -135,4 +137,32 @@ jobs:
         with:
           name: j3-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-${{ inputs.mode }}/
+          if-no-files-found: warn
+  sql-benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'sql-benchmark'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build candidate exporter and retain OCI layout
+        run: bash scripts/j3_build_exporter.sh "$RUNNER_TEMP/j3-sql-benchmark" candidate
+      - name: Compare SQL projections under hosted PostgreSQL load
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/j3-sql-benchmark"
+          baseline=70a0ae4dd03337b9d02b85054dfa7545096fbd3b
+          git show "$baseline:experiments/portfolio/observability/exporter/monitor.sql" \
+            > "$evidence/baseline-monitor.sql"
+          python3 scripts/j3_benchmark.py "$evidence" "$evidence/baseline-monitor.sql" \
+            "$(cat "$evidence/image.txt")"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-sql-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-sql-benchmark/
           if-no-files-found: warn

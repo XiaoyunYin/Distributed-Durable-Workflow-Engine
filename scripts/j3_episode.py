@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import subprocess
 import time
 from contextlib import contextmanager
@@ -331,14 +332,36 @@ class Sampler:
         self.inventories = {}
         self.templates = {}
 
+    def pods(self):
+        selector = ",".join(sorted(self.roles | self.pins | {"worker"}))
+        result = self.driver.k(
+            "get",
+            "pods",
+            "--all-namespaces",
+            "-l",
+            f"app in ({selector})",
+            "-o",
+            "json",
+            record=False,
+            timeout=5,
+        )
+        pods = json.loads(result.stdout)["items"]
+        return [
+            [p for p in pods if p["metadata"]["namespace"] == namespace] for namespace in (APP, NS)
+        ]
+
     def sample(self):
-        app = self.driver.inspect(APP, "pods")["items"]
-        telemetry = self.driver.inspect(NS, "pods")["items"]
+        app, telemetry = self.pods()
         processes = process_signature(app, self.roles) | process_signature(telemetry, self.pins)
         append(self.driver.output / "processes.jsonl", {"at_ns": time.time_ns(), "pods": processes})
         require(processes == self.processes, "application or telemetry process was replaced")
         workers = [p for p in app if p["metadata"]["labels"].get("app") == "worker"]
-        sample = sample_ready_slots(self.driver, APP, NS, RECEIVER, workers)
+        (receiver,) = [
+            p["metadata"]["name"]
+            for p in telemetry
+            if p["metadata"]["labels"].get("app") == RECEIVER
+        ]
+        sample = sample_ready_slots(self.driver, APP, NS, RECEIVER, workers, receiver_pod=receiver)
         require(
             self.latest is None
             or 0 < sample["sample_ns"] - self.latest["sample_ns"] <= SLOT_MAX_GAP,
@@ -389,7 +412,25 @@ class Sampler:
         try:
             while not self.shutdown.is_set():
                 started = time.monotonic()
-                self.sample()
+                cpu = os.times()
+                try:
+                    self.sample()
+                finally:
+                    after = os.times()
+                    append(
+                        self.driver.output / "sampler-cost.jsonl",
+                        {
+                            "at_ns": time.time_ns(),
+                            "wall_s": time.monotonic() - started,
+                            "parent_cpu_s": after.user + after.system - cpu.user - cpu.system,
+                            "child_cpu_s": (
+                                after.children_user
+                                + after.children_system
+                                - cpu.children_user
+                                - cpu.children_system
+                            ),
+                        },
+                    )
                 self.shutdown.wait(max(0, SLOT_INTERVAL - (time.monotonic() - started)))
         except Exception as error:
             self.error = error
@@ -399,9 +440,10 @@ class Sampler:
             raise self.error
 
     def __enter__(self):
-        self.processes = process_signature(
-            self.driver.inspect(APP, "pods")["items"], self.roles
-        ) | process_signature(self.driver.inspect(NS, "pods")["items"], self.pins)
+        app, telemetry = self.pods()
+        self.processes = process_signature(app, self.roles) | process_signature(
+            telemetry, self.pins
+        )
         self.thread.start()
         return self
 

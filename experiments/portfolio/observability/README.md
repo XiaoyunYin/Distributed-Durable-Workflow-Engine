@@ -28,6 +28,31 @@ and the baseline matched-healthy and scrape-loss controls needed for the forecas
 Each episode starts with fresh database, broker, witness and telemetry state.
 The real partition-lease probe runs only in the unmeasured `pilot` mode.
 
+Episode artifacts retain the exporter and Prometheus container logs. The
+exporter's `J3_CYCLE` records include SQL and demand durations, JSON decode time,
+wire bytes, total cycle time and failure classes. The qualification sampler also
+records its wall time and process CPU deltas.
+
+The `sql-benchmark` dispatch compares the deployed and candidate SQL using the
+same candidate exporter and pinned PostgreSQL. Each starts with 20,000 synthetic
+target workflows and 2,141 foreign fixtures. Idle and concurrent-write phases
+retain the full cycle timing series, p50/p99/max, write counts and EXPLAIN plans.
+The candidate gates on p99 ≤ 1.0 s and max ≤ 1.5 s with zero failed cycles.
+Both variants use the engine's existing indexes. The benchmark verifies and
+retains their definitions before and after J3 setup. A missed gate records an
+R398 finding in `benchmark.json` and stops before deployment.
+
+The deployed `j3_sample()` body differs textually from the registered SQL.
+It restructures the CTEs, uses `json` in place of `jsonb`, and joins history
+only for successful workflows. The benchmark verifies semantic equivalence by
+comparing the full outputs in the same statement snapshot and records the
+result as `same_snapshot_projection_equal`. [Registered SQL, lines 29–58](protocol.md?plain=1#L29-L58) ·
+[Same-snapshot check](../../../scripts/j3_benchmark.py#L519-L533).
+
+The benchmark uses a local demand stub. The pod-inventory CPU comparison uses the pinned
+kubectl and a synthetic API, so its results cover inventory calls and parsing.
+The job packages the candidate OCI layout for sealing after measurements pass.
+
 `scripts/j3_schedule.py OUTPUT OUTAGE1 OUTAGE2 OUTAGE3 --measurements FILE`
 uses actual PostgreSQL admission and terminal commit times. It records the rate
 population, each stop time, recovery time, shifted bounds and arrival volume.

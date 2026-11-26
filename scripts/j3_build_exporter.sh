@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 out=$1
+mode=${2:-verify}
+case "$mode" in
+    verify|candidate) ;;
+    *) echo "unknown exporter build mode: $mode" >&2; exit 2 ;;
+esac
 dir=experiments/portfolio/observability/exporter
 tag=localhost:5001/j3-exporter:build
 mkdir -p "$out"
@@ -13,7 +18,7 @@ docker cp "$container:/exporter" "$out/binary"
 sha256sum "$out/binary" | cut -d' ' -f1 > "$out/binary.sha256"
 rm "$out/binary"
 lock=experiments/portfolio/observability/exporter.lock.json
-if [[ -f "$lock" ]]; then
+if [[ "$mode" == verify && -f "$lock" ]]; then
     diff <(jq -er .binary_sha256 "$lock") "$out/binary.sha256"
     exit
 fi
