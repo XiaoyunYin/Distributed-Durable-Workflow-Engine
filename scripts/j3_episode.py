@@ -14,7 +14,8 @@ import dur053_k3 as kind
 from j2_offline import attempt_key, drain_identities, utc_ns
 from j3_evidence import jsonl
 from j3_overlay import APP, NS, RECEIVER
-from j3_pilot import prom
+from j3_pilot import json_request, prom
+from j3_prometheus import epoch_ns
 from j3_replay import DOMAIN, SECOND, require, unique
 from j3_resources import checker_outcome, run_checker
 from j3_schedule import ARRIVAL_RATE
@@ -27,6 +28,7 @@ EXEC_STREAM_GRACE_SECONDS = 30
 SEED = 530001
 SLOT_INTERVAL = 2
 SLOT_MAX_GAP = 5 * SECOND
+RULE_SETTLE_SECONDS = 1
 TERMINAL = "'SUCCEEDED','FAILED','CANCELED','REJECTED','ABANDONED'"
 SCOPE = "namespace=(SELECT namespace FROM j2_monitor.scope)"
 COMMIT_NS = "(extract(epoch FROM pg_xact_commit_timestamp(%s.xmin))*1000000000)::bigint"
@@ -638,16 +640,39 @@ class Sampler:
             "runner clock discontinuity",
         )
         if self.origin is not None and self.origin <= now:
+            self.check_live_rules(now)
+
+    def check_live_rules(self, now):
+        # Prometheus commits each recording rule separately. Ignore the latest second
+        # of samples so a normal in-progress evaluation cannot mix rule timestamps.
+        at_ns = now - RULE_SETTLE_SECONDS * SECOND
+        at = (at_ns // 1_000_000) / 1_000  # PromQL evaluates at millisecond precision.
+        expected = prom("timestamp(j3:expected) and (time() - timestamp(j3:expected) <= 6)", at=at)
+        groups = json_request(
+            19090,
+            "/api/v1/rules",
+            **{"rule_group[]": "j3", "file[]": "/etc/j3/rules.yml", "rule_name[]": "j3:expected"},
+        )["data"]["groups"]
+        require(len(groups) == 1, "missing live J3 rule group status")
+        group = groups[0]
+        duration = group["evaluationTime"]
+        last_evaluation = utc_ns(group["lastEvaluation"])
+        overrun = "rule evaluation overran the settle margin"
+        require(0 <= duration < RULE_SETTLE_SECONDS, overrun)
+        require(expected and last_evaluation > 0, "live rule evaluation gap")
+        # A new marker without a completed group is itself evidence of an overrun
+        # at this cutoff. evaluationTime describes the last finished group.
+        require(all(epoch_ns(row["value"][1]) <= last_evaluation for row in expected), overrun)
+        blocked = self.arm == "scrape_loss" and 600 <= (at_ns - self.origin) / SECOND < 670
+        if not blocked:
             require(
-                bool(prom("time() - timestamp(j3:expected) <= 6")),
-                "live rule evaluation gap",
+                bool(
+                    prom(
+                        "(j3:valid == 1) and (timestamp(j3:valid) == timestamp(j3:expected))", at=at
+                    )
+                ),
+                "live scoped sample gap",
             )
-            blocked = self.arm == "scrape_loss" and 600 <= (now - self.origin) / SECOND < 670
-            if not blocked:
-                require(
-                    bool(prom("j3:valid and (timestamp(j3:valid) == timestamp(j3:expected))")),
-                    "live scoped sample gap",
-                )
 
     def loop(self):
         try:

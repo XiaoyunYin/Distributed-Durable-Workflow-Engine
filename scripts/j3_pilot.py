@@ -274,8 +274,11 @@ def json_request(port, path, **params):
     return json.loads(request(port, path, **params))
 
 
-def prom(expr):
-    return json_request(19090, "/api/v1/query", query=expr)["data"]["result"]
+def prom(expr, *, at=None):
+    params = {"query": expr}
+    if at is not None:
+        params["time"] = at
+    return json_request(19090, "/api/v1/query", **params)["data"]["result"]
 
 
 def endpoint_ready(port, path):

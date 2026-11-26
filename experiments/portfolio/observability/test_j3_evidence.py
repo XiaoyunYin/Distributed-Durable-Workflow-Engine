@@ -359,6 +359,100 @@ def test_drain_starts_quiet_when_outbox_empties_with_the_same_fingerprint(tmp_pa
     assert [read["quiet_start_ns"] for read in reads[:4]] == [None, None, None, stop + 3 * SECOND]
 
 
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("partial_commit", None),
+        ("missing", "live scoped sample gap"),
+        ("zero", "live scoped sample gap"),
+        ("overrun", "rule evaluation overran the settle margin"),
+        ("still_running", "rule evaluation overran the settle margin"),
+        ("stale", "live rule evaluation gap"),
+    ],
+)
+def test_live_sample_check_reads_settled_prometheus_evaluations(monkeypatch, case, error):
+    now = 105.005 if case == "partial_commit" else 106.050
+    if case == "stale":
+        now = 108.000
+    reads = []
+    expected = [(100, 1, 100.004)]
+    valid = [(100, 1, 100.006)]
+    if case != "stale":
+        expected.append((105, 1, 105.004))
+    if case not in {"missing", "stale", "still_running"}:
+        valid.append((105, 0 if case == "zero" else 1, 105.009))
+
+    def visible(points, at):
+        return max((p for p in points if p[0] <= at and p[2] <= now), default=None)
+
+    def request(port, path, **params):
+        assert port == 19090
+        reads.append((path, params))
+        if path == "/api/v1/rules":
+            assert params == {
+                "rule_group[]": "j3",
+                "file[]": "/etc/j3/rules.yml",
+                "rule_name[]": "j3:expected",
+            }
+            second_completed = now >= 105.010 and case not in {"still_running", "stale"}
+            data = {
+                "groups": [
+                    {
+                        "evaluationTime": 1.0 if case == "overrun" else 0.008,
+                        "lastEvaluation": (
+                            "1970-01-01T00:01:45.002Z"
+                            if second_completed
+                            else "1970-01-01T00:01:40.002Z"
+                        ),
+                    }
+                ]
+            }
+        else:
+            assert path == "/api/v1/query"
+            query = params["query"]
+            at = params.get("time", now)
+            exp = visible(expected, at)
+            result = []
+            if query.startswith("timestamp(j3:expected)"):
+                assert "time() - timestamp(j3:expected) <= 6" in query
+                if exp and at - exp[0] <= 6:
+                    result = [{"value": [at, str(exp[0])]}]
+            else:
+                assert "timestamp(j3:valid) == timestamp(j3:expected)" in query
+                row = visible(valid, at)
+                if (
+                    row
+                    and exp
+                    and row[0] == exp[0]
+                    and ("j3:valid == 1" not in query or row[1] == 1)
+                ):
+                    result = [{"value": [at, str(row[1])]}]
+            data = {"result": result}
+        return json.dumps({"status": "success", "data": data}).encode()
+
+    monkeypatch.setattr("j3_pilot.request", request)
+    sampler = episode.Sampler(None, [], "outage")
+    sampler.origin = 95 * SECOND
+    if case == "partial_commit":
+        assert visible(expected, now)[0] == 105 and visible(valid, now)[0] == 100
+        assert not episode.prom("j3:valid and (timestamp(j3:valid) == timestamp(j3:expected))")
+        reads.clear()
+    if error:
+        with pytest.raises(ValueError, match=error):
+            sampler.check_live_rules(round(now * SECOND))
+    else:
+        sampler.check_live_rules(round(now * SECOND))
+        now += 1
+        sampler.check_live_rules(round(now * SECOND))
+        assert [params["time"] for path, params in reads if path == "/api/v1/query"] == [
+            104.005,
+            104.005,
+            105.005,
+            105.005,
+        ]
+    assert any(path == "/api/v1/rules" for path, _ in reads)
+
+
 def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
     pod = {
         "metadata": {"name": "worker-a", "uid": "uid-a"},
