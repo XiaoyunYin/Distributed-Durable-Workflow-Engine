@@ -6,8 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import dur053_k6_g_smoke  # noqa: E402
@@ -389,8 +387,12 @@ def test_phase_g_accepts_advanced_base_merge_tree_and_rejects_mutation(tmp_path,
     assert record["checkout"]["commit"] == merge
 
     commit("genuine-mutation")
-    with pytest.raises(SmokeFailure, match="G_SOURCE_TREE_DRIFT"):
+    try:
         dur053_k6_g_smoke.check_source(evidence, merge)
+    except SmokeFailure as error:
+        assert str(error) == "G_SOURCE_TREE_DRIFT"
+    else:
+        raise AssertionError("Phase G accepted the mutated tree")
 
 
 def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:
