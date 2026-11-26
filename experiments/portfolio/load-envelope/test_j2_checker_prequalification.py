@@ -3,13 +3,15 @@ import json
 import subprocess
 import sys
 from collections import Counter
-from hashlib import sha256
+from hashlib import file_digest, sha256
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+from j2_checker import CHECKER, CONTAINER_CHECKER, LOCK_PATH  # noqa: E402
 from j2_checker_report import indexed_report  # noqa: E402
 from j2_prequal_fixture import LINKED, build_fixture, compact  # noqa: E402
 from j2_prequalify_checker import (  # noqa: E402
@@ -19,11 +21,13 @@ from j2_prequalify_checker import (  # noqa: E402
     VMHWM_LIMIT_KIB,
     checker_gates,
     measure_trials,
+    prequalify,
 )
 from j2_qualification_evidence import read, verify, write  # noqa: E402
 
 
-def test_comparison_reuses_snapshot_even_when_control_live_fails(tmp_path, monkeypatch):
+@pytest.mark.parametrize("compare", [False, True])
+def test_trials_share_snapshot_and_keep_primary_evidence(tmp_path, monkeypatch, compare):
     evidence, scratch = tmp_path / "evidence", tmp_path / "scratch"
     evidence.mkdir()
     scratch.mkdir()
@@ -58,20 +62,93 @@ def test_comparison_reuses_snapshot_even_when_control_live_fails(tmp_path, monke
 
     monkeypatch.setattr("j2_prequalify_checker.checker_run", checker)
     monkeypatch.setattr("j2_prequalify_checker.profile", python_stage)
-    trials = measure_trials(count, evidence, scratch, Path("checker"), "digest", TRIAL_LIMITS)
-    assert calls == [(path, limit) for path in ("live", "offline") for limit in TRIAL_LIMITS]
-    assert snapshots == ["1100MiB"]
-    assert {trial["offline_snapshot_from"] for trial in trials.values()} == {"1100MiB"}
-    assert [label for label, trial in trials.items() if trial["pass"]] == ["1100MiB", "1200MiB"]
-    assert trials["unset"]["paths"]["offline"]["gc_count"] == 7
-    assert (evidence / "gomemlimit" / "1200MiB" / "live-checker.stderr").is_file()
+    limit = read(LOCK_PATH)["gomemlimit"]
+    limits = TRIAL_LIMITS if compare else (limit,)
+    trials = measure_trials(count, evidence, scratch, Path("checker"), "digest", limits)
+    assert calls == [(path, value) for path in ("live", "offline") for value in limits]
+    assert (evidence / "live-checker.stderr").is_file()
+    assert (evidence / "offline-checker.stderr").is_file()
+    if compare:
+        assert snapshots == ["1100MiB"]
+        assert {trial["offline_snapshot_from"] for trial in trials.values()} == {"1100MiB"}
+        assert [label for label, trial in trials.items() if trial["pass"]] == ["1100MiB", "1200MiB"]
+        assert trials["unset"]["paths"]["offline"]["gc_count"] == 7
+        assert (evidence / "gomemlimit" / "1200MiB" / "live-checker.stderr").is_file()
+    else:
+        assert snapshots == [evidence.name]
+        assert trials[limit]["offline_snapshot_from"] == limit
+        assert trials[limit]["pass"]
     assert not list(scratch.iterdir())
 
 
-def test_checker_lock_hashes_match_committed_go_module_blobs():
+@pytest.mark.parametrize(
+    ("wrapper", "trial"), [(CHECKER, False), (CONTAINER_CHECKER, False), (CHECKER, True)]
+)
+def test_checker_wrapper_applies_explicit_memory_limit(monkeypatch, capfd, wrapper, trial):
+    checker = Path(sys.executable)
+    with checker.open("rb") as stream:
+        digest = file_digest(stream, "sha256").hexdigest()
+    limit = "" if trial else read(LOCK_PATH)["gomemlimit"]
+    monkeypatch.setenv("GOMEMLIMIT", "900MiB")
+    monkeypatch.delenv("J2_CHECKER_SAMPLE", raising=False)
+    monkeypatch.setitem(
+        sys.modules,
+        "resource",
+        SimpleNamespace(RUSAGE_CHILDREN=0, getrusage=lambda _: SimpleNamespace(ru_maxrss=1)),
+    )
+    monkeypatch.setattr(Path, "read_text", lambda *_: "0")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "-c",
+            str(checker),
+            digest,
+            limit,
+            "-c",
+            "import json, os; print(json.dumps(os.environ.get('GOMEMLIMIT')))",
+        ],
+    )
+    with pytest.raises(SystemExit) as exit_status:
+        exec(wrapper, {})
+    assert exit_status.value.code == 0
+    output = capfd.readouterr()
+    assert json.loads(output.out) == (limit or None)
+    measurement = next(line for line in output.err.splitlines() if line.startswith("J2_CHECKER "))
+    assert json.loads(measurement.removeprefix("J2_CHECKER "))["gomemlimit"] == (limit or None)
+
+
+def test_normal_prequalification_uses_registered_checker_limit(tmp_path, monkeypatch):
+    evidence, scratch = tmp_path / "evidence", tmp_path / "scratch"
+    evidence.mkdir()
+    scratch.mkdir()
+    (scratch / "fixture.sql").touch()
+    lock = read(LOCK_PATH)
+    limit = lock["gomemlimit"]
+    checker = Path("checker")
+
+    def trials(count, output, work, binary, digest, limits):
+        assert (count, output, work, binary) == (26678, evidence, scratch, checker)
+        assert digest == lock["sha256"] and limits == (limit,)
+        return {limit: {"gomemlimit": limit, "pass": True}}
+
+    monkeypatch.setattr("j2_prequalify_checker.verify_binary", lambda _: lock)
+    monkeypatch.setattr("j2_prequalify_checker.build_fixture", lambda *_: None)
+    monkeypatch.setattr("j2_prequalify_checker.start_database", lambda *_: None)
+    monkeypatch.setattr("j2_prequalify_checker.subprocess.run", lambda *_, **__: None)
+    monkeypatch.setattr("j2_prequalify_checker.measure_trials", trials)
+    result = prequalify(26678, evidence, scratch, checker, Path("migrator"))
+    assert result["pass"] and result["gomemlimit"] == limit
+
+
+def test_checker_lock_matches_committed_tree_and_go_module_blobs():
     root = Path(__file__).resolve().parents[3]
-    lock_path = root / "experiments/portfolio/load-envelope/checker.lock.json"
-    lock = json.loads(lock_path.read_bytes())
+    lock = read(LOCK_PATH)
+    tree = subprocess.check_output(
+        ["git", "rev-parse", lock["source"] + "^{tree}"], cwd=root, text=True
+    ).strip()
+    assert lock["tree"] == tree
+    assert lock["gomemlimit"] == "1200MiB"
     for filename, key in (("go.mod", "go_mod_sha256"), ("go.sum", "go_sum_sha256")):
         blob = subprocess.check_output(
             ["git", "cat-file", "blob", f"{lock['source']}:{filename}"], cwd=root

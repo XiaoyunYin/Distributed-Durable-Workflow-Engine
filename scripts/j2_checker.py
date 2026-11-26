@@ -34,17 +34,15 @@ print('observer checker SHA-256 ' + digest)
 CHECKER = """
 import hashlib, json, os, resource, subprocess, sys, time
 from pathlib import Path
-path, digest, *args = sys.argv[1:]
+path, digest, memory_limit, *args = sys.argv[1:]
 with open(path, 'rb') as checker:
     if hashlib.file_digest(checker, 'sha256').hexdigest() != digest:
         sys.exit('checker digest mismatch')
 env = os.environ.copy()
-env.pop('GOMEMLIMIT', None)
-trial_limit = env.pop('J2_PREQUAL_GOMEMLIMIT', None)
-if trial_limit is not None:
-    if env.get('J2_CHECKER_SAMPLE') != '1' or trial_limit not in ('1100MiB', '1200MiB'):
-        sys.exit('invalid checker memory-limit trial')
-    env['GOMEMLIMIT'] = trial_limit
+if memory_limit:
+    env['GOMEMLIMIT'] = memory_limit
+else:
+    env.pop('GOMEMLIMIT', None)
 env['J2_CHECKER_PHASES'] = '1'
 started_at_ns = time.time_ns()
 start = time.monotonic()
@@ -114,6 +112,7 @@ def build(target, comparison_source=None):
         if not re.fullmatch(r"[0-9a-f]{40}", comparison_source):
             raise ValueError("comparison requires the full dispatched source commit")
         lock["source"] = comparison_source
+        lock.pop("gomemlimit", None)
     tree = subprocess.check_output(
         ["git", "rev-parse", lock["source"] + "^{tree}"], cwd=ROOT, text=True
     ).strip()

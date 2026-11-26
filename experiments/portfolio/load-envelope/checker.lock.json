@@ -1,6 +1,6 @@
 {
-  "source": "adda4709fff18e39c6a395d074f04923d160014a",
-  "tree": "2058507a67d95efa47017139dc2eff7e2d0ec781",
+  "source": "fbce0d98e4e8c82d57eba09b68bb71a76fd30355",
+  "tree": "ba068edce3a44eaace599bf50e108f8271ff9833",
   "go_version": "go1.27.4",
   "package": "./cmd/dur049-checker",
   "go_mod_sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324",
@@ -18,5 +18,6 @@
     "GOEXPERIMENT": ""
   },
   "flags": ["-p", "1", "-mod=readonly", "-buildvcs=false", "-trimpath", "-ldflags=-s -w"],
-  "sha256": "63865be55385d925c55e1480dc95ef6743b9af017f19463fd595105ae7752f9c"
+  "sha256": "823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e",
+  "gomemlimit": "1200MiB"
 }

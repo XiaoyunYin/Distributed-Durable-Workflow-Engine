@@ -105,8 +105,6 @@ def checker_run(evidence, checker, digest, count, mode, memory_limit):
             "--env",
             f"DATABASE_URL=postgres://postgres:{PASSWORD}@db/postgres?sslmode=disable",
         ]
-    if memory_limit is not None:
-        command += ["--env", f"J2_PREQUAL_GOMEMLIMIT={memory_limit}"]
     command += [
         WORKER_BASE,
         "python",
@@ -114,6 +112,7 @@ def checker_run(evidence, checker, digest, count, mode, memory_limit):
         CONTAINER_CHECKER,
         MOUNTED_CHECKER,
         digest,
+        memory_limit or "",
         "-arrivals",
         "/evidence/arrivals.json",
         "-witness-export",
@@ -242,9 +241,9 @@ def measure_trials(count, evidence, scratch, checker, digest, limits):
     trials = {}
     with tempfile.TemporaryDirectory(dir=scratch) as temp:
         directories = {}
-        for memory_limit in limits:
+        for index, memory_limit in enumerate(limits):
             label = memory_limit or "unset"
-            directory = evidence if memory_limit is None else Path(temp) / label
+            directory = evidence if index == 0 else Path(temp) / label
             if directory != evidence:
                 directory.mkdir()
                 for name in (
@@ -373,14 +372,14 @@ def prequalify(count, evidence, scratch, checker, migrator, compare_gomemlimit=F
             scratch,
             checker,
             lock["sha256"],
-            TRIAL_LIMITS if compare_gomemlimit else (None,),
+            TRIAL_LIMITS if compare_gomemlimit else (lock["gomemlimit"],),
         )
         if compare_gomemlimit:
             result["trials"] = trials
             result["passing_settings"] = [label for label, trial in trials.items() if trial["pass"]]
             result["pass"] = bool(result["passing_settings"])
         else:
-            result.update(trials["unset"])
+            result.update(trials[lock["gomemlimit"]])
     except Exception as error:
         result["error"] = str(error)
         raise
@@ -422,6 +421,7 @@ def main():
         args.migrator,
         args.compare_gomemlimit,
     )
+    trials = result["trials"] if args.compare_gomemlimit else {result["gomemlimit"]: result}
     print(
         json.dumps(
             {
@@ -429,7 +429,7 @@ def main():
                 "pass": result["pass"],
                 "trials": {
                     setting: {name: path["gates"] for name, path in trial["paths"].items()}
-                    for setting, trial in result.get("trials", {"unset": result}).items()
+                    for setting, trial in trials.items()
                 },
             },
             sort_keys=True,

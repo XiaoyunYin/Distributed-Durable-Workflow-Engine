@@ -128,7 +128,13 @@ class Qualification(J2Driver):
 
     def checker_args(self, *args):
         return self.exec_args(
-            "python", "-c", CHECKER, POD_CHECKER, self.checker_lock["sha256"], *args
+            "python",
+            "-c",
+            CHECKER,
+            POD_CHECKER,
+            self.checker_lock["sha256"],
+            self.checker_lock["gomemlimit"],
+            *args,
         )
 
     @property
@@ -882,6 +888,7 @@ def workload(driver, count, plan, result):
             CONTAINER_CHECKER,
             MOUNTED_CHECKER,
             driver.checker_lock["sha256"],
+            driver.checker_lock["gomemlimit"],
             "-arrivals",
             "/qualification/arrivals.json",
             "-witness-export",
@@ -902,6 +909,7 @@ def workload(driver, count, plan, result):
             r["exit_status"] == 0
             and r["peak_rss_kib"] > 0
             and r["checker_sha256"] == driver.checker_lock["sha256"]
+            and r.get("gomemlimit") == driver.checker_lock["gomemlimit"]
             for r in result["checker_processes"].values()
         ),
         "missing checker process metrics",
