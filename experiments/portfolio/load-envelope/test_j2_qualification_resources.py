@@ -28,7 +28,7 @@ def collect(tmp_path, monkeypatch):
         SimpleNamespace(monotonic=lambda: now, time_ns=lambda: now * 10**9, sleep=sleep),
     )
 
-    def run(statuses, kills=0, *, trigger="missing PID"):
+    def run(statuses, kills=0, *, trigger="missing PID", kernel_hit=False):
         calls = iter(statuses)
 
         def probe(args, **kwargs):
@@ -45,7 +45,11 @@ def collect(tmp_path, monkeypatch):
                     }
                 )
             elif args[-1] == "dmesg":
-                stdout = "oom-kill:constraint=CONSTRAINT_MEMCG,oom_memcg=/unrelated\n"
+                group_path = group.removeprefix("/sys/fs/cgroup")
+                scope = (
+                    "/docker-kind.scope" + group_path + "/cri.scope" if kernel_hit else "/unrelated"
+                )
+                stdout = f"oom-kill:constraint=CONSTRAINT_MEMCG,oom_memcg={scope}\n"
             else:
                 assert args[-1] == group
                 stdout = (
@@ -118,3 +122,9 @@ def test_exit_137_uses_pod_oom_kill_counter_before_kubelet_update(collect, tmp_p
         "memory.peak": "2147483648\n",
         "memory.events.local": "oom_kill 0\n",
     }
+
+
+def test_kernel_oom_path_can_include_host_prefix(collect):
+    with pytest.raises(CapacityFailure) as failure:
+        collect([], kernel_hit=True)
+    assert failure.value.criterion == "oom"

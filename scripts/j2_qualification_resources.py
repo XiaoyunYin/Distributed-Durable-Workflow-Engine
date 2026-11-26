@@ -136,11 +136,13 @@ def diagnose_failure(output, node, context, pod, uid, group, probe, *, trigger):
         if re.search(r"oom-kill|out of memory|oom_reaper|killed process", line, re.I)
     ]
     if group:
-        relative = group.removeprefix("/sys/fs/cgroup")
+        # The node can see a cgroup namespace relative to its container.
+        # Kernel messages can carry the full host path to the same pod slice.
+        pod_slice = PurePosixPath(group).name
         for line in kernel["lines"]:
             scopes = re.findall(r"(?:oom_memcg|task_memcg)=([^,\s]+)", line)
             if "oom-kill:" in line and any(
-                scope == relative or scope.startswith(relative + "/") for scope in scopes
+                pod_slice in PurePosixPath(scope).parts for scope in scopes
             ):
                 criterion = "oom"
                 break
