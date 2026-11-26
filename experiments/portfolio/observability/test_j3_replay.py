@@ -175,6 +175,67 @@ def test_bad_final_history_fails(duplicate):
         j3.reconcile(data)
 
 
+@pytest.mark.parametrize(
+    ("defect", "message"),
+    [
+        (None, None),
+        ("catalog", "exporter role diagnostics differ in pg_db_role_setting"),
+        ("placeholder", "auto_explain is missing or misconfigured in the exporter session"),
+        ("duration", "slow statement logging is misconfigured in the exporter session"),
+    ],
+)
+def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, defect, message):
+    settings = [
+        "statement_timeout=2s",
+        "default_transaction_read_only=on",
+        "session_preload_libraries=auto_explain",
+        "auto_explain.log_min_duration=500ms",
+        "auto_explain.log_analyze=on",
+        "auto_explain.log_nested_statements=on",
+        "auto_explain.log_timing=off",
+        "log_min_duration_statement=500ms",
+    ]
+    duration = {"vartype": "integer", "unit": "ms", "setting": "500"}
+    session = {"auto_explain.log_min_duration": duration, "log_min_duration_statement": duration}
+    if defect == "catalog":
+        settings.remove("session_preload_libraries=auto_explain")
+    if defect == "placeholder":
+        session["auto_explain.log_min_duration"] = {
+            "vartype": "string",
+            "unit": None,
+            "setting": "500",
+        }
+    if defect == "duration":
+        session["log_min_duration_statement"] = {**duration, "setting": "-1"}
+
+    calls = []
+
+    def postgres(query, *, role="postgres"):
+        calls.append(role)
+        if query.startswith("ALTER ROLE"):
+            assert role == "postgres"
+            assert all(
+                line.startswith("ALTER ROLE j3_exporter SET ") for line in query.splitlines()
+            )
+            return SimpleNamespace(stdout="")
+        if role == "postgres":
+            assert "pg_catalog.pg_db_role_setting" in query and "s.setdatabase = 0" in query
+            return SimpleNamespace(stdout=json.dumps(settings))
+        assert "pg_catalog.pg_settings" in query and "session_preload_libraries" not in query
+        return SimpleNamespace(stdout=json.dumps(session))
+
+    driver = SimpleNamespace(output=tmp_path, postgres=postgres)
+    if message:
+        with pytest.raises(ValueError, match=message):
+            enable_exporter_diagnostics(driver)
+    else:
+        enable_exporter_diagnostics(driver)
+    assert calls == ["postgres", "postgres", "j3_exporter"]
+    evidence = json.loads((tmp_path / "exporter-role-settings.json").read_bytes())
+    assert evidence["observed"] == sorted(settings)
+    assert evidence["session_settings"] == session
+
+
 @pytest.mark.skipif(not os.getenv("J3_SQL_CONTAINER"), reason="hosted PostgreSQL fixture required")
 def test_postgres_statement_visibility(tmp_path):
     psql = [
@@ -325,6 +386,13 @@ def test_postgres_statement_visibility(tmp_path):
 
     enable_exporter_diagnostics(SimpleNamespace(output=tmp_path, postgres=postgres))
     assert run(settings) == owner_settings
+    assert (
+        postgres(
+            "SELECT pg_has_role(current_user, 'pg_read_all_settings', 'MEMBER');",
+            role="j3_exporter",
+        ).stdout.strip()
+        == "f"
+    )
     postgres("SELECT pg_sleep(0.55) /* j3_role_diagnostic */;", role="j3_exporter")
     expected_logs = [
         "Query Text: SELECT pg_sleep(0.55) /* j3_role_diagnostic */",

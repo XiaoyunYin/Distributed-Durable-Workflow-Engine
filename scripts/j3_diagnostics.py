@@ -27,19 +27,47 @@ def enable_exporter_diagnostics(driver):
         for name, value in EXPORTER_SETTINGS.items()
     )
     driver.postgres(statement)
-    result = driver.postgres(
-        "".join(f"SHOW {name};\n" for name in EXPORTER_SETTINGS), role="j3_exporter"
+    expected = sorted(
+        ["statement_timeout=2s", "default_transaction_read_only=on"]
+        + [f"{name}={value}" for name, value in EXPORTER_SETTINGS.items()]
     )
-    observed = result.stdout.splitlines()
+    catalog = driver.postgres("""
+        SELECT pg_catalog.to_json(s.setconfig)
+        FROM pg_catalog.pg_db_role_setting AS s
+        JOIN pg_catalog.pg_roles AS r ON r.oid = s.setrole
+        WHERE s.setdatabase = 0 AND r.rolname = 'j3_exporter';
+    """)
+    observed = sorted(json.loads(catalog.stdout.strip() or "[]"))
+    # The loaded module exposes a typed GUC. A saved custom placeholder does not.
+    session = driver.postgres(
+        """
+        SELECT COALESCE(json_object_agg(name, json_build_object(
+            'vartype', vartype, 'unit', unit, 'setting', setting)), '{}'::json)
+        FROM pg_catalog.pg_settings
+        WHERE name IN ('auto_explain.log_min_duration', 'log_min_duration_statement');
+        """,
+        role="j3_exporter",
+    )
+    session_settings = json.loads(session.stdout)
     kind.save(
         driver.output / "exporter-role-settings.json",
         {
             "role": "j3_exporter",
-            "expected": EXPORTER_SETTINGS,
+            "expected": expected,
             "observed": observed,
+            "session_settings": session_settings,
         },
     )
-    require(observed == list(EXPORTER_SETTINGS.values()), "exporter role diagnostics differ")
+    require(observed == expected, "exporter role diagnostics differ in pg_db_role_setting")
+    duration = {"vartype": "integer", "unit": "ms", "setting": "500"}
+    require(
+        session_settings.get("auto_explain.log_min_duration") == duration,
+        "auto_explain is missing or misconfigured in the exporter session",
+    )
+    require(
+        session_settings.get("log_min_duration_statement") == duration,
+        "slow statement logging is misconfigured in the exporter session",
+    )
 
 
 @contextmanager
