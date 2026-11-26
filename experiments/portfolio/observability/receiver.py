@@ -42,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
         except (KeyError, TypeError, ValueError):
             self.send_error(400)
             return
-        record({"status": batch["status"], "alerts": alerts})
+        record({"http_status": 204, "status": batch["status"], "alerts": alerts})
         self.send_response(204)
         self.end_headers()
 
@@ -54,6 +54,9 @@ class Handler(BaseHTTPRequestHandler):
             observed = json.loads((ROOT / "metrics.json").read_bytes())
         except FileNotFoundError:
             observed = {}
+        sampled = observed.get("ready_slots_sample_ns")
+        if type(sampled) is not int or not 0 <= time.time_ns() - sampled <= 5_000_000_000:
+            observed.pop("ready_slots", None)
         body = "".join(
             f"j3_{name} {observed[name]}\n"
             for name in OBSERVATIONS

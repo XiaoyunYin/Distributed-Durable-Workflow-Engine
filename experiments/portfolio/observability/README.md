@@ -19,5 +19,23 @@ replay reports the visibility-band checks and the conservative attainment.
 
 The dashboard accepts observer metrics for Ready slots, database lease
 takeovers and stale worker-control rejections. The pilot supplies the witnessed
-Ready slots. The takeover and stale-rejection panels have gaps until their
-observer evidence is available.
+Ready slots from Ready pods and their worker witness sessions. Stale Ready-slot
+observations and unavailable takeover or stale-rejection inputs appear as gaps.
+
+The first slice 2 change adds qualification tooling. The overlay pilot retains
+raw Prometheus matrices, rule health, visibility and both replay results. The
+real partition-lease probe belongs to that unmeasured pilot. The qualification
+runner needs its own episode entry point without that probe.
+
+`scripts/j3_schedule.py OUTPUT OUTAGE1 OUTAGE2 OUTAGE3` derives the sealed
+schedule from three separate outage records. Each record contains the origin,
+actual scale commands, the ordered pre-restore backlog witness and the durable
+admission and terminal commit timestamps. The output preserves the stop rule,
+throughput population, exact rate and recovery-time ratios, shifted bounds,
+arrival volume and cap verdict. The hosted episode runner must collect those
+inputs, continue offers across the outage and complete the full-volume run.
+
+The qualification checks use the existing J2 timestamp and attempt-identity
+formats. The J3 checker diagnostics collect pod, cgroup and kernel evidence on
+the kind node and sample checker RSS outside the observer cgroup. The hosted
+runner must wire these checks into its closeout before deleting the episode.

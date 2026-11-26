@@ -271,3 +271,36 @@ def test_postgres_statement_visibility():
     )
     assert stalled["successes"] == {}
     assert all(c["bad"] == c["eligible"] > 0 for c in stalled["windows"].values())
+
+    run(
+        (HERE / "foreign.sql")
+        .read_text()
+        .replace(":'foreign'", "'foreign'")
+        .replace(":'password'", "'fixture'")
+    )
+    run("""
+        INSERT INTO j2_monitor.j3_plan
+        SELECT 'foreign', 'foreign-' || i, 1767226800000000000 - (i + 30) * 1000000000::bigint
+        FROM generate_series(1, 101) s(i);
+        SELECT j2_monitor.j3_seed(submission_key) FROM j2_monitor.j3_plan WHERE namespace='foreign';
+        UPDATE engine.workflow_executions SET created_at=to_timestamp(1767226760)
+          WHERE namespace='foreign';
+        UPDATE engine.activity_attempts SET created_at=to_timestamp(1767226760)
+          WHERE workflow_id LIKE 'j3-fixture-foreign-%';
+        """)
+    witness = json.loads(
+        run(
+            (HERE / "foreign-witness.sql")
+            .read_text()
+            .replace(":'foreign'", "'foreign'")
+            .replace(":'sample_ns'", str(T))
+            .replace(":'u_ns'", str(SETUP))
+        )
+    )
+    assert witness["namespace"] == "foreign" and witness["sample_ns"] == T
+    assert witness["claimable_attempts"] == 101
+    assert witness["oldest_claimable_age_ns"] == 40 * j3.SECOND
+    assert witness["windows"] == {
+        "2m": {"eligible": 92, "bad": 92},
+        "10m": {"eligible": 101, "bad": 101},
+    }

@@ -18,8 +18,9 @@ from urllib.request import urlopen
 
 import dur053_k3 as kind
 from j2_oci import restore
-from j2_offline import attempt_key
+from j2_offline import attempt_key, utc_ns
 from j2_overlay import J2, obj
+from j3_evidence import jsonl, notifications
 from j3_overlay import (
     APP,
     EXPORTER,
@@ -34,7 +35,9 @@ from j3_overlay import (
     budget,
     render,
 )
-from j3_replay import SECOND, require
+from j3_prometheus import evaluation_rows
+from j3_replay import SECOND, replay, require
+from j3_slots import sample_ready_slots
 
 DB = "dur053_kind"
 COUNT, RATE, RUN, SEED = 70, 7.136100570066256, "j3-pilot", 530001
@@ -244,6 +247,11 @@ except TimeoutError:
         driver.output / "network-denials.json",
         {
             "demand_auth_scope_write_and_app_write": actual,
+            "wrong_namespace_demand_read": {
+                "requested": FOREIGN,
+                "returned": actual[1],
+                "expected": "Returns the server-bound target scope by registered design.",
+            },
             "unrelated_scrape": {"same_namespace": "TCP timeout", "other_namespace": "TCP timeout"},
         },
     )
@@ -329,27 +337,13 @@ def install_sender(driver, binary):
     return pod, path
 
 
-def dispatch_proof(driver, origin, db_ip, observer, sender):
+def pilot_dispatch_proof(driver, origin, db_ip, observer, sender):
+    """Unmeasured proof that takes a real reconciler lease in the serving DB."""
     pods = worker_pods(driver)
     uids = {p["metadata"]["uid"] for p in pods}
     kind.stable_worker_sessions(uids, pods)
-    slots = []
-    for p in pods:
-        require(
-            next(c for c in p["status"]["conditions"] if c["type"] == "Ready")["status"] == "True",
-            "worker not Ready",
-        )
-        slot_count = next(
-            v["value"] for v in p["spec"]["containers"][0]["env"] if v["name"] == "WORKER_SLOTS"
-        )
-        require(slot_count == "2", "worker slot count changed")
-        slots.extend(f"{p['metadata']['name']}-{i}" for i in range(int(slot_count)))
-    driver.python(
-        NS,
-        RECEIVER,
-        "import os,pathlib; p=pathlib.Path('/evidence/metrics.tmp'); "
-        "p.write_text('{\"ready_slots\":4}'); os.replace(p,'/evidence/metrics.json')",
-    )
+    slots = sample_ready_slots(driver, APP, NS, RECEIVER, pods)["slots"]
+    require(len(slots) == 4, "expected four witnessed Ready slots before the pilot")
     start = datetime.fromtimestamp(origin // SECOND, UTC).isoformat()
     seed = driver.postgres("SELECT j2_monitor.j3_seed('foreign-1');", role="j3_fixture")
     kind.save(driver.output / "foreign-seed.json", json.loads(seed.stdout))
@@ -575,6 +569,83 @@ def dashboard_evidence(driver, target, accepted):
     require(not prom("ALERTS"), "pilot ended with active alerts")
 
 
+def pilot_replay(driver, target, keys, origin, setup):
+    output = driver.output
+    end = time.time_ns()
+    closing = clock(driver)
+    span = (end - origin) // SECOND + 12
+    labels = ",".join(f"{key}={json.dumps(value)}" for key, value in target.items())
+    observed_at = f"{end // SECOND}.{end % SECOND:09d}"
+    matrices = []
+    for qualifier in (
+        'job="j3"',
+        '__name__=~"j3:.*"',
+        '__name__="ALERTS",alertstate="firing"',
+    ):
+        response = json_request(
+            19090, "/api/v1/query", query=f"{{{labels},{qualifier}}}[{span}s]", time=observed_at
+        )
+        matrices.extend(response["data"]["result"])
+    (group,) = json_request(19090, "/api/v1/rules")["data"]["groups"]
+    kind.save(output / "prometheus-raw.json", {"matrices": matrices, "rule_group": group})
+    path = output / "visibility.jsonl"
+    path.write_bytes(request(19188, "/visibility.jsonl"))
+    evaluations = evaluation_rows(matrices, jsonl(path), target, origin, end, group["rules"])
+    raw = json.loads((output / "durable-rows.json").read_bytes())
+    data = {
+        "namespace": TARGET,
+        "start_ns": origin,
+        "end_ns": end,
+        "clock": {"setup": setup, "closing": closing},
+        "plan": [
+            {
+                "namespace": TARGET,
+                "submission_key": key,
+                "scheduled_ns": origin + int(i * SECOND / RATE),
+            }
+            for i, key in enumerate(keys)
+        ],
+        "journal": [
+            {
+                "namespace": TARGET,
+                "workflow_id": row["workflow"],
+                "submission_key": row["key"],
+                "outcome": row["outcome"],
+            }
+            for row in jsonl(output / "target-journal.jsonl")
+            if row.get("outcome") == "accepted"
+        ],
+        "workflows": raw["workflows"],
+        "history": [{**row, "created_ns": utc_ns(row["created_at"])} for row in raw["history"]],
+        "first_eval_ns": evaluations[0]["at_ns"],
+        "last_eval_ns": evaluations[-1]["at_ns"],
+        "evaluations": evaluations,
+    }
+    kind.save(output / "replay-input.json", data)
+    result = replay(data, jsonl(path))
+    kind.save(output / "replay.json", result)
+    require(all(row["valid"] for row in evaluations), "missing fresh pilot evaluation inputs")
+    require(
+        result["published_attainment"]["eligible"] == COUNT
+        and result["published_attainment"]["incomplete"] == 0,
+        "pilot published replay failed target reconciliation",
+    )
+    return data, result
+
+
+def receiver_log(driver):
+    log = driver.python(
+        NS,
+        RECEIVER,
+        "import time; from pathlib import Path; "
+        "p=Path('/evidence/notifications.jsonl'); print(p.read_text(),end=''); "
+        'print(\'{"heartbeat":"end","received_ns":\'+str(time.time_ns())+\'}\')',
+    )
+    path = driver.output / "notifications.jsonl"
+    path.write_text(log + "\n", encoding="utf-8")
+    return path
+
+
 def run_overlay(driver, db_ip, pins, target, binary):
     require(
         driver.query("SELECT count(*) FROM engine.workflow_executions;") == "0",
@@ -626,9 +697,20 @@ def run_overlay(driver, db_ip, pins, target, binary):
             driver.output / "plan.json",
             {"origin_ns": origin, "target_keys": keys, "foreign_key": "foreign-1"},
         )
-        accepted = dispatch_proof(driver, origin, db_ip, observer, sender)
+        accepted = pilot_dispatch_proof(driver, origin, db_ip, observer, sender)
         driver.until(lambda: bool(prom(f'j3_eligible{{window="all"}} == {COUNT}')), 30)
-        dashboard_evidence(driver, target, accepted)
+        sample_ready_slots(driver, APP, NS, RECEIVER, worker_pods(driver))
+        driver.until(lambda: bool(prom("j3_ready_slots == 4")), 5)
+        try:
+            dashboard_evidence(driver, target, accepted)
+            data, result = pilot_replay(driver, target, keys, origin, setup)
+        except Exception:
+            try:
+                receiver_log(driver)
+            except Exception as error:
+                kind.save(driver.output / "receiver-export-error.json", {"error": str(error)})
+            raise
+        path = receiver_log(driver)
     sessions = driver.query(
         "SELECT application_name || '|' || count(*) FROM pg_stat_activity "
         "WHERE usename='j3_exporter' GROUP BY application_name;"
@@ -639,15 +721,11 @@ def run_overlay(driver, db_ip, pins, target, binary):
         sessions == "j3-db-exporter|1" and maximum == 100,
         "live monitor budget differs",
     )
-    kind.save(driver.output / "clock.json", {"setup": setup, "closing": clock(driver)})
-    log = driver.python(
-        NS,
-        RECEIVER,
-        "import time; from pathlib import Path; "
-        "p=Path('/evidence/notifications.jsonl'); print(p.read_text(),end=''); "
-        'print(\'{"heartbeat":"end","received_ns":\'+str(time.time_ns())+\'}\')',
+    kind.save(driver.output / "clock.json", data["clock"])
+    matches = notifications(
+        list(jsonl(path)), result["alert_inputs"]["transitions"], target, origin, data["end_ns"]
     )
-    (driver.output / "notifications.jsonl").write_text(log + "\n", encoding="utf-8")
+    require(not matches, "unexpected receiver notifications during pilot")
 
 
 def main():
