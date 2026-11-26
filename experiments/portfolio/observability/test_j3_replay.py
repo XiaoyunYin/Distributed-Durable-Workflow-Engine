@@ -381,7 +381,12 @@ def test_postgres_statement_visibility(tmp_path):
 
     def postgres(query, *, role="postgres"):
         return subprocess.run(
-            [*psql, "-U", role], input=query, text=True, capture_output=True, timeout=10, check=True
+            [*psql, "-U", role, "-d", "postgres"],
+            input=query,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
         )
 
     enable_exporter_diagnostics(SimpleNamespace(output=tmp_path, postgres=postgres))
