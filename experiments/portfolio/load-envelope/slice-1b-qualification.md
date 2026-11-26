@@ -1,6 +1,6 @@
 # J2 slice 1b volume qualification
 
-The slice 3 volume pin is unset and the eligible soak-rate set is empty. Both volumes in dispatch 45592772474 were invalid due to a tooling defect before submission. The next primary, in dispatch 45614099335, was invalid after population.
+The slice 3 volume pin is unset and the eligible soak-rate set is empty. In dispatch 45768781911, the 26,678-identity primary and the 21,002-identity fallback both returned `capacity_failure` after confirmed OOM kills during live export.
 
 The `qualification` dispatch in the J2 workflow uses the **rebuilt registered profile**. It starts a fresh kind cluster and uses the pinned short-workflow sender at four submissions per second, below the lowest registered grid rate. Live submission produces the actual database history, results, outbox and worker witness bytes. The plan includes identical workload settings and resource limits for both volume attempts.
 
@@ -36,3 +36,16 @@ Attempt 1 used `b0807ac5aa5abb70672027359e15dcbe950ed4e7`. Runner inventory reso
 | Fallback 21,002 | Skipped | — | — | — | — |
 
 The live checker exited 137 after 274.6 s and produced an empty JSON report. The observer's last full sample had zero OOM events. The next probe found no container PID while kubelet still reported the observer running with zero restarts. The archive contains no positive OOM kill or restart evidence. The classified closeout halted the dispatch and retained the artifact. Offline replay was unperformed.
+
+### Dispatch 45768781911
+
+Attempt 1 used tooling commit `a61be6aca29c9eb1d08219cdadd11db2f41887fa`. Both jobs ran the rebuilt registered profile. In each job, every submitted identity was accepted and succeeded, with zero unpublished outbox entries and zero claimed attempts at the final quiet database observation. [Actions dispatch](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45768781911)
+
+| Volume | Verdict | Accepted | Sampled observer cgroup peak | Pod cgroup peak at diagnosis | Checker sampled VmHWM / RSS at kill | Evidence ZIP |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Primary 26,678 | `capacity_failure` | 26,678 | 2,002,292,736 bytes | 2,147,487,744 bytes | 1,856,908 / 2,092,936 KiB | 13,852,979 bytes, SHA-256 `6772cce77171ed4012feb403b2282015fd1fa809d885779362a7476d75e069bf`. [Artifact 15099033018](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45768781911/artifacts/15099033018) |
+| Fallback 21,002 | `capacity_failure` | 21,002 | 1,870,766,080 bytes | 2,147,483,648 bytes | 1,752,880 / 2,093,040 KiB | 10,899,388 bytes, SHA-256 `d10e085e782ed97552c13ba23c25148d0cb1f8f4f8850a6bbab780abd978b5bd`. [Artifact 15105783055](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45768781911/artifacts/15105783055) |
+
+The live checkers exited 137 after 464.39 s and 281.53 s, respectively. Both pod cgroups recorded `oom_kill=4` and `oom_group_kill=1` while kubelet still reported the observers running with zero restarts. Each node's kernel log identifies the checker in the observer pod's memory cgroup. RSS at kill is the sum of anonymous, file-backed and shared RSS from that kernel line. The live resource sampler retained 458 primary and 278 fallback samples, with maximum gaps of 1.053 s and 1.050 s, respectively.
+
+Both jobs reached teardown with empty live checker reports. Offline replay was unperformed. Both cleanups passed, both ZIPs matched their Actions digests, and all 127 freeze entries verified in each archive. The terminal verdict job confirmed both `capacity_failure` results and ended the dispatch.
