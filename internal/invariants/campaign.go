@@ -130,12 +130,18 @@ func PureCoverage() ([]string, []string, map[string]string) {
 }
 
 func CheckCampaign(t Trace, arrivals Arrivals, witness WitnessExport) CampaignReport {
-	v := Check(t)
+	return ReconcileCampaign(t, arrivals, witness, Check(t), SnapshotIntegrity(t))
+}
+
+// ReconcileCampaign adds campaign evidence checks to the results of Check and
+// SnapshotIntegrity for the same trace. The CLI also uses the structural verdict
+// in its top-level report.
+func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verdict, integrityErr error) CampaignReport {
 	r := CampaignReport{Violations: append([]string{}, v.Violations...), NonTerminal: v.NonTerminal, Offered: len(arrivals.Rows), DuplicateEffects: "NOT COVERED (PURE)", Executions: []ExecutionMetric{}}
 	r.InvariantsCovered, r.InvariantsNotCovered, r.InvariantOutcomes = PureCoverage()
 	fail := func(s string) { r.Violations = append(r.Violations, s) }
-	if err := SnapshotIntegrity(t); err != nil {
-		fail(err.Error())
+	if integrityErr != nil {
+		fail(integrityErr.Error())
 	}
 	if arrivals.Schema != "dur053.arrivals.v1" || arrivals.Status != "PASS" || len(arrivals.Rows) == 0 || len(arrivals.Rows) != arrivals.Offered || arrivals.Namespace == "" {
 		fail("arrival manifest incomplete")
