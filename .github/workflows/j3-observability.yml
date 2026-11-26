@@ -56,7 +56,7 @@ jobs:
           timeout 60 bash -c 'until docker exec "$J3_SQL_CONTAINER" pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done'
           go test -race -p 1 ./experiments/portfolio/observability/exporter
           uv run --locked --only-group dev pytest -q -p no:cacheprovider \
-            --basetemp "$RUNNER_TEMP/j3-pytest" experiments/portfolio/observability/test_j3_replay.py
+            --basetemp "$RUNNER_TEMP/j3-pytest" experiments/portfolio/observability
       - name: Build the J3 exporter
         run: bash scripts/j3_build_exporter.sh "$RUNNER_TEMP/j3-exporter"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
