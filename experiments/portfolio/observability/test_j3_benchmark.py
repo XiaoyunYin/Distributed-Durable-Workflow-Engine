@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -48,3 +49,39 @@ def test_fixture_stops_when_the_installer_changes_engine_indexes(tmp_path, monke
         "installed": ["registered", "observer_index"],
         "equal": False,
     }
+
+
+@pytest.mark.parametrize("jit_fires", [True, False])
+def test_jit_floor_records_effective_settings_and_plan_contrast(tmp_path, monkeypatch, jit_fires):
+    queries = []
+
+    def sql(database, statement, *, role="postgres"):
+        assert database == "candidate"
+        if "engine.workflow_executions" in statement:
+            return "{}"
+        jit = "off" if statement.startswith("SET jit = off;") else "on"
+        queries.append((role, jit))
+        assert "jit_above_cost" in statement and "jit_optimize_above_cost" in statement
+        return json.dumps({"jit": jit, "jit_above_cost": "100000", "statement_timeout": "2000"})
+
+    def explain(database, projection, output, *, jit):
+        assert (database, projection) == ("candidate", "deployed SQL")
+        plan = {"JIT": {"Functions": 79}} if jit_fires and jit == "on" else {"Plan": {}}
+        (output / "explain-body.json").write_text(json.dumps([plan]), encoding="utf-8")
+        return True
+
+    def run(*args, data):
+        assert "j3_exporter" in args and data.count(benchmark.SAMPLE) == benchmark.JIT_SAMPLES + 1
+        assert "\\timing on" in data and "jit_above_cost" not in data
+        return SimpleNamespace(stdout="Time: 12.345 ms\n" * benchmark.JIT_SAMPLES, stderr="")
+
+    monkeypatch.setattr(benchmark, "sql", sql)
+    monkeypatch.setattr(benchmark, "explain", explain)
+    monkeypatch.setattr(benchmark, "run", run)
+    report = benchmark.measure_jit_floor("candidate", "deployed SQL", tmp_path / "jit-floor")
+    assert queries == [("postgres", "on"), ("j3_exporter", "on"), ("j3_exporter", "off")]
+    assert report["comparison_valid"]
+    assert report["body_plans_show_jit_contrast"] == jit_fires
+    assert report["variants"]["off"]["sql_ns"] == dict.fromkeys(
+        ("p50_ns", "p99_ns", "max_ns"), 12_345_000
+    )

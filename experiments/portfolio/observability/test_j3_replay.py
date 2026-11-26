@@ -180,14 +180,17 @@ def test_bad_final_history_fails(duplicate):
     [
         (None, None),
         ("catalog", "exporter role diagnostics differ in pg_db_role_setting"),
+        ("catalog_jit", "exporter role diagnostics differ in pg_db_role_setting"),
         ("placeholder", "auto_explain is missing or misconfigured in the exporter session"),
         ("duration", "slow statement logging is misconfigured in the exporter session"),
+        ("live_jit", "JIT is not disabled in the exporter session"),
     ],
 )
 def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, defect, message):
     settings = [
         "statement_timeout=2s",
         "default_transaction_read_only=on",
+        "jit=off",
         "session_preload_libraries=auto_explain",
         "auto_explain.log_min_duration=500ms",
         "auto_explain.log_analyze=on",
@@ -196,9 +199,15 @@ def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, d
         "log_min_duration_statement=500ms",
     ]
     duration = {"vartype": "integer", "unit": "ms", "setting": "500"}
-    session = {"auto_explain.log_min_duration": duration, "log_min_duration_statement": duration}
+    session = {
+        "auto_explain.log_min_duration": duration,
+        "log_min_duration_statement": duration,
+        "jit": {"vartype": "bool", "unit": None, "setting": "off"},
+    }
     if defect == "catalog":
         settings.remove("session_preload_libraries=auto_explain")
+    if defect == "catalog_jit":
+        settings.remove("jit=off")
     if defect == "placeholder":
         session["auto_explain.log_min_duration"] = {
             "vartype": "string",
@@ -207,6 +216,8 @@ def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, d
         }
     if defect == "duration":
         session["log_min_duration_statement"] = {**duration, "setting": "-1"}
+    if defect == "live_jit":
+        session["jit"]["setting"] = "on"
 
     calls = []
 
@@ -222,6 +233,7 @@ def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, d
             assert "pg_catalog.pg_db_role_setting" in query and "s.setdatabase = 0" in query
             return SimpleNamespace(stdout=json.dumps(settings))
         assert "pg_catalog.pg_settings" in query and "session_preload_libraries" not in query
+        assert "'jit'" in query
         return SimpleNamespace(stdout=json.dumps(session))
 
     driver = SimpleNamespace(output=tmp_path, postgres=postgres)
@@ -376,7 +388,7 @@ def test_postgres_statement_visibility(tmp_path):
         "10m": {"eligible": 101, "bad": 101},
     }
 
-    settings = "SHOW session_preload_libraries; SHOW log_min_duration_statement;"
+    settings = "SHOW session_preload_libraries; SHOW log_min_duration_statement; SHOW jit;"
     owner_settings = run(settings)
 
     def postgres(query, *, role="postgres"):
@@ -391,6 +403,7 @@ def test_postgres_statement_visibility(tmp_path):
 
     enable_exporter_diagnostics(SimpleNamespace(output=tmp_path, postgres=postgres))
     assert run(settings) == owner_settings
+    assert postgres("SHOW jit;", role="j3_exporter").stdout.strip() == "off"
     assert (
         postgres(
             "SELECT pg_has_role(current_user, 'pg_read_all_settings', 'MEMBER');",

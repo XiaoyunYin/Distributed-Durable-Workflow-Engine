@@ -28,7 +28,7 @@ def enable_exporter_diagnostics(driver):
     )
     driver.postgres(statement)
     expected = sorted(
-        ["statement_timeout=2s", "default_transaction_read_only=on"]
+        ["statement_timeout=2s", "default_transaction_read_only=on", "jit=off"]
         + [f"{name}={value}" for name, value in EXPORTER_SETTINGS.items()]
     )
     catalog = driver.postgres("""
@@ -44,7 +44,7 @@ def enable_exporter_diagnostics(driver):
         SELECT COALESCE(json_object_agg(name, json_build_object(
             'vartype', vartype, 'unit', unit, 'setting', setting)), '{}'::json)
         FROM pg_catalog.pg_settings
-        WHERE name IN ('auto_explain.log_min_duration', 'log_min_duration_statement');
+        WHERE name IN ('auto_explain.log_min_duration', 'log_min_duration_statement', 'jit');
         """,
         role="j3_exporter",
     )
@@ -67,6 +67,10 @@ def enable_exporter_diagnostics(driver):
     require(
         session_settings.get("log_min_duration_statement") == duration,
         "slow statement logging is misconfigured in the exporter session",
+    )
+    require(
+        session_settings.get("jit") == {"vartype": "bool", "unit": None, "setting": "off"},
+        "JIT is not disabled in the exporter session",
     )
 
 

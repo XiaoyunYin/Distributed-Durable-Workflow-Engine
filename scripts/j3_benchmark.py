@@ -11,9 +11,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import ceil
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
 from urllib.parse import parse_qs, quote, urlsplit
 
 from dur053_k3 import download
+from j3_diagnostics import enable_exporter_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
 J3 = ROOT / "experiments/portfolio/observability"
@@ -22,6 +24,7 @@ EXPORTER = "j3-bench-exporter"
 TARGET_COUNT = 20_000
 FOREIGN_COUNT = 2141
 CYCLES = 120
+JIT_SAMPLES = 12
 PHASE_SECONDS = CYCLES + 5
 ARRIVAL_RATE = 7.136100570066256
 SAMPLE = "SELECT j2_monitor.j3_sample()"
@@ -51,6 +54,8 @@ def psql_args(database, role="postgres", application="j3-bench-admin"):
         "docker",
         "exec",
         "-i",
+        "-e",
+        "LC_ALL=C",
         "-e",
         f"PGAPPNAME={application}",
         POSTGRES,
@@ -129,6 +134,9 @@ def create_fixture(database, projection, output):
     )
     if installed != original:
         raise RuntimeError(f"{database} fixture changed the engine indexes")
+
+
+def populate_fixture(database):
     sql(database, f"SELECT j3_bench.add_targets(1, {TARGET_COUNT});")
     for first in range(1, FOREIGN_COUNT + 1, 200):
         sql(
@@ -145,21 +153,23 @@ def population(database):
         sql(
             database,
             """
-SELECT json_object_agg(namespace, count)
+SELECT coalesce(json_object_agg(namespace, count), '{}'::json)
 FROM (SELECT namespace, count(*) FROM engine.workflow_executions GROUP BY namespace) n;
 """,
         )
     )
 
 
-def explain(database, projection, output):
+def explain(database, projection, output, *, jit="off"):
     body = projection.split("AS $$\n", 1)[1].split("\n$$;", 1)[0]
     options = "EXPLAIN (ANALYZE, BUFFERS, SETTINGS, FORMAT JSON) "
     errors = {}
     for name, query, role in (("function", SAMPLE, "j3_exporter"), ("body", body, "postgres")):
         try:
             result = sql(
-                database, "SET statement_timeout = '2s'; " + options + query + ";", role=role
+                database,
+                f"SET jit = {jit}; SET statement_timeout = '2s'; {options}{query};",
+                role=role,
             )
         except (RuntimeError, subprocess.TimeoutExpired) as error:
             errors[name] = str(error)
@@ -168,6 +178,75 @@ def explain(database, projection, output):
     if errors:
         save(output / "explain-errors.json", errors)
     return not errors
+
+
+def benchmark_role(database, output):
+    output.mkdir()
+
+    def postgres(statement, *, role="postgres"):
+        return run(*psql_args(database, role), data=statement)
+
+    enable_exporter_diagnostics(SimpleNamespace(output=output, postgres=postgres))
+
+
+def measure_jit_floor(database, projection, output):
+    """Compare the deployed projection on empty tables before fixture ANALYZE."""
+    output.mkdir()
+    report = {"population": population(database), "variants": {}}
+    if report["population"]:
+        raise RuntimeError("JIT floor comparison requires empty workflow tables")
+    settings = """
+        SELECT json_object_agg(name, setting ORDER BY name) FROM pg_settings
+        WHERE name IN ('jit', 'jit_provider', 'jit_above_cost', 'jit_inline_above_cost',
+                       'jit_optimize_above_cost', 'statement_timeout', 'track_commit_timestamp',
+                       'auto_explain.log_analyze', 'auto_explain.log_timing');
+    """
+    report["server_settings"] = json.loads(sql(database, settings))
+    for jit in ("on", "off"):
+        variant = output / jit
+        variant.mkdir()
+        evidence = report["variants"][jit] = {}
+        try:
+            setup = f"SET jit = {jit};\n"
+            evidence["session_settings"] = json.loads(
+                sql(database, setup + settings, role="j3_exporter")
+            )
+            evidence["explain_complete"] = explain(database, projection, variant, jit=jit)
+            body_plan = variant / "explain-body.json"
+            if body_plan.is_file():
+                evidence["body_plan_used_jit"] = "JIT" in json.loads(body_plan.read_bytes())[0]
+            # Two fresh role sessions use the same warmup and native PostgreSQL JIT thresholds.
+            commands = setup + "\\o /dev/null\n" + SAMPLE + ";\n\\timing on\n"
+            result = run(
+                *psql_args(database, "j3_exporter", f"j3-bench-jit-{jit}"),
+                data=commands + (SAMPLE + ";\n") * JIT_SAMPLES,
+            )
+            (variant / "psql-timing.log").write_text(
+                result.stdout + result.stderr, encoding="utf-8"
+            )
+            rows = [
+                {"sql_ns": round(float(line.split()[1]) * 1_000_000)}
+                for line in result.stdout.splitlines()
+                if line.startswith("Time: ")
+            ]
+            evidence["samples"] = len(rows)
+            evidence["sql_ns"] = latency(rows, "sql_ns")
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+            evidence["error"] = str(error)
+    on = report["variants"]["on"]
+    off = report["variants"]["off"]
+    valid = all(
+        evidence.get("samples") == JIT_SAMPLES
+        and evidence.get("explain_complete")
+        and evidence["session_settings"].get("jit") == jit
+        for jit, evidence in report["variants"].items()
+    )
+    report["comparison_valid"] = valid
+    report["body_plans_show_jit_contrast"] = (
+        on.get("body_plan_used_jit") is True and off.get("body_plan_used_jit") is False
+    )
+    save(output / "summary.json", report)
+    return report
 
 
 @contextmanager
@@ -506,6 +585,8 @@ def main():
             "synchronous_commit=on",
             "-c",
             "full_page_writes=on",
+            "-c",
+            "track_commit_timestamp=on",
         )
         try:
             wait_postgres()
@@ -516,6 +597,16 @@ def main():
                 try:
                     for name, source in (("baseline", baseline), ("candidate", candidate)):
                         create_fixture(name, source, args.output)
+                        if name == "baseline":
+                            # The older installer lacks the deployed observer role default.
+                            sql(name, "ALTER ROLE j3_exporter SET jit = off;")
+                        benchmark_role(name, args.output / f"{name}-role")
+                        if name == "candidate":
+                            report["jit_floor"] = measure_jit_floor(
+                                name, source, args.output / "jit-floor"
+                            )
+                            save(args.output / "benchmark.json", report)
+                        populate_fixture(name)
                         if name == "candidate":
                             # Equality at one statement timestamp and one MVCC snapshot.
                             original = baseline.split("CREATE FUNCTION ", 1)[1].split("$$;", 1)[0]

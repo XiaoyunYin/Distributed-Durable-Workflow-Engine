@@ -3,6 +3,7 @@ BEGIN;
 CREATE ROLE j3_exporter LOGIN PASSWORD :'password' CONNECTION LIMIT 1;
 ALTER ROLE j3_exporter SET statement_timeout = '2s';
 ALTER ROLE j3_exporter SET default_transaction_read_only = on;
+ALTER ROLE j3_exporter SET jit = off;
 CREATE SCHEMA j2_monitor;
 REVOKE ALL ON SCHEMA j2_monitor FROM PUBLIC;
 CREATE TABLE j2_monitor.scope (singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),

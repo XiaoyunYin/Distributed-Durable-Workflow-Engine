@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from math import ceil
 from threading import Event, Thread
@@ -22,6 +22,8 @@ from j3_slots import sample_ready_slots
 
 JOURNAL = "/evidence/j3-arrivals.jsonl"
 ABORT = "/evidence/j3-abort"
+SENDER_EXIT = "/evidence/j3-sender-exit.json"
+EXEC_STREAM_GRACE_SECONDS = 30
 SEED = 530001
 SLOT_INTERVAL = 2
 SLOT_MAX_GAP = 5 * SECOND
@@ -32,48 +34,111 @@ COMMIT_NS = "(extract(epoch FROM pg_xact_commit_timestamp(%s.xmin))*1000000000):
 # The shared sender journals a provisional uncertain row before HTTP. A second
 # uncertain row, an unsent row or a rejection stops it at once.
 GUARD_SENDER = r"""
-import json,pathlib,subprocess,sys,time
-path,abort,armed,*args=sys.argv[1:]
-with subprocess.Popen(args) as sender:
-    try:
-        while not pathlib.Path(path).exists() and sender.poll() is None:
+import json,os,pathlib,signal,subprocess,sys,time
+path,abort,armed,exit_file,*args=sys.argv[1:]
+sender=None
+closed=False
+status=2
+
+def interrupted(signum,frame):
+    sys.exit(128+signum)
+
+signals=[getattr(signal,name) for name in ('SIGTERM','SIGINT','SIGHUP') if hasattr(signal,name)]
+try:
+    for signum in signals:
+        signal.signal(signum,interrupted)
+    sender=subprocess.Popen(args)
+    while not pathlib.Path(path).exists() and sender.poll() is None:
+        if pathlib.Path(abort).exists():
+            sys.exit(1)
+        time.sleep(.02)
+    with open(path,'rb') as stream:
+        provisional=set()
+        while True:
             if pathlib.Path(abort).exists():
                 sys.exit(1)
-            time.sleep(.02)
-        with open(path,'rb') as stream:
-            provisional=set()
-            while True:
-                if pathlib.Path(abort).exists():
-                    sys.exit(1)
-                offset=stream.tell()
-                line=stream.readline()
-                if not line.endswith(b'\n'):
-                    if sender.poll() is not None:
-                        sys.exit(sender.returncode or 2)
-                    stream.seek(offset)
-                    time.sleep(.02)
-                    continue
-                row=json.loads(line)
-                if row['event']=='plan':
-                    pathlib.Path(armed).touch(exist_ok=False)
-                if row['event']=='closed':
-                    sys.exit(sender.wait())
-                if row['event']!='arrival' or row['outcome']=='accepted':
-                    continue
-                if (row['outcome']=='uncertain' and row['status']==0 and not row['error']
-                    and row['key'] not in provisional):
-                    provisional.add(row['key'])
-                    continue
-                print(json.dumps(row), file=sys.stderr, flush=True)
-                sys.exit(1)
-    finally:
-        if sender.poll() is None:
+            offset=stream.tell()
+            line=stream.readline()
+            if not line.endswith(b'\n'):
+                if sender.poll() is not None:
+                    sys.exit(sender.returncode or 2)
+                stream.seek(offset)
+                time.sleep(.02)
+                continue
+            row=json.loads(line)
+            if row['event']=='plan':
+                pathlib.Path(armed).touch(exist_ok=False)
+            if row['event']=='closed':
+                closed=True
+                sys.exit(sender.wait())
+            if row['event']!='arrival' or row['outcome']=='accepted':
+                continue
+            if (row['outcome']=='uncertain' and row['status']==0 and not row['error']
+                and row['key'] not in provisional):
+                provisional.add(row['key'])
+                continue
+            print(json.dumps(row), file=sys.stderr, flush=True)
+            sys.exit(1)
+except SystemExit as error:
+    status=error.code
+    raise
+except BaseException:
+    status=1
+    raise
+finally:
+    try:
+        for signum in signals:
+            signal.signal(signum,signal.SIG_IGN)
+        if sender is not None and sender.poll() is None:
             sender.terminate()
             try:
                 sender.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 sender.kill()
                 sender.wait()
+    except BaseException:
+        status=1
+        raise
+    finally:
+        temporary=exit_file+'.tmp'
+        with open(temporary,'x',encoding='utf-8') as stream:
+            json.dump({'returncode':status,'closed':closed,'exited_ns':time.time_ns()},stream)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary,exit_file)
+"""
+
+READ_SENDER_EXIT = r"""
+import json,pathlib,sys
+record,journal=map(pathlib.Path,sys.argv[1:])
+raw=record.read_text(encoding='utf-8',errors='replace') if record.exists() else None
+last=None
+if raw is not None and journal.exists():
+    with journal.open('rb') as stream:
+        stream.seek(max(0,stream.seek(0,2)-4096))
+        tail=stream.read()
+    if tail.endswith(b'\n'):
+        last=tail.splitlines()[-1].decode('utf-8',errors='replace')
+print(json.dumps({'record':raw,'journal_last_line':last}))
+"""
+
+OBSERVER_PROCESSES = r"""
+import json,pathlib
+rows=[]
+for proc in pathlib.Path('/proc').iterdir():
+    if not proc.name.isdecimal():
+        continue
+    row={'pid':int(proc.name)}
+    try:
+        status=(proc/'status').read_text().splitlines()
+        state=next(line for line in status if line.startswith('State:'))
+        row['state']=state.partition(':')[2].strip()
+        row['cmdline']=(proc/'cmdline').read_bytes().decode(errors='replace').rstrip('\0').split('\0')
+    except (OSError,StopIteration) as error:
+        row['error']=str(error)
+    rows.append(row)
+print(json.dumps(sorted(rows,key=lambda row:row['pid'])))
 """
 
 
@@ -141,6 +206,12 @@ class Sender:
         }
         self.args = [binary, "-k4", *(f"-{key}={value}" for key, value in options.items())]
         self.process = None
+        self.client_started_ns = None
+        self.client_exit_seen_monotonic_ns = None
+        self.exit_record = None
+        self.exit_seen_ns = None
+        self.exit_seen_monotonic_ns = None
+        self.next_exit_probe_ns = 0
 
     def writer(self, path, body):
         self.driver.k(
@@ -161,40 +232,168 @@ class Sender:
 
     @contextmanager
     def run(self):
-        self.writer("/evidence/j3-stop", utc_seconds(self.stop) + "\n")
         with (self.driver.output / "sender.log").open("wb") as log:
-            self.process = subprocess.Popen(
-                [
-                    "kubectl",
-                    "-n",
-                    APP,
-                    "exec",
-                    self.observer,
-                    "--",
-                    "python",
-                    "-c",
-                    GUARD_SENDER,
-                    JOURNAL,
-                    ABORT,
-                    "/evidence/j3-armed",
-                    *self.args,
-                ],
-                stdout=log,
-                stderr=log,
-                env=self.driver.env,
+            try:
+                self.writer("/evidence/j3-stop", utc_seconds(self.stop) + "\n")
+                self.client_started_ns = time.time_ns()
+                self.process = subprocess.Popen(
+                    [
+                        "kubectl",
+                        "-n",
+                        APP,
+                        "exec",
+                        self.observer,
+                        "--",
+                        "python",
+                        "-c",
+                        GUARD_SENDER,
+                        JOURNAL,
+                        ABORT,
+                        "/evidence/j3-armed",
+                        SENDER_EXIT,
+                        *self.args,
+                    ],
+                    stdout=log,
+                    stderr=log,
+                    env=self.driver.env,
+                )
+                yield
+                require(self.exit_record is not None, "sender completion was not witnessed")
+                self.finish_client()
+                self.export()
+            except BaseException as error:
+                with suppress(Exception):
+                    self.retain_failure(error)
+                with suppress(Exception):
+                    self.abort()
+                if self.exit_record is None:
+                    with suppress(Exception):
+                        self.read_exit(probe_name="sender-exit-probe-after-abort.json")
+                with suppress(Exception):
+                    self.export()
+                raise
+
+    def observer_exec(self, code, *args):
+        return self.driver.k(
+            "-n",
+            APP,
+            "exec",
+            self.observer,
+            "--",
+            "python",
+            "-c",
+            code,
+            *args,
+            allowed=True,
+            record=False,
+            timeout=5,
+        )
+
+    def client_status(self):
+        if self.process is None:
+            return {"started_ns": self.client_started_ns, "pid": None, "alive": False}
+        status = self.process.poll()
+        return {
+            "started_ns": self.client_started_ns,
+            "pid": self.process.pid,
+            "alive": status is None,
+            "returncode": status,
+        }
+
+    def retain_failure(self, error):
+        evidence = {
+            "at_ns": time.time_ns(),
+            "reason": str(error),
+            "observer_pod": self.observer,
+            "local_client": self.client_status(),
+        }
+        try:
+            result = self.observer_exec(OBSERVER_PROCESSES)
+            evidence["observer_exec_returncode"] = result.returncode
+            raw = result.stdout if result.returncode == 0 else result.stderr
+            for key in ("password", "demand_token", "monitor_password", "fixture_password"):
+                if value := getattr(self.driver, key, None):
+                    raw = raw.replace(value, "[REDACTED]")
+            if result.returncode == 0:
+                evidence["observer_processes"] = json.loads(raw)
+            else:
+                evidence["observer_exec_error"] = raw
+        except (OSError, ValueError) as capture_error:
+            evidence["observer_exec_error"] = str(capture_error)
+        append(self.driver.output / "sender-process-evidence.jsonl", evidence)
+
+    def read_exit(self, *, probe_name="sender-exit-probe.json"):
+        probe = {"at_ns": time.time_ns()}
+        record = None
+        try:
+            result = self.observer_exec(READ_SENDER_EXIT, SENDER_EXIT, JOURNAL)
+            probe.update(returncode=result.returncode, stderr=result.stderr)
+            if result.returncode == 0:
+                reply = json.loads(result.stdout)
+                probe.update(reply)
+                record = json.loads(reply["record"]) if reply["record"] is not None else None
+        except (KeyError, OSError, TypeError, ValueError) as error:
+            probe["error"] = str(error)
+        kind.save(self.driver.output / probe_name, probe)
+        if (
+            isinstance(record, dict)
+            and type(record.get("returncode")) is int
+            and type(record.get("closed")) is bool
+            and type(record.get("exited_ns")) is int
+        ):
+            kind.save(self.driver.output / "sender-exit.json", record)
+            return record, probe.get("journal_last_line")
+        return None, None
+
+    def terminate_client(self):
+        if self.process.poll() is not None:
+            return
+        with suppress(ProcessLookupError):
+            self.process.terminate()
+        try:
+            self.process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                self.process.kill()
+            self.process.wait(timeout=2)
+
+    def retire_lingering_client(self):
+        evidence = {
+            "event": "exec_stream_lingering",
+            "grace_seconds": EXEC_STREAM_GRACE_SECONDS,
+            "sender_exited_ns": self.exit_record["exited_ns"],
+            "exit_observed_ns": self.exit_seen_ns,
+            "termination_started_ns": time.time_ns(),
+            "client_before": self.client_status(),
+        }
+        path = self.driver.output / "exec-stream-lingering.json"
+        kind.save(path, evidence)
+        try:
+            self.terminate_client()
+        finally:
+            evidence.update(termination_ended_ns=time.time_ns(), client_after=self.client_status())
+            kind.save(path, evidence)
+
+    def finish_client(self):
+        if self.process.poll() is None:
+            remaining = (
+                EXEC_STREAM_GRACE_SECONDS
+                - (time.monotonic_ns() - self.exit_seen_monotonic_ns) / SECOND
             )
             try:
-                yield
-            finally:
-                try:
-                    if self.process.poll() is None:
-                        self.writer(ABORT, "")
-                        self.process.wait(timeout=10)
-                finally:
-                    if self.process.poll() is None:
-                        self.process.kill()
-                        self.process.wait()
-                    self.export()
+                self.process.wait(timeout=max(remaining, 0))
+            except subprocess.TimeoutExpired:
+                self.retire_lingering_client()
+
+    def abort(self):
+        if self.process is None:
+            return
+        try:
+            if self.exit_record is None:
+                self.writer(ABORT, "")
+                self.process.wait(timeout=10)
+        finally:
+            self.terminate_client()
 
     def export(self):
         result = self.driver.k(
@@ -213,14 +412,51 @@ class Sender:
         require(result.returncode == 0, "sender journal unavailable")
 
     def check_running(self):
-        status = self.process.poll()
-        if status is not None:
-            require(status == 0, f"sender exited with status {status}")
-            # The final planned send can finish one arrival interval before stop.
-            require(time.time_ns() >= self.rows[-1]["scheduled_ns"], "sender stopped early")
-        return status == 0
+        tick = time.monotonic_ns()
+        client_status = self.process.poll()
+        if self.exit_record is None:
+            # A local exit prompts an early probe. It cannot prove the sender's result.
+            if client_status is not None and self.client_exit_seen_monotonic_ns is None:
+                self.client_exit_seen_monotonic_ns = tick
+            if (
+                client_status is None and time.time_ns() < self.stop
+            ) or tick < self.next_exit_probe_ns:
+                return False
+            self.next_exit_probe_ns = tick + SECOND
+            record, last = self.read_exit()
+            if record is None:
+                if self.client_exit_seen_monotonic_ns is not None:
+                    require(
+                        time.monotonic_ns() - self.client_exit_seen_monotonic_ns
+                        < EXEC_STREAM_GRACE_SECONDS * SECOND,
+                        "sender exited without an exit record",
+                    )
+                return False
+            require(record["returncode"] == 0, f"sender exited with status {record['returncode']}")
+            require(
+                record["closed"] and json.loads(last or "{}") == {"event": "closed"},
+                "sender exit record lacks a closed journal",
+            )
+            self.exit_record = record
+            self.exit_seen_ns = time.time_ns()
+            self.exit_seen_monotonic_ns = time.monotonic_ns()
+        elif (
+            client_status is None
+            and tick - self.exit_seen_monotonic_ns >= EXEC_STREAM_GRACE_SECONDS * SECOND
+        ):
+            self.retire_lingering_client()
+        return True
 
     def completed(self):
+        try:
+            return self.reconcile_journal()
+        except Exception as error:
+            with suppress(Exception):
+                self.retain_failure(error)
+            raise
+
+    def reconcile_journal(self):
+        require(self.exit_record is not None, "sender completion was not witnessed")
         entries = list(jsonl(self.driver.output / "target-journal.jsonl"))
         require(
             entries and entries[0]["event"] == "plan" and entries[-1]["event"] == "closed",
@@ -594,19 +830,20 @@ def drain(driver, sender, samples, deadline, check):
     fingerprint = None
     while time.time_ns() < deadline:
         check()
+        sender_complete = sender.check_running()
         observed = duration_witness(driver)
         require(observed["failed"] == 0, "unsuccessful durable work")
         slots = samples.latest
         require(slots is not None, "missing drain worker sample")
         inventories = slots["witness"]
         complete = (
-            sender.check_running()
+            sender_complete
             and observed["admitted"] == observed["succeeded"] == len(sender.rows)
             and observed["active_claims"] == observed["unpublished"] == 0
             and len(slots["slots"]) == 4
         )
         current = (observed["revision_hash"], inventories)
-        if not complete or current != fingerprint:
+        if not complete or quiet_start is None or current != fingerprint:
             quiet_start = observed["at_ns"] if complete else None
             fingerprint = current
         append(
@@ -637,6 +874,7 @@ def drain(driver, sender, samples, deadline, check):
             kind.save(driver.output / "quiet-drain.json", result)
             return result
         time.sleep(1)
+    require(sender.exit_record is not None, "sender exit evidence missing at the drain deadline")
     raise EpisodeFailure("drain did not reach 30 seconds quiet within 600 seconds")
 
 

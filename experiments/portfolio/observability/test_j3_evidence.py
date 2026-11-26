@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from j3_episode import GUARD_SENDER  # noqa: E402
+import j3_episode as episode  # noqa: E402
 from j3_evidence import (  # noqa: E402
     SECOND,
     foreign_isolation,
@@ -111,6 +111,7 @@ def test_runner_classifies_only_the_recorded_checker_criterion(tmp_path, criteri
 @pytest.mark.parametrize("accepted", [True, False])
 def test_sender_guard_stops_on_a_terminal_miss(tmp_path, accepted):
     journal, abort, armed = (tmp_path / name for name in ("journal", "abort", "armed"))
+    exit_record = tmp_path / "exit.json"
     first = {"event": "arrival", "key": "one", "outcome": "uncertain", "status": 0, "error": ""}
     last = {"event": "closed"} if accepted else {**first, "error": "transport-error"}
     records = [
@@ -128,10 +129,11 @@ def test_sender_guard_stops_on_a_terminal_miss(tmp_path, accepted):
         [
             sys.executable,
             "-c",
-            GUARD_SENDER,
+            episode.GUARD_SENDER,
             str(journal),
             str(abort),
             str(armed),
+            str(exit_record),
             sys.executable,
             "-c",
             child,
@@ -141,8 +143,220 @@ def test_sender_guard_stops_on_a_terminal_miss(tmp_path, accepted):
         check=False,
     )
     assert armed.is_file() and result.returncode == (0 if accepted else 1)
+    assert not (tmp_path / "exit.json.tmp").exists()
+    status = json.loads(exit_record.read_bytes())
+    assert status["returncode"] == result.returncode
+    assert status["closed"] is accepted and status["exited_ns"] > 0
     if not accepted:
         assert json.loads(result.stderr)["error"] == "transport-error"
+
+
+def test_sender_guard_records_a_launch_failure(tmp_path):
+    journal, abort, armed, exit_record, missing_binary = (
+        tmp_path / name for name in ("journal", "abort", "armed", "exit.json", "missing")
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            episode.GUARD_SENDER,
+            *map(str, (journal, abort, armed, exit_record, missing_binary)),
+        ],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    status = json.loads(exit_record.read_bytes())
+    assert status["returncode"] == result.returncode
+    assert status["closed"] is False and status["exited_ns"] > 0
+    assert not (tmp_path / "exit.json.tmp").exists()
+
+
+def test_observer_sender_exit_read_checks_the_last_complete_journal_line(tmp_path):
+    record, journal = tmp_path / "record", tmp_path / "journal"
+
+    def read():
+        result = subprocess.run(
+            [sys.executable, "-c", episode.READ_SENDER_EXIT, str(record), str(journal)],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        return json.loads(result.stdout)
+
+    (tmp_path / "record.tmp").write_text('{"returncode":0}', encoding="utf-8")
+    assert read() == {"record": None, "journal_last_line": None}
+    record.write_text('{"returncode":0}', encoding="utf-8")
+    journal.write_bytes(b"{}\n" * 3000 + b'{"event":"closed"}')
+    assert read()["journal_last_line"] is None
+    with journal.open("ab") as stream:
+        stream.write(b"\n")
+    assert read() == {"record": '{"returncode":0}', "journal_last_line": '{"event":"closed"}'}
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("lingering", None),
+        ("nonzero", "sender exited with status 7"),
+        ("missing", "sender exit evidence missing at the drain deadline"),
+        ("local_only", "sender exited without an exit record"),
+        ("truncated", None),
+        ("partial", None),
+        ("open_journal", "sender exit record lacks a closed journal"),
+        ("unquiet", "drain did not reach 30 seconds quiet within 600 seconds"),
+    ],
+)
+def test_drain_uses_the_observer_sender_exit_record(tmp_path, monkeypatch, case, error):
+    stop = 100 * SECOND
+    local_exit = stop - 40 * SECOND
+    now = local_exit - 5 * SECOND if case == "local_only" else stop
+    closed = '{"event":"closed"}'
+    reads = []
+    valid = {"returncode": 7 if case == "nonzero" else 0, "closed": True, "exited_ns": stop}
+    observer_processes = [{"pid": 12, "state": "S (sleeping)", "cmdline": ["python", "guard"]}]
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds * SECOND
+
+    class Client:
+        pid = 42
+        returncode = None
+
+        def poll(self):
+            if case == "local_only" and now >= local_exit and self.returncode is None:
+                self.returncode = 0
+            return self.returncode
+
+        def wait(self, timeout):
+            if self.returncode is None:
+                raise subprocess.TimeoutExpired("kubectl", timeout)
+            return self.returncode
+
+        def terminate(self):
+            self.returncode = -15
+
+    def kubectl(*args, **kwargs):
+        if episode.READ_SENDER_EXIT in args:
+            assert kwargs["timeout"] == 5
+            raw = json.dumps(valid)
+            if case in ("missing", "local_only"):
+                raw = None
+            elif not reads and case in ("truncated", "partial"):
+                raw = '{"returncode":' if case == "truncated" else '{"returncode":0,"closed":true}'
+            reads.append((now, raw))
+            last = "{}" if case == "open_journal" else closed
+            stdout = json.dumps({"record": raw, "journal_last_line": last})
+        elif episode.OBSERVER_PROCESSES in args:
+            stdout = json.dumps(observer_processes)
+        elif args[-2:] == ("cat", episode.JOURNAL):
+            stdout = closed + "\n"
+        else:
+            assert "-i" in args
+            stdout = ""
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    client = Client()
+    monkeypatch.setattr(episode.subprocess, "Popen", lambda *args, **kwargs: client)
+    monkeypatch.setattr(
+        episode, "time", SimpleNamespace(time_ns=lambda: now, monotonic_ns=lambda: now, sleep=sleep)
+    )
+    monkeypatch.setattr(
+        episode,
+        "duration_witness",
+        lambda _driver: {
+            "at_ns": now,
+            "failed": 0,
+            "admitted": 1,
+            "succeeded": 1,
+            "active_claims": 0,
+            "unpublished": int(case == "unquiet"),
+            "revision_hash": "stable",
+        },
+    )
+    driver = SimpleNamespace(output=tmp_path, k=kubectl, env={})
+    samples = SimpleNamespace(latest={"witness": {}, "slots": list(range(4)), "sample_ns": stop})
+    rows = [{"namespace": "target", "scheduled_ns": stop - SECOND}]
+    sender = episode.Sender(driver, "observer", "sender", rows, "test", stop - SECOND, stop)
+    deadline = stop + (2 if error else 40) * SECOND
+
+    def run():
+        with sender.run():
+            while now < stop:
+                assert not sender.check_running()
+                sleep(1)
+            return episode.drain(driver, sender, samples, deadline, sender.check_running)
+
+    if error:
+        with pytest.raises(ValueError, match=error):
+            run()
+        evidence = json.loads((tmp_path / "sender-process-evidence.jsonl").read_bytes())
+        assert evidence["reason"] == error
+        assert evidence["local_client"]["pid"] == 42
+        assert evidence["local_client"]["alive"] is (case != "local_only")
+        assert evidence["observer_processes"] == observer_processes
+        assert not (tmp_path / "quiet-drain.json").exists()
+        if case == "missing":
+            assert evidence["at_ns"] == deadline
+            assert not (tmp_path / "sender-exit.json").exists()
+        if case == "local_only":
+            assert reads[0][0] == local_exit
+            assert evidence["at_ns"] == local_exit + 30 * SECOND < stop
+            assert not (tmp_path / "sender-exit.json").exists()
+        return
+
+    result = run()
+    ignored_first = case in ("truncated", "partial")
+    assert len(reads) == (2 if ignored_first else 1)
+    assert result["quiet_start_ns"] == stop + int(ignored_first) * SECOND
+    assert result["quiet_seconds"] == 30
+    evidence = json.loads((tmp_path / "exec-stream-lingering.json").read_bytes())
+    assert evidence["event"] == "exec_stream_lingering"
+    assert evidence["termination_started_ns"] == evidence["exit_observed_ns"] + 30 * SECOND
+    assert evidence["client_before"]["alive"] and not evidence["client_after"]["alive"]
+    assert client.returncode == -15
+
+
+def test_drain_starts_quiet_when_outbox_empties_with_the_same_fingerprint(tmp_path, monkeypatch):
+    stop = 100 * SECOND
+    now = stop
+    unpublished = iter((3, 2, 1))
+    slots = {"witness": {"worker": "stable"}, "slots": list(range(4)), "sample_ns": stop}
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds * SECOND
+
+    def durable_read(_driver):
+        return {
+            "at_ns": now,
+            "failed": 0,
+            "admitted": 1,
+            "succeeded": 1,
+            "active_claims": 0,
+            "unpublished": next(unpublished, 0),
+            "revision_hash": "stable",
+        }
+
+    monkeypatch.setattr(episode, "time", SimpleNamespace(time_ns=lambda: now, sleep=sleep))
+    monkeypatch.setattr(episode, "duration_witness", durable_read)
+    sender = SimpleNamespace(rows=[{}], exit_record={"returncode": 0}, check_running=lambda: True)
+    result = episode.drain(
+        SimpleNamespace(output=tmp_path),
+        sender,
+        SimpleNamespace(latest=slots),
+        stop + 40 * SECOND,
+        lambda: None,
+    )
+
+    assert result["quiet_start_ns"] == stop + 3 * SECOND
+    assert result["quiet_end_ns"] == stop + 33 * SECOND
+    assert result["quiet_seconds"] == 30
+    reads = list(episode.jsonl(tmp_path / "quiet-reads.jsonl"))
+    assert [read["unpublished"] for read in reads[:4]] == [3, 2, 1, 0]
+    assert [read["quiet_start_ns"] for read in reads[:4]] == [None, None, None, stop + 3 * SECOND]
 
 
 def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():

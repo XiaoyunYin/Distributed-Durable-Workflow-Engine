@@ -38,9 +38,21 @@ scoped to the `j3_exporter` login. Plan analysis uses row instrumentation with
 per-node timings disabled. [PostgreSQL role defaults](https://www.postgresql.org/docs/18/sql-alterrole.html) ·
 [PostgreSQL auto_explain](https://www.postgresql.org/docs/18/auto-explain.html).
 
+The `j3_exporter` observer role defaults to `jit=off`. This observer setting
+preserves the registered projection, one-statement snapshot and 2 s statement
+timeout. Engine roles keep their settings. Qualification verifies the role
+default and the effective value in a new exporter session.
+
 The observer reads the Ready workers' `/witness` endpoints in one batch over
 the existing observer-to-worker TCP/8081 route. The sample records its batch
 duration and any read failures. An unwitnessed worker supplies zero slots.
+
+Sender completion uses an atomic in-pod exit record with status zero and a
+closed journal. The harness gives the local exec client 30 seconds after it
+observes completion. It records and terminates a lingering client while the
+registered identity drain continues. When the local client exits first, the
+harness allows 30 seconds for the exit record to appear. Sender and drain
+failures retain the observer process table and the local client status.
 
 The `sql-benchmark` dispatch compares the deployed and candidate SQL using the
 same candidate exporter and pinned PostgreSQL. Each starts with 20,000 synthetic
@@ -51,12 +63,20 @@ Both variants use the engine's existing indexes. The benchmark verifies and
 retains their definitions before and after J3 setup. A missed gate records an
 R398 finding in `benchmark.json` and stops before deployment.
 
+The same dispatch also compares `jit=on` and `jit=off` on the deployed query
+before loading the benchmark workflows or running `ANALYZE`. Both arms use
+the qualification's pinned PostgreSQL image and native JIT thresholds, with
+the same role diagnostics and 2 s timeout. `jit-floor/` retains the effective
+settings, EXPLAIN plans, whether the body plans showed actual JIT activation,
+and p50/p99/max SQL times from 12 calls per arm. The seeded cycle gate uses the
+deployed exporter role settings in both projections.
+
 The deployed `j3_sample()` body differs textually from the registered SQL.
 It restructures the CTEs, uses `json` in place of `jsonb`, and joins history
 only for successful workflows. The benchmark verifies semantic equivalence by
 comparing the full outputs in the same statement snapshot and records the
 result as `same_snapshot_projection_equal`. [Registered SQL, lines 29–58](protocol.md?plain=1#L29-L58) ·
-[Same-snapshot check](../../../scripts/j3_benchmark.py#L519-L533).
+[Same-snapshot check](../../../scripts/j3_benchmark.py#L611-L624).
 
 The benchmark uses a local demand stub. The pod-inventory CPU comparison uses the pinned
 kubectl and a synthetic API, so its results cover inventory calls and parsing.
