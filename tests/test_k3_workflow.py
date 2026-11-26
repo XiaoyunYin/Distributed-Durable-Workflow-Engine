@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+import dur053_k6_g_smoke  # noqa: E402
 from dur053_k3_policy import REQUIRED_CI_JOBS  # noqa: E402
+from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
 
 
 def _job_steps(workflow: str, job_name: str) -> list[tuple[str, str]]:
@@ -330,7 +336,7 @@ def test_pilot_ci_proof_names_cover_every_main_push_job() -> None:
     assert names == REQUIRED_CI_JOBS
 
 
-def test_phase_g_kind_smoke_runs_in_parallel_and_keeps_exact_head() -> None:
+def test_phase_g_kind_smoke_runs_in_parallel_and_checks_event_commit() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     job = workflow.split("\n  k6-phase-g-smoke:\n", 1)[1].split(
         "\n  dur053-k4-lifecycle-smoke:", 1
@@ -339,13 +345,52 @@ def test_phase_g_kind_smoke_runs_in_parallel_and_keeps_exact_head() -> None:
     assert "    runs-on: ubuntu-24.04\n" in job
     assert "    if: github.event_name == 'pull_request' || github.event_name == 'push'\n" in job
     assert "    needs:" not in job and "continue-on-error" not in job
-    assert "DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}" in job
+    assert "DUR053_HEAD_SHA: ${{ github.sha }}" in job
     steps = dict(_job_steps(workflow, "k6-phase-g-smoke"))
     run = steps["Exercise deployed Phase G collection and replay"]
     assert "-Context kind -Scenario faults-smoke -K6Phase G" in run
     assert '$env:RUNNER_TEMP "dur053-k6-phase-g-kind"' in run
     upload = steps["Retain Phase G kind evidence including failures"]
     assert "if: always()" in upload and "${{ runner.temp }}/dur053-k6-phase-g-kind/" in upload
+
+
+def test_phase_g_accepts_advanced_base_merge_tree_and_rejects_mutation(tmp_path, monkeypatch):
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", *args],
+            cwd=tmp_path,
+            text=True,
+            stderr=subprocess.PIPE,
+        ).strip()
+
+    def commit(file):
+        (tmp_path / file).write_text(file, encoding="utf-8")
+        git("add", file)
+        git("commit", "-m", file)
+
+    git("init", "-b", "main")
+    commit("base")
+    git("switch", "-c", "topic")
+    commit("feature")
+    head = git("rev-parse", "HEAD")
+    git("switch", "main")
+    commit("new-main")
+    git("merge", "--no-ff", "topic")
+    merge = git("rev-parse", "HEAD")
+    directory = tmp_path / "evidence"
+    directory.mkdir()
+    evidence = dur053_k6_g_smoke.PhaseGEvidence(directory)
+    monkeypatch.setattr(dur053_k6_g_smoke, "ROOT", tmp_path)
+    assert git("rev-parse", "HEAD^{tree}") != git("rev-parse", head + "^{tree}")
+
+    dur053_k6_g_smoke.check_source(evidence, merge)
+    record = json.loads((directory / "source.json").read_bytes())
+    assert record["checkout"] == record["source_head"]
+    assert record["checkout"]["commit"] == merge
+
+    commit("genuine-mutation")
+    with pytest.raises(SmokeFailure, match="G_SOURCE_TREE_DRIFT"):
+        dur053_k6_g_smoke.check_source(evidence, merge)
 
 
 def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:

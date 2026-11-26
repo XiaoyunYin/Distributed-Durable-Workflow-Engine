@@ -1553,6 +1553,18 @@ class Episode(Matrix):
                 self.checker()
 
 
+def check_source(evidence: PhaseGEvidence, revision: str) -> None:
+    fields = {}
+    for label, ref in (("checkout", "HEAD"), ("source_head", revision)):
+        commit, tree = (
+            subprocess.check_output(["git", "rev-parse", item], cwd=ROOT, text=True).strip()
+            for item in (ref, ref + "^{tree}")
+        )
+        fields[label] = {"commit": commit, "tree": tree}
+    evidence.write("source.json", fields)
+    require(fields["checkout"]["tree"] == fields["source_head"]["tree"], "G_SOURCE_TREE_DRIFT")
+
+
 def run(output: Path) -> int:
     evidence = PhaseGEvidence(make_output(output))
     harness = None
@@ -1565,18 +1577,7 @@ def run(output: Path) -> int:
                 and bool(os.getenv("GITHUB_ACTIONS")),
                 "HOSTED_LINUX_RUNNER_REQUIRED",
             )
-            head = os.environ["DUR053_HEAD_SHA"]
-            fields = {}
-            for label, revision in (("checkout", "HEAD"), ("source_head", head)):
-                commit, tree = (
-                    subprocess.check_output(["git", "rev-parse", item], cwd=ROOT, text=True).strip()
-                    for item in (revision, revision + "^{tree}")
-                )
-                fields[label] = {"commit": commit, "tree": tree}
-            evidence.write("source.json", fields)
-            require(
-                fields["checkout"]["tree"] == fields["source_head"]["tree"], "G_SOURCE_TREE_DRIFT"
-            )
+            check_source(evidence, os.environ["DUR053_HEAD_SHA"])
             scratch = Path(tempfile.mkdtemp(prefix="dur053-k6-g-", dir=os.environ["RUNNER_TEMP"]))
             kind, shared = scratch / "kind", scratch / "bin"
             kind.mkdir()

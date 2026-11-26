@@ -1132,7 +1132,7 @@ jobs:
     permissions:
       contents: read
     env:
-      DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      DUR053_HEAD_SHA: ${{ github.sha }}
       GOMAXPROCS: '2'
     steps:
       - name: Check out exact merge-ref source

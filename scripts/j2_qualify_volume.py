@@ -41,6 +41,14 @@ from j2_qualification_evidence import (
     seal,
     write,
 )
+from j2_qualification_resources import (
+    MissingContainerPID,
+    checker_samples,
+    diagnose_failure,
+    oom_kill,
+    pod_cgroup,
+    sample_checker,
+)
 from j2_verify_overlay import NS, J2Driver, install_profile
 
 APP = "j2-volume"
@@ -117,6 +125,11 @@ class Qualification(J2Driver):
         self.population_started = False
         self.observer = None
         self.workers = []
+        self.container_groups = {}
+
+    @property
+    def node_exec(self):
+        return ["docker", "exec", f"{kind.CLUSTER}-control-plane"]
 
     def time_left(self, maximum):
         remaining = self.deadline - time.monotonic()
@@ -158,6 +171,9 @@ class Qualification(J2Driver):
                 ) as process:
                     while True:
                         try:
+                            status = process.poll()
+                            if status is not None:
+                                break
                             if monitor_errors:
                                 raise monitor_errors[0]
                             remaining = deadline - time.monotonic()
@@ -204,24 +220,35 @@ class Qualification(J2Driver):
             )["items"]
         ]
 
-    def memory(self, container):
+    def memory(self, pod, uid, container):
         # Read the actual container cgroup in the kind node. The pinned
         # exporter image is scratch and cannot execute a shell.
         runtime_id = container.split("://", 1)[1]
-        node = ["docker", "exec", f"{kind.CLUSTER}-control-plane"]
-        result = self.command([*node, "crictl", "inspect", runtime_id], timeout=10, record=False)
-        pid = json.loads(result.stdout)["info"]["pid"]
-        require(type(pid) is int and pid > 0, "cannot locate container PID")
+        node = self.node_exec
+        result = self.command(
+            [*node, "crictl", "inspect", runtime_id], timeout=10, record=False, allowed=True
+        )
+        pid = None if result.returncode else json.loads(result.stdout).get("info", {}).get("pid")
+        if type(pid) is not int or pid <= 0:
+            raise MissingContainerPID(pod, uid, container)
         proc = self.command(
-            [*node, "cat", f"/proc/{pid}/cgroup"], timeout=10, record=False
-        ).stdout.strip()
+            [*node, "cat", f"/proc/{pid}/cgroup"], timeout=10, record=False, allowed=True
+        )
+        if proc.returncode:
+            raise MissingContainerPID(pod, uid, container)
+        proc = proc.stdout.strip()
         require(proc.startswith("0::/") and "\n" not in proc, "cgroup v2 required")
         root = "/sys/fs/cgroup" + proc[3:]
-        maximum, peak, *events = self.command(
+        self.container_groups[(pod, uid)] = root
+        sample = self.command(
             [*node, "cat", *(f"{root}/memory.{key}" for key in ("max", "peak", "events"))],
             timeout=10,
             record=False,
-        ).stdout.splitlines()
+            allowed=True,
+        )
+        if sample.returncode:
+            raise MissingContainerPID(pod, uid, container)
+        maximum, peak, *events = sample.stdout.splitlines()
         return {
             "cgroup": proc,
             "max_bytes": int(maximum),
@@ -254,13 +281,7 @@ class Qualification(J2Driver):
                     "pod population changed",
                 )
                 for name, row in rows.items():
-                    require(row["phase"] == expected[name]["phase"], f"pod phase changed: {name}")
                     for container in row["containers"]:
-                        require_capacity(
-                            container["restartCount"] == 0,
-                            "restart",
-                            f"container restarted: {container['name']}",
-                        )
                         states = [container["state"], container.get("lastState", {})]
                         require_capacity(
                             all(
@@ -269,9 +290,15 @@ class Qualification(J2Driver):
                             "oom",
                             "OOMKilled",
                         )
+                        require_capacity(
+                            container["restartCount"] == 0,
+                            "restart",
+                            f"container restarted: {container['name']}",
+                        )
+                    require(row["phase"] == expected[name]["phase"], f"pod phase changed: {name}")
                     if row["app"] in {"observer", EXPORTER}:
                         (container,) = row["containers"]
-                        memory = self.memory(container["containerID"])
+                        memory = self.memory(name, row["uid"], container["containerID"])
                         record["memory"][row["app"]] = memory
                         limit = OBSERVER_LIMIT if row["app"] == "observer" else (256 << 20)
                         require(memory["max_bytes"] == limit, f"memory limit drift: {row['app']}")
@@ -279,6 +306,19 @@ class Qualification(J2Driver):
             finally:
                 log.write(json.dumps(record, sort_keys=True) + "\n")
         return record["memory"]
+
+    def diagnose(self, pod, uid, trigger):
+        group = self.container_groups.get((pod, uid))
+        diagnose_failure(
+            self.output,
+            self.node_exec,
+            f"kind-{kind.CLUSTER}",
+            pod,
+            uid,
+            pod_cgroup(group, uid) if group else None,
+            super().command,
+            trigger=trigger,
+        )
 
     def check_profile(self, pods):
         replicas = Counter(
@@ -511,7 +551,7 @@ class Qualification(J2Driver):
                 memory = marker(self.output / f"{name}.stderr", "J2_CGROUP")
                 events = event_counts(memory["events"].splitlines())
             require_capacity(
-                not any(n > 0 for k, n in events.items() if k.startswith("oom")),
+                not oom_kill(events),
                 "oom",
                 f"{name} recorded OOM events: {events}",
             )
@@ -574,9 +614,8 @@ def event_counts(lines):
 
 def require_no_oom(events):
     require("oom_kill" in events and "oom" in events, f"missing OOM counters: {events}")
-    require_capacity(
-        not any(n for k, n in events.items() if k.startswith("oom")), "oom", f"OOM event: {events}"
-    )
+    require_capacity(not oom_kill(events), "oom", f"OOM kill: {events}")
+    require(not any(n for k, n in events.items() if k.startswith("oom")), f"OOM event: {events}")
 
 
 def marker(path, prefix):
@@ -744,20 +783,35 @@ def workload(driver, count, plan, result):
                 "/evidence/witness.json",
                 "-require-terminal",
             ]
-            status = driver.run_stage(
-                "live-checker",
-                driver.exec_args("python", "-c", CHECKER, *checker, "-namespace", APP),
-                DRAIN_SECONDS,
-                stdout="live-checker.json",
-                monitor_errors=errors,
-            )
+            pod = f"{APP}/{driver.observer}"
+            uid = expected[pod]["uid"]
+            cgroup = driver.container_groups[pod, uid]
+            sampler = None
+            try:
+                with sample_checker(
+                    driver.output, driver.node_exec[-1], cgroup, driver.env
+                ) as sampler:
+                    status = driver.run_stage(
+                        "live-checker",
+                        driver.exec_args("python", "-c", CHECKER, *checker, "-namespace", APP),
+                        DRAIN_SECONDS,
+                        stdout="live-checker.json",
+                        monitor_errors=errors,
+                    )
+            finally:
+                if sampler is not None:
+                    sampling = {"sampler_exit": sampler.returncode}
+                    result["live_checker_resources"] = sampling
+                    try:
+                        sampling.update(checker_samples(driver.output))
+                    except (OSError, ValueError, IndexError) as error:
+                        sampling["error"] = str(error)
+            if status != 0:
+                driver.diagnose(pod, uid, f"live checker exit {status}")
         except Exception:
             with suppress(Exception):
                 retain_scrapes(driver, query, start, time.time(), count)
             raise
-        result["resources"] = driver.health(expected)
-        if errors:
-            raise errors[0]
         if status == 1:
             report = read(driver.output / "live-checker.json")
             expected_ids = {r["workflow_id"] for r in read(driver.output / "arrivals.json")["rows"]}
@@ -777,6 +831,18 @@ def workload(driver, count, plan, result):
                 "live checker is missing identities or terminal results",
             )
         require(status == 0, "in-pod live checker failed")
+        result["resources"] = driver.health(expected)
+        if errors:
+            raise errors[0]
+        sampling = result["live_checker_resources"]
+        gap = sampling.get("max_sample_gap_seconds")
+        require(
+            sampling["sampler_exit"] == 0
+            and sampling.get("checker_vmhwm_peak_kib")
+            and gap is not None
+            and 0 <= gap <= 2,
+            f"live-checker resource sampling incomplete: {sampling}",
+        )
         retain_scrapes(driver, query, start, time.time(), count)
         require(
             json.loads(driver.sql(QUIET_SQL, DB)) == state
@@ -918,6 +984,13 @@ def main():
         workload(driver, args.count, plan, result)
         result["status"] = "PASS"
     except Exception as error:
+        if isinstance(error, MissingContainerPID):
+            try:
+                driver.diagnose(error.pod, error.uid, str(error))
+            except CapacityFailure as capacity:
+                error = capacity
+            except Exception as diagnostic:
+                result["diagnostic_error"] = str(diagnostic)
         result["error"] = str(error)
         if isinstance(error, CapacityFailure):
             result["capacity_criterion"] = error.criterion

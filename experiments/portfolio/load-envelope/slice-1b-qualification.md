@@ -1,6 +1,6 @@
 # J2 slice 1b volume qualification
 
-**Both volumes in dispatch 45592772474 were invalid due to a tooling defect before submission.** The slice 3 volume pin is unset and the eligible soak-rate set is empty.
+The slice 3 volume pin is unset and the eligible soak-rate set is empty. Both volumes in dispatch 45592772474 were invalid due to a tooling defect before submission. The next primary, in dispatch 45614099335, was invalid after population.
 
 The `qualification` dispatch in the J2 workflow uses the **rebuilt registered profile**. It starts a fresh kind cluster and uses the pinned short-workflow sender at four submissions per second, below the lowest registered grid rate. Live submission produces the actual database history, results, outbox and worker witness bytes. The plan includes identical workload settings and resource limits for both volume attempts.
 
@@ -25,3 +25,14 @@ Dispatch `45592772474`, attempt 1, used tooling commit `fe3db86e8447aa09d82990cf
 Both setups restored the pinned images, confirmed the database was empty, retained the topic descriptions and recorded one exporter DB connection. Each empty-namespace probe captured eight distinct exporter samples, with maximum gaps of 1.001 s on both runners, rounded to milliseconds. Both cleanup records passed. Both downloaded ZIPs matched the Actions digests, and every file in each freeze index matched its byte count and SHA-256.
 
 The runner inventory raised `FileNotFoundError` while reading `/sys/fs/cgroup/cpu.max`. It assumed the CPU quota file was available at the hierarchy root. The old workflow treated both failed closeouts as volume failures and ran the fallback automatically. The two archived attempts provide setup evidence only. Full-population sampling, drain, live export and offline reconciliation remain unexercised by this dispatch. [Linux cgroup v2 CPU and process membership](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+
+### Dispatch 45614099335
+
+Attempt 1 used `b0807ac5aa5abb70672027359e15dcbe950ed4e7`. Runner inventory resolved the qualifier to `/sys/fs/cgroup/system.slice/hosted-compute-agent.service`. It recorded all four runner cgroup files. The primary accepted all 26,678 submissions and reached 26,678 succeeded with zero unpublished outbox entries and zero claimed attempts. [Actions dispatch](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45614099335)
+
+| Volume | Verdict | Accepted | Observer peak captured | Checker RSS | Evidence ZIP |
+| --- | --- | ---: | ---: | ---: | --- |
+| Primary 26,678 | `invalid` | 26,678 | 1,787,183,104 bytes | Unavailable | 13,454,983 bytes, SHA-256 `a18bded9dcf9d7dd770befd3cd470304de7e5effdd890ffcdbc2bbbbcc34d605`. [Artifact 15031778362](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45614099335/artifacts/15031778362) |
+| Fallback 21,002 | Skipped | — | — | — | — |
+
+The live checker exited 137 after 274.6 s and produced an empty JSON report. The observer's last full sample had zero OOM events. The next probe found no container PID while kubelet still reported the observer running with zero restarts. The archive contains no positive OOM kill or restart evidence. The classified closeout halted the dispatch and retained the artifact. Offline replay was unperformed.
