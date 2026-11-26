@@ -45,9 +45,9 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def apply_app(driver, endpoints):
+def apply_app(driver, endpoints, namespace=APP_NS, database=DB, unrelated=OTHER):
     _, objects = driver.render("kind", endpoints)
-    objects = json.loads(json.dumps(objects).replace("dur053-kind", APP_NS))
+    objects = json.loads(json.dumps(objects).replace("dur053-kind", namespace))
     for o in objects:
         if o["kind"] == "ScaledObject":
             o["metadata"].setdefault("annotations", {}).update(
@@ -58,19 +58,22 @@ def apply_app(driver, endpoints):
                 }
             )
     save(driver.output / "application-rendered.json", objects)
-    driver.databases.add(DB)
-    driver.sql(f'CREATE DATABASE "{DB}"')
-    driver.k("create", "namespace", APP_NS)
+    driver.databases.add(database)
+    driver.sql(f'CREATE DATABASE "{database}"')
+    driver.k("create", "namespace", namespace)
     driver.k("create", "namespace", NS)
-    driver.k("create", "namespace", OTHER)
+    if unrelated:
+        driver.k("create", "namespace", unrelated)
     for name, values in (
         (
             "campaign-db",
-            {"url": f"postgresql://durable:{driver.password}@postgres:5432/{DB}?sslmode=disable"},
+            {
+                "url": f"postgresql://durable:{driver.password}@postgres:5432/{database}?sslmode=disable"
+            },
         ),
         ("campaign-demand", {"token": driver.demand_token}),
     ):
-        secret(driver, name, values, APP_NS)
+        secret(driver, name, values, namespace)
     driver.apply(
         {
             "apiVersion": "v1",
@@ -96,7 +99,7 @@ def apply_app(driver, endpoints):
             {
                 "apiVersion": "v1",
                 "kind": "Endpoints",
-                "metadata": {"name": name, "namespace": APP_NS},
+                "metadata": {"name": name, "namespace": namespace},
                 "subsets": [{"addresses": [{"ip": ip}], "ports": [{"name": "tcp", "port": port}]}],
             }
         )
@@ -106,7 +109,7 @@ def apply_app(driver, endpoints):
         )
         driver.k(
             "-n",
-            APP_NS,
+            namespace,
             "wait",
             "--for=condition=complete",
             f"job/{name}",
@@ -116,7 +119,7 @@ def apply_app(driver, endpoints):
     driver.apply({"apiVersion": "v1", "kind": "List", "items": objects})
     for o in objects:
         if o["kind"] == "Deployment":
-            rollout(driver, o["metadata"]["name"], APP_NS)
+            rollout(driver, o["metadata"]["name"], namespace)
 
 
 def secret(driver, name, fields, namespace=NS):
@@ -136,7 +139,7 @@ def rollout(driver, name, namespace=NS):
     )
 
 
-def postgres_probe(driver, password, sql, superuser=False):
+def postgres_probe(driver, password, sql, superuser=False, database=DB):
     options = ["-U", "durable"] if superuser else ["-h", "127.0.0.1", "-U", "j2_exporter"]
     return driver.command(
         [
@@ -153,7 +156,7 @@ def postgres_probe(driver, password, sql, superuser=False):
             "-v",
             "VERBOSITY=verbose",
             "-d",
-            DB,
+            database,
             *options,
         ],
         data=sql,
@@ -162,20 +165,25 @@ def postgres_probe(driver, password, sql, superuser=False):
     )
 
 
-def check_db_denial(driver, password):
+def check_db_denial(driver, password, database=DB):
     readonly = postgres_probe(
         driver,
         password,
         "SHOW transaction_read_only; SHOW statement_timeout; "
         "SELECT count(*) FROM j2_monitor.sample();",
+        database=database,
     )
     require(
         readonly.returncode == 0 and readonly.stdout.splitlines() == ["on", "2s", "1"],
         "monitor SQL projection failed",
     )
     sql = "UPDATE engine.workflow_executions SET state=state WHERE false;"
-    read_only = postgres_probe(driver, password, "CREATE TABLE j2_monitor.j2_write_probe (x int);")
-    denied = postgres_probe(driver, password, "SET default_transaction_read_only=off;\n" + sql)
+    read_only = postgres_probe(
+        driver, password, "CREATE TABLE j2_monitor.j2_write_probe (x int);", database=database
+    )
+    denied = postgres_probe(
+        driver, password, "SET default_transaction_read_only=off;\n" + sql, database=database
+    )
     require(
         read_only.returncode != 0 and "25006" in read_only.stderr,
         "monitor write did not return read-only SQLSTATE",
@@ -358,6 +366,115 @@ def check_scrapes(driver):
             forwarding.terminate()
 
 
+def install_profile(
+    driver, layouts, exporter_layout, namespace=APP_NS, database=DB, unrelated=OTHER
+):
+    lock = json.loads((J2 / "images.lock.json").read_bytes())
+    driver.images = {name: lock[name] for name in ("runtime", "worker")}
+    exporter = json.loads((J2 / "exporter.lock.json").read_bytes())["image"]
+    driver.install()
+    for addon in ("calico", "keda"):
+        driver.prepare_addon(addon)
+    registry = kind_driver.CLUSTER + "-registry"
+    driver.created.add(registry)
+    driver.command(
+        [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            registry,
+            "--label",
+            kind_driver.LABEL,
+            "-p",
+            "127.0.0.1:5001:5000",
+            kind_driver.LOCK["registry"],
+        ]
+    )
+    driver.until(
+        lambda: (
+            driver.command(
+                ["curl", "-fsS", "http://localhost:5001/v2/"], allowed=True, record=False
+            ).returncode
+            == 0
+        ),
+        30,
+    )
+    for name, image in driver.images.items():
+        restore(layouts / name, image)
+    restore(exporter_layout / "exporter", exporter)
+    addresses = driver.cluster()
+    # Register the loopback reference with the node's registry mirror before kubelet starts it.
+    driver.command(
+        [
+            "docker",
+            "exec",
+            kind_driver.CLUSTER + "-control-plane",
+            "ctr",
+            "--namespace",
+            "k8s.io",
+            "images",
+            "pull",
+            "--hosts-dir",
+            "/etc/containerd/certs.d",
+            exporter,
+        ]
+    )
+    apply_app(driver, addresses, namespace, database, unrelated)
+    password = driver.monitor_password
+    db_ip = addresses["192.0.2.1"]
+    result = postgres_probe(
+        driver,
+        driver.password,
+        (J2 / "exporter/monitor.sql")
+        .read_text()
+        .replace(":'namespace'", f"'{namespace}'")
+        .replace(":'password'", f"'{password}'"),
+        superuser=True,
+        database=database,
+    )
+    require(result.returncode == 0, "monitor SQL installation failed")
+    check_db_denial(driver, password, database)
+    secret(
+        driver,
+        "j2-monitor",
+        {"dsn": f"postgresql://j2_exporter:{password}@{db_ip}:5432/{database}?sslmode=disable"},
+    )
+    rendered = render(NS, db_ip, exporter)
+    save(driver.output / "overlay-rendered.json", rendered)
+    save(driver.output / "connection-budget.json", budget(rendered, registered_budget()))
+    driver.apply(rendered)
+    rollout(driver, EXPORTER)
+    rollout(driver, PROM)
+    check_scrapes(driver)
+    sessions = driver.sql(
+        "SELECT application_name, count(*) FROM pg_stat_activity "
+        "WHERE usename='j2_exporter' GROUP BY 1",
+        database,
+    )
+    limit = driver.sql("SELECT rolconnlimit FROM pg_roles WHERE rolname='j2_exporter'", database)
+    require(
+        sessions == "j2-db-exporter|1" and limit == "1",
+        "live monitor connection budget differs",
+    )
+    save(
+        driver.output / "monitor-connections.json",
+        {"pg_stat_activity": sessions, "role_limit": int(limit)},
+    )
+    app_pods = json.loads(driver.k("-n", namespace, "get", "pods", "-o", "json").stdout)["items"]
+    running_image_digests(
+        [{"containers": p["status"]["containerStatuses"]} for p in app_pods], driver.images
+    )
+    pods = json.loads(driver.k("-n", NS, "get", "pods", "-o", "json").stdout)["items"]
+    for pod in pods:
+        app = pod["metadata"].get("labels", {}).get("app")
+        pin = {PROM: PROMETHEUS, EXPORTER: exporter}[app]
+        for c in pod["status"].get("containerStatuses", []):
+            require(c["restartCount"] == 0, "pod restarted during overlay pilot")
+            require(c["imageID"].endswith(pin.split("@")[1]), f"running image differs for {app}")
+    return exporter
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("evidence", type=Path)
@@ -375,111 +492,8 @@ def main():
     kind_driver.CLUSTER, kind_driver.LABEL = "j2-overlay", "j2.overlay=owned"
     driver = J2Driver(args.evidence, args.scratch)
     driver.monitor_password = secrets.token_hex(32)
-    lock = json.loads((J2 / "images.lock.json").read_bytes())
-    driver.images = {name: lock[name] for name in ("runtime", "worker")}
-    exporter = json.loads((J2 / "exporter.lock.json").read_bytes())["image"]
     try:
-        driver.install()
-        for addon in ("calico", "keda"):
-            driver.prepare_addon(addon)
-        registry = kind_driver.CLUSTER + "-registry"
-        driver.created.add(registry)
-        driver.command(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                registry,
-                "--label",
-                kind_driver.LABEL,
-                "-p",
-                "127.0.0.1:5001:5000",
-                kind_driver.LOCK["registry"],
-            ]
-        )
-        driver.until(
-            lambda: (
-                driver.command(
-                    ["curl", "-fsS", "http://localhost:5001/v2/"], allowed=True, record=False
-                ).returncode
-                == 0
-            ),
-            30,
-        )
-        for name, image in driver.images.items():
-            restore(args.layouts / name, image)
-        restore(args.exporter_layout / "exporter", exporter)
-        addresses = driver.cluster()
-        # Register the loopback reference with the node's registry mirror before kubelet starts it.
-        driver.command(
-            [
-                "docker",
-                "exec",
-                kind_driver.CLUSTER + "-control-plane",
-                "ctr",
-                "--namespace",
-                "k8s.io",
-                "images",
-                "pull",
-                "--hosts-dir",
-                "/etc/containerd/certs.d",
-                exporter,
-            ]
-        )
-        apply_app(driver, addresses)
-        password = driver.monitor_password
-        db_ip = addresses["192.0.2.1"]
-        result = postgres_probe(
-            driver,
-            driver.password,
-            (J2 / "exporter/monitor.sql")
-            .read_text()
-            .replace(":'namespace'", f"'{APP_NS}'")
-            .replace(":'password'", f"'{password}'"),
-            superuser=True,
-        )
-        require(result.returncode == 0, "monitor SQL installation failed")
-        check_db_denial(driver, password)
-        secret(
-            driver,
-            "j2-monitor",
-            {"dsn": f"postgresql://j2_exporter:{password}@{db_ip}:5432/{DB}?sslmode=disable"},
-        )
-        rendered = render(NS, db_ip, exporter)
-        save(driver.output / "overlay-rendered.json", rendered)
-        save(driver.output / "connection-budget.json", budget(rendered, registered_budget()))
-        driver.apply(rendered)
-        rollout(driver, EXPORTER)
-        rollout(driver, PROM)
-        check_scrapes(driver)
-        sessions = driver.sql(
-            "SELECT application_name, count(*) FROM pg_stat_activity "
-            "WHERE usename='j2_exporter' GROUP BY 1",
-            DB,
-        )
-        limit = driver.sql("SELECT rolconnlimit FROM pg_roles WHERE rolname='j2_exporter'", DB)
-        require(
-            sessions == "j2-db-exporter|1" and limit == "1",
-            "live monitor connection budget differs",
-        )
-        save(
-            driver.output / "monitor-connections.json",
-            {"pg_stat_activity": sessions, "role_limit": int(limit)},
-        )
-        app_pods = json.loads(driver.k("-n", APP_NS, "get", "pods", "-o", "json").stdout)["items"]
-        running_image_digests(
-            [{"containers": p["status"]["containerStatuses"]} for p in app_pods], driver.images
-        )
-        pods = json.loads(driver.k("-n", NS, "get", "pods", "-o", "json").stdout)["items"]
-        for pod in pods:
-            app = pod["metadata"].get("labels", {}).get("app")
-            pin = {PROM: PROMETHEUS, EXPORTER: exporter}[app]
-            for c in pod["status"].get("containerStatuses", []):
-                require(c["restartCount"] == 0, "pod restarted during overlay pilot")
-                require(
-                    c["imageID"].endswith(pin.split("@")[1]), f"running image differs for {app}"
-                )
+        install_profile(driver, args.layouts, args.exporter_layout)
         check_network(driver)
         save(
             driver.output / "verdict.json", {"status": "PASS", "scope": "unmeasured overlay pilot"}
