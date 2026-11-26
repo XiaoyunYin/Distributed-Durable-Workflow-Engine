@@ -67,6 +67,10 @@ BASE_STOP = 2220
 
 
 class Qualification(Pilot):
+    def __init__(self, output, scratch):
+        super().__init__(output, scratch)
+        self.job_scratch = scratch
+
     def episode_objects(self, objects):
         super().episode_objects(objects)
         for obj in objects:
@@ -112,6 +116,8 @@ class Qualification(Pilot):
 
     def fresh_episode(self, addresses, pins, target, binary):
         self.target_namespace = target["namespace"]
+        self.scratch = self.job_scratch / self.target_namespace
+        self.scratch.mkdir()
         self.monitor_password, self.fixture_password = (secrets.token_hex(32) for _ in range(2))
         self.setup_episode("kind", addresses)
         for namespace in (NS, "j3-unrelated"):
@@ -136,6 +142,11 @@ class Qualification(Pilot):
         )
         self.reset_episode(APP, DB)
         self.sql("DROP ROLE j3_exporter, j3_fixture;")
+
+    def cleanup(self):
+        # The shared cleanup probes for the installed kind binary and kubeconfig.
+        self.scratch = self.job_scratch
+        return super().cleanup()
 
 
 def foreign_plan(origin):
