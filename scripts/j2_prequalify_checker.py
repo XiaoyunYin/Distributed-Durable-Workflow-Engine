@@ -3,12 +3,14 @@
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
-from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, ROOT, verify_binary
+from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, ROOT, comparison_manifest, verify_binary
 from j2_checker_report import indexed_report, markers
 from j2_prequal_fixture import LEASES_PER_WORKFLOW, LINKED, NAMESPACE, build_fixture
 from j2_qualification_evidence import VOLUMES, read, write
@@ -18,6 +20,7 @@ MEMORY_MAX = 2 * GIB
 VMHWM_LIMIT_KIB = 14 * GIB // (10 * 1024)
 PEAK_LIMIT_BYTES = 7 * GIB // 4
 WALL_LIMIT = 240
+TRIAL_LIMITS = (None, "1100MiB", "1200MiB")
 WORKER_BASE = (
     "python:3.12.7-slim-bookworm@"
     "sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d"
@@ -66,7 +69,7 @@ def checker_gates(exit_code, report, process, cgroup, phases, digest, count, mod
     }
 
 
-def checker_run(evidence, checker, digest, count, mode):
+def checker_run(evidence, checker, digest, count, mode, memory_limit):
     network = NETWORK if mode == "live" else "none"
     source = (
         ["-namespace", NAMESPACE] if mode == "live" else ["-snapshot", "/evidence/snapshot.json"]
@@ -102,6 +105,8 @@ def checker_run(evidence, checker, digest, count, mode):
             "--env",
             f"DATABASE_URL=postgres://postgres:{PASSWORD}@db/postgres?sslmode=disable",
         ]
+    if memory_limit is not None:
+        command += ["--env", f"J2_PREQUAL_GOMEMLIMIT={memory_limit}"]
     command += [
         WORKER_BASE,
         "python",
@@ -149,6 +154,7 @@ def checker_run(evidence, checker, digest, count, mode):
         "exit_code": exit_code,
         "docker_wall_seconds": wall,
         "process": process,
+        "gc_count": phases[-1].get("num_gc") if phases else None,
         "cgroup": cgroup,
         "phases": phases,
         "phase_seconds": timings,
@@ -230,16 +236,106 @@ def start_database(image, migrator):
     subprocess.run([migrator], env=env, check=True, timeout=180)
 
 
-def prequalify(count, evidence, scratch, checker, migrator):
+def measure_trials(count, evidence, scratch, checker, digest, limits):
+    expected = {f"engine.{name}": count * n for name, (_, n) in LINKED.items()}
+    expected["engine.lease_acquisitions"] = count * LEASES_PER_WORKFLOW
+    trials = {}
+    with tempfile.TemporaryDirectory(dir=scratch) as temp:
+        directories = {}
+        for memory_limit in limits:
+            label = memory_limit or "unset"
+            directory = evidence if memory_limit is None else Path(temp) / label
+            if directory != evidence:
+                directory.mkdir()
+                for name in (
+                    "arrivals.json",
+                    "witness.json",
+                    "clock.json",
+                    "plan.json",
+                    "terminals.json",
+                ):
+                    (directory / name).hardlink_to(evidence / name)
+            directories[label] = directory
+            live = checker_run(directory, checker, digest, count, "live", memory_limit)
+            trials[label] = {
+                "gomemlimit": memory_limit,
+                "paths": {"live": live},
+                "python": {},
+                "fixture_table_counts_match": all(
+                    live["tables"].get(name, {}).get("count") == wanted
+                    for name, wanted in expected.items()
+                ),
+                "table_inventory_matches": False,
+                "pass": False,
+            }
+
+        # Reuse one live snapshot so every offline run sees the same bytes,
+        # including a trial whose live checker could not finish its export.
+        snapshot = None
+        snapshot_from = None
+        for label, trial in trials.items():
+            if trial["paths"]["live"]["gates"]["pass"]:
+                directory = directories[label]
+                trial["python"]["extract"] = profile(directory, "extract")
+                if trial["python"]["extract"]["process_exit"] == 0:
+                    snapshot = directory / "snapshot.json"
+                    snapshot_from = label
+                    if directory != evidence:
+                        (evidence / "snapshot.json").hardlink_to(snapshot)
+                    break
+                (directory / "snapshot.json").unlink(missing_ok=True)
+
+        for label, trial in trials.items():
+            directory = directories[label]
+            memory_limit = trial["gomemlimit"]
+            if snapshot is None:
+                trial["offline_skipped"] = "no usable live snapshot in this population"
+            else:
+                trial["offline_snapshot_from"] = snapshot_from
+                local_snapshot = directory / "snapshot.json"
+                if local_snapshot not in (snapshot, evidence / "snapshot.json"):
+                    local_snapshot.hardlink_to(snapshot)
+                live = trial["paths"]["live"]
+                offline = checker_run(directory, checker, digest, count, "offline", memory_limit)
+                trial["paths"]["offline"] = offline
+                trial["table_inventory_matches"] = live["tables"] == offline["tables"]
+                if live["gates"]["pass"] and offline["gates"]["pass"]:
+                    trial["python"]["verify"] = profile(directory, "verify")
+                trial["pass"] = (
+                    all(all(path["gates"].values()) for path in trial["paths"].values())
+                    and trial["python"].get("verify", {}).get("process_exit") == 0
+                    and trial["fixture_table_counts_match"]
+                    and trial["table_inventory_matches"]
+                    and all(
+                        path["process"].get("gomemlimit") == memory_limit
+                        for path in trial["paths"].values()
+                    )
+                )
+            if directory != evidence:
+                retained = evidence / "gomemlimit" / label
+                retained.mkdir(parents=True)
+                for path in directory.iterdir():
+                    if (
+                        path.suffix in (".stderr", ".stdout")
+                        or path.name == "live-checker-tables.json"
+                    ):
+                        shutil.copyfile(path, retained / path.name)
+    return trials
+
+
+def prequalify(count, evidence, scratch, checker, migrator, compare_gomemlimit=False):
     postgres = read(ROOT / "deploy/k8s/tools.lock.json")["postgres"]
-    lock = verify_binary(checker)
+    if compare_gomemlimit:
+        lock = verify_binary(checker, comparison_manifest(checker))
+        if lock["source"] != os.environ["GITHUB_SHA"]:
+            raise ValueError("comparison checker does not match this dispatch")
+    else:
+        lock = verify_binary(checker)
     result = {
         "population": count,
         "postgres": postgres,
         "checker_container_image": WORKER_BASE,
         "checker": lock,
-        "paths": {},
-        "python": {},
         "pass": False,
     }
     try:
@@ -271,29 +367,20 @@ def prequalify(count, evidence, scratch, checker, migrator):
                 check=True,
                 timeout=240,
             )
-        result["paths"]["live"] = checker_run(evidence, checker, lock["sha256"], count, "live")
-        tables = result["paths"]["live"]["tables"]
-        expected = {f"engine.{name}": count * n for name, (_, n) in LINKED.items()}
-        expected["engine.lease_acquisitions"] = count * LEASES_PER_WORKFLOW
-        result["fixture_table_counts_match"] = all(
-            tables.get(name, {}).get("count") == wanted for name, wanted in expected.items()
+        trials = measure_trials(
+            count,
+            evidence,
+            scratch,
+            checker,
+            lock["sha256"],
+            TRIAL_LIMITS if compare_gomemlimit else (None,),
         )
-        result["python"]["extract"] = profile(evidence, "extract")
-        if result["python"]["extract"]["process_exit"] != 0:
-            return result
-        result["paths"]["offline"] = checker_run(
-            evidence, checker, lock["sha256"], count, "offline"
-        )
-        result["python"]["verify"] = profile(evidence, "verify")
-        result["table_inventory_matches"] = (
-            result["paths"]["live"]["tables"] == result["paths"]["offline"]["tables"]
-        )
-        result["pass"] = (
-            all(all(path["gates"].values()) for path in result["paths"].values())
-            and result["python"]["verify"]["process_exit"] == 0
-            and result["fixture_table_counts_match"]
-            and result["table_inventory_matches"]
-        )
+        if compare_gomemlimit:
+            result["trials"] = trials
+            result["passing_settings"] = [label for label, trial in trials.items() if trial["pass"]]
+            result["pass"] = bool(result["passing_settings"])
+        else:
+            result.update(trials["unset"])
     except Exception as error:
         result["error"] = str(error)
         raise
@@ -317,6 +404,7 @@ def main():
     parser.add_argument("count", type=int, choices=VOLUMES)
     for name in ("evidence", "scratch", "checker", "migrator"):
         parser.add_argument(name, type=lambda path: Path(path).resolve())
+    parser.add_argument("--compare-gomemlimit", action="store_true")
     args = parser.parse_args()
     if (
         os.environ.get("GITHUB_ACTIONS"),
@@ -326,14 +414,23 @@ def main():
         raise SystemExit("pre-qualification requires a GitHub-hosted dispatch")
     args.evidence.mkdir(parents=True, exist_ok=True)
     args.scratch.mkdir()
-    result = prequalify(args.count, args.evidence, args.scratch, args.checker, args.migrator)
+    result = prequalify(
+        args.count,
+        args.evidence,
+        args.scratch,
+        args.checker,
+        args.migrator,
+        args.compare_gomemlimit,
+    )
     print(
         json.dumps(
             {
                 "population": args.count,
                 "pass": result["pass"],
-                "paths": {name: path["gates"] for name, path in result["paths"].items()},
-                "python": result["python"],
+                "trials": {
+                    setting: {name: path["gates"] for name, path in trial["paths"].items()}
+                    for setting, trial in result.get("trials", {"unset": result}).items()
+                },
             },
             sort_keys=True,
         )

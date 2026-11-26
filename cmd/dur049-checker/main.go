@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"flag"
 	"fmt"
 	"os"
@@ -104,19 +105,18 @@ func main() {
 		result.InvariantsCovered = []string{"supplied history/results/submission/attempt/transport structural checks"}
 		result.InvariantsNotCovered = append(missing, "campaign-wide submission and external witness reconciliation NOT COVERED without -arrivals")
 		if *campaignPath != "" {
-			var arrivals invariants.Arrivals
 			var witness invariants.WitnessExport
-			read := func(path string, target any) {
-				b, e := os.ReadFile(path)
-				if e != nil {
-					fatal(e)
-				}
-				if e = json.Unmarshal(b, target); e != nil {
-					fatal(e)
-				}
+			arrivals, err := readCampaignArrivals(*campaignPath)
+			if err != nil {
+				fatal(err)
 			}
-			read(*campaignPath, &arrivals)
-			read(*witnessPath, &witness)
+			ledger, err := os.ReadFile(*witnessPath)
+			if err != nil {
+				fatal(err)
+			}
+			if err := json.Unmarshal(ledger, &witness); err != nil {
+				fatal(err)
+			}
 			campaign := invariants.ReconcileCampaign(trace, arrivals, witness, baseVerdict, integrityErr)
 			phase.mark("campaign_check")
 			result.Campaign = &campaign
@@ -232,6 +232,28 @@ func status(valid bool) string {
 	return "FAIL"
 }
 
+func readCampaignArrivals(path string) (invariants.Arrivals, error) {
+	var arrivals invariants.Arrivals
+	file, err := os.Open(path)
+	if err != nil {
+		return arrivals, err
+	}
+	// Legacy error reporting pre-validates the complete document. Stream the
+	// normal path and replay malformed inputs through the legacy decoder.
+	err = jsonv2.UnmarshalRead(file, &arrivals, json.DefaultOptionsV1(), json.ReportErrorsWithLegacySemantics(false))
+	file.Close()
+	if err == nil {
+		return arrivals, nil
+	}
+	arrivals = invariants.Arrivals{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return arrivals, err
+	}
+	err = json.Unmarshal(data, &arrivals)
+	return arrivals, err
+}
+
 func write(value any) {
 	if err := json.NewEncoder(os.Stdout).Encode(value); err != nil {
 		fatal(err)
@@ -246,8 +268,8 @@ func (enabled checkerPhases) mark(phase string) {
 	}
 	var memory runtime.MemStats
 	runtime.ReadMemStats(&memory)
-	fmt.Fprintf(os.Stderr, "J2_PHASE {\"phase\":%q,\"at_ns\":%d,\"heap_alloc\":%d,\"heap_inuse\":%d,\"sys\":%d}\n",
-		phase, time.Now().UnixNano(), memory.HeapAlloc, memory.HeapInuse, memory.Sys)
+	fmt.Fprintf(os.Stderr, "J2_PHASE {\"phase\":%q,\"at_ns\":%d,\"heap_alloc\":%d,\"heap_inuse\":%d,\"sys\":%d,\"num_gc\":%d}\n",
+		phase, time.Now().UnixNano(), memory.HeapAlloc, memory.HeapInuse, memory.Sys, memory.NumGC)
 }
 
 func fatal(err error) {

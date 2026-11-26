@@ -10,4 +10,10 @@ Each live export and offline replay gets a fresh 2 GiB, 1-CPU cgroup with swap d
 
 Hosted pre-qualification and qualification retain per-table counts, SHA-256 values and exact bytes of the exported JSON `rows` arrays. Compare the qualification tables with the corresponding fixture volume. The fixture is unrepresentative if the hosted evidence exceeds it. The qualification summary reports scheduled end through completed live export against the 480 s engineering target separately from the registered verdict.
 
-Run the `checker-prequalification` mode on the reviewed PR branch first. Its hosted measurements are pending. After review and green CI, `qualification` starts at 26,678 identities and runs the 21,002 fallback only after an archived primary `capacity_failure`.
+Dispatch `45884706097` cleared all gates at 21,002. Both paths at 26,678 exceeded the VmHWM gate, at 1.64 GiB live and 1.42 GiB offline. Checker wall times were 30.3 s and 9.4 s, respectively, with zero OOMs. [Pre-qualification run](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45884706097)
+
+Round 538 authorized a campaign allocation reduction and a paired memory-limit trial. The reconciliation reuses sort keys and decode values, sizes its maps from the input, and compares compacted result JSON before canonical hashing. The arrival decoder streams the normal path with legacy data semantics.
+
+Run `checker-prequalification` with `compare_gomemlimit=true` to build the dispatched commit and record its binary digest. Each population uses that binary and the same fixture for unset, `1100MiB`, and `1200MiB`, with fresh live and offline cgroups for each setting. All offline trials within a population use the same exported snapshot. `prequalification.json` records the existing gates, VmHWM, cgroup peak, checker wall time, and completed GC count through the write phase for each path. `passing_settings` lists the settings that pass both paths at that population. Review the entries for both populations before selecting a setting and updating the checker lock for qualification. The registered qualification uses the existing lock and leaves `GOMEMLIMIT` unset.
+
+After review and green CI, `qualification` starts at 26,678 identities and runs the 21,002 fallback only after an archived primary `capacity_failure`.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -148,13 +149,15 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 	}
 	// Raw snapshot and projected accepted set must independently agree for
 	// every namespace key, including acceptance after an uncertain response.
-	rawAccepted := map[string]string{}
+	rawAccepted := make(map[string]string, len(t.Submissions))
+	type workflowEvidence struct {
+		ID        string `json:"workflow_id"`
+		Namespace string `json:"namespace"`
+		Key       string `json:"submission_key"`
+	}
+	var w workflowEvidence
 	for _, raw := range t.Snapshot["engine.workflow_executions"].Rows {
-		var w struct {
-			ID        string `json:"workflow_id"`
-			Namespace string `json:"namespace"`
-			Key       string `json:"submission_key"`
-		}
+		w = workflowEvidence{}
 		if json.Unmarshal(raw, &w) != nil {
 			fail("invalid workflow snapshot")
 			continue
@@ -163,7 +166,7 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 			rawAccepted[w.Key] = w.ID
 		}
 	}
-	durable := map[string]SubmissionRecord{}
+	durable := make(map[string]SubmissionRecord, len(t.Submissions))
 	for _, s := range t.Submissions {
 		if s.Namespace != arrivals.Namespace {
 			fail("snapshot includes wrong namespace")
@@ -181,8 +184,8 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 			fail("raw snapshot accepted identity missing from projection")
 		}
 	}
-	keys := map[string]bool{}
-	workflows := map[string]bool{}
+	keys := make(map[string]bool, len(arrivals.Rows))
+	workflows := make(map[string]bool, len(arrivals.Rows))
 	sequences, rates := make([]int, len(arrivals.Rows)), make([]float64, len(arrivals.Rows))
 	for i := range arrivals.Rows {
 		sequences[i], rates[i] = i, arrivals.Rate
@@ -261,17 +264,20 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 		}
 	}
 	// Validate expected application results independently of worker receipt claims.
-	expected := map[string]json.RawMessage{}
+	expected := make(map[string]json.RawMessage, len(arrivals.Rows))
 	for _, a := range arrivals.Rows {
 		expected[a.WorkflowID+"\x00"+a.Activity] = a.Expected
 	}
-	resultSeen := map[string]bool{}
+	resultSeen := make(map[string]bool, len(expected))
+	type nodeEvidence struct {
+		WorkflowID string          `json:"workflow_id"`
+		NodeID     string          `json:"node_id"`
+		Result     json.RawMessage `json:"accepted_result"`
+	}
+	var n nodeEvidence
+	var compactGot, compactWant bytes.Buffer
 	for _, raw := range t.Snapshot["engine.node_instances"].Rows {
-		var n struct {
-			WorkflowID string          `json:"workflow_id"`
-			NodeID     string          `json:"node_id"`
-			Result     json.RawMessage `json:"accepted_result"`
-		}
+		n = nodeEvidence{}
 		if err := json.Unmarshal(raw, &n); err != nil {
 			fail("invalid node snapshot")
 			continue
@@ -281,9 +287,7 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 		if !ok {
 			continue
 		}
-		gotHash, e1 := canonicalJSONHash(n.Result)
-		wantHash, e2 := canonicalJSONHash(want)
-		if e1 != nil || e2 != nil || gotHash != wantHash {
+		if !equalCampaignResult(n.Result, want, &compactGot, &compactWant) {
 			fail("unexpected accepted activity result: " + n.WorkflowID)
 		}
 		resultSeen[k] = true
@@ -305,9 +309,26 @@ func ReconcileCampaign(t Trace, arrivals Arrivals, witness WitnessExport, v Verd
 	return r
 }
 
-func iterationKey(w, n string, i int) string { return fmt.Sprintf("%s/%s/%d", w, n, i) }
+func equalCampaignResult(got, want json.RawMessage, compactGot, compactWant *bytes.Buffer) bool {
+	if bytes.Equal(got, want) {
+		return json.Valid(got)
+	}
+	compactGot.Reset()
+	compactWant.Reset()
+	if json.Compact(compactGot, got) != nil || json.Compact(compactWant, want) != nil {
+		return false
+	}
+	if bytes.Equal(compactGot.Bytes(), compactWant.Bytes()) {
+		return true
+	}
+	gotHash, gotErr := canonicalJSONHash(got)
+	wantHash, wantErr := canonicalJSONHash(want)
+	return gotErr == nil && wantErr == nil && gotHash == wantHash
+}
+
+func iterationKey(w, n string, i int) string { return w + "/" + n + "/" + strconv.Itoa(i) }
 func attemptKey(w, n string, i int, a int64) string {
-	return fmt.Sprintf("%s/%d", iterationKey(w, n, i), a)
+	return w + "/" + n + "/" + strconv.Itoa(i) + "/" + strconv.FormatInt(a, 10)
 }
 func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 	fail := func(s string) { r.Violations = append(r.Violations, s) }
@@ -323,8 +344,10 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 	if len(expected) == 0 {
 		fail("missing expected witness pod inventory")
 	}
-	starts := map[string]WitnessEvent{}
-	ends := map[string]WitnessEvent{}
+	attemptCount := len(t.Attempts)
+	starts := make(map[string]WitnessEvent, attemptCount)
+	ends := make(map[string]WitnessEvent, attemptCount)
+	var e WitnessEvent
 	for _, ledger := range export.Ledgers {
 		inv := ledger.Inventory
 		sum := sha256.Sum256(ledger.Data)
@@ -336,12 +359,17 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 		}
 		sessions[inv.Session] = true
 		seenPods[inv.PodUID] = true
-		lines := bytes.Split(ledger.Data, []byte{'\n'})
-		if len(lines) == 0 || len(lines[len(lines)-1]) != 0 || len(lines)-1 != inv.Written {
+		if (len(ledger.Data) > 0 && !bytes.HasSuffix(ledger.Data, []byte{'\n'})) || bytes.Count(ledger.Data, []byte{'\n'}) != inv.Written {
 			fail("incomplete witness export: line count")
 		}
-		for index, line := range lines[:len(lines)-1] {
-			var e WitnessEvent
+		remaining := ledger.Data
+		for index := 0; ; index++ {
+			line, rest, found := bytes.Cut(remaining, []byte{'\n'})
+			if !found {
+				break
+			}
+			remaining = rest
+			e = WitnessEvent{}
 			if json.Unmarshal(line, &e) != nil {
 				fail("invalid witness JSON")
 				continue
@@ -379,12 +407,13 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 			fail("missing witness pod export: " + pod)
 		}
 	}
-	attempts := map[string]AttemptRecord{}
-	witnessed := map[string]bool{}
-	metrics := map[string]*ExecutionMetric{}
-	first := map[string]string{}
-	firstAt := map[string]int64{}
-	for _, a := range t.Attempts {
+	attempts := make(map[string]*AttemptRecord, attemptCount)
+	witnessed := make(map[string]bool, len(starts))
+	metrics := make(map[string]*ExecutionMetric, len(starts))
+	first := make(map[string]string, len(starts))
+	firstAt := make(map[string]int64, len(starts))
+	for i := range t.Attempts {
+		a := &t.Attempts[i]
 		attempts[attemptKey(a.WorkflowID, a.NodeID, a.Iteration, a.AttemptNumber)] = a
 	}
 	for id, e := range starts {
@@ -421,15 +450,17 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 			fail("invocation end without start")
 		}
 	}
-	receipts := map[string]int{}
+	receipts := make(map[string]int, attemptCount)
+	type receiptEvidence struct {
+		WorkflowID    string `json:"workflow_id"`
+		NodeID        string `json:"node_id"`
+		Iteration     int    `json:"iteration"`
+		AttemptNumber int64  `json:"attempt_number"`
+		Reason        string `json:"reason"`
+	}
+	var h receiptEvidence
 	for _, raw := range t.Snapshot["engine.transition_history"].Rows {
-		var h struct {
-			WorkflowID    string `json:"workflow_id"`
-			NodeID        string `json:"node_id"`
-			Iteration     int    `json:"iteration"`
-			AttemptNumber int64  `json:"attempt_number"`
-			Reason        string `json:"reason"`
-		}
+		h = receiptEvidence{}
 		if json.Unmarshal(raw, &h) != nil {
 			fail("invalid receipt history")
 			continue
@@ -482,8 +513,9 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 			r.ReexecutedSeconds += float64(end.MonotonicNS-e.MonotonicNS) / 1e9
 		}
 	}
-	for _, m := range metrics {
-		r.Executions = append(r.Executions, *m)
+	executionKeys := make([]string, 0, len(metrics))
+	for key, m := range metrics {
+		executionKeys = append(executionKeys, key)
 		r.ExecutedIterations++
 		r.DuplicateExecutions += m.Invocations - 1
 		if m.Canceled {
@@ -495,9 +527,11 @@ func reconcileWitness(t Trace, export WitnessExport, r *CampaignReport) {
 			}
 		}
 	}
-	sort.Slice(r.Executions, func(i, j int) bool {
-		return iterationKey(r.Executions[i].WorkflowID, r.Executions[i].NodeID, r.Executions[i].Iteration) < iterationKey(r.Executions[j].WorkflowID, r.Executions[j].NodeID, r.Executions[j].Iteration)
-	})
+	sort.Strings(executionKeys)
+	r.Executions = make([]ExecutionMetric, 0, len(executionKeys))
+	for _, key := range executionKeys {
+		r.Executions = append(r.Executions, *metrics[key])
+	}
 	if n := r.ExecutedIterations - r.CanceledIterations; n > 0 {
 		ratio := float64(r.AcceptedResults) / float64(n)
 		r.AcceptedResultsPerExecutedIteration = &ratio

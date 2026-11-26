@@ -22,6 +22,10 @@ on:
           - checker-prequalification
           - qualification
         default: overlay
+      compare_gomemlimit:
+        description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -92,6 +96,7 @@ jobs:
       GOMAXPROCS: '2'
       PYTHONDONTWRITEBYTECODE: '1'
       POPULATION: ${{ matrix.population }}
+      COMPARE_GOMEMLIMIT: ${{ inputs.compare_gomemlimit }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -105,12 +110,20 @@ jobs:
         shell: bash
         run: |
           mkdir "$RUNNER_TEMP/j2-prequalification"
-          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-tooling/checker" 2>&1 | tee "$RUNNER_TEMP/j2-prequalification/checker-build.log"
+          build_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            build_args+=(--comparison-source "$GITHUB_SHA")
+          fi
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-tooling/checker" "${build_args[@]}" 2>&1 | tee "$RUNNER_TEMP/j2-prequalification/checker-build.log"
           go build -p 1 -mod=readonly -buildvcs=false -o "$RUNNER_TEMP/j2-tooling/migrate" ./cmd/dur053-migrate
       - name: Measure both cgroups and profile Python on the runner
         run: |
+          trial_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            trial_args+=(--compare-gomemlimit)
+          fi
           python3 scripts/j2_prequalify_checker.py "$POPULATION" "$RUNNER_TEMP/j2-prequalification" \
-            "$RUNNER_TEMP/j2-prequalification-scratch" "$RUNNER_TEMP/j2-tooling/checker" "$RUNNER_TEMP/j2-tooling/migrate"
+            "$RUNNER_TEMP/j2-prequalification-scratch" "$RUNNER_TEMP/j2-tooling/checker" "$RUNNER_TEMP/j2-tooling/migrate" "${trial_args[@]}"
       - name: Retain pre-qualification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -39,6 +40,11 @@ with open(path, 'rb') as checker:
         sys.exit('checker digest mismatch')
 env = os.environ.copy()
 env.pop('GOMEMLIMIT', None)
+trial_limit = env.pop('J2_PREQUAL_GOMEMLIMIT', None)
+if trial_limit is not None:
+    if env.get('J2_CHECKER_SAMPLE') != '1' or trial_limit not in ('1100MiB', '1200MiB'):
+        sys.exit('invalid checker memory-limit trial')
+    env['GOMEMLIMIT'] = trial_limit
 env['J2_CHECKER_PHASES'] = '1'
 started_at_ns = time.time_ns()
 start = time.monotonic()
@@ -63,7 +69,7 @@ with subprocess.Popen([path, *args], env=env) as process:
 measurement = {'exit_status': status, 'started_at_ns': started_at_ns,
                'wall_seconds': time.monotonic() - start,
                'peak_rss_kib': resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,
-               'checker_sha256': digest}
+               'checker_sha256': digest, 'gomemlimit': env.get('GOMEMLIMIT')}
 print('J2_CHECKER ' + json.dumps(measurement), file=sys.stderr, flush=True)
 sys.exit(status if status >= 0 else 128 - status)
 """
@@ -91,19 +97,34 @@ def sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def verify_binary(path):
-    lock = json.loads(LOCK_PATH.read_bytes())
+def verify_binary(path, manifest=LOCK_PATH):
+    lock = json.loads(manifest.read_bytes())
     if sha256(path) != lock["sha256"]:
         raise ValueError(f"J2 checker SHA-256 mismatch: {path}")
     return lock
 
 
-def build(target):
+def comparison_manifest(checker):
+    return checker.with_suffix(".comparison.json")
+
+
+def build(target, comparison_source=None):
     lock = json.loads(LOCK_PATH.read_bytes())
+    if comparison_source is not None:
+        if not re.fullmatch(r"[0-9a-f]{40}", comparison_source):
+            raise ValueError("comparison requires the full dispatched source commit")
+        lock["source"] = comparison_source
     tree = subprocess.check_output(
         ["git", "rev-parse", lock["source"] + "^{tree}"], cwd=ROOT, text=True
     ).strip()
-    if tree != lock["tree"]:
+    if comparison_source is not None:
+        lock["tree"] = tree
+        for name, key in (("go.mod", "go_mod_sha256"), ("go.sum", "go_sum_sha256")):
+            blob = subprocess.check_output(
+                ["git", "cat-file", "blob", f"{comparison_source}:{name}"], cwd=ROOT
+            )
+            lock[key] = hashlib.sha256(blob).hexdigest()
+    elif tree != lock["tree"]:
         raise ValueError("J2 checker source tree mismatch")
     env = {**os.environ, **lock["env"]}
     target = target.resolve()
@@ -147,12 +168,19 @@ def build(target):
             env=env,
             check=True,
         )
-        verify_binary(binary)
+        if comparison_source is not None:
+            lock["sha256"] = sha256(binary)
+        else:
+            verify_binary(binary)
         binary.replace(target)
+    if comparison_source is not None:
+        comparison_manifest(target).write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
     print(f"{target} SHA-256 {lock['sha256']}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
-    build(parser.parse_args().output)
+    parser.add_argument("--comparison-source")
+    args = parser.parse_args()
+    build(args.output, args.comparison_source)

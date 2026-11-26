@@ -15,10 +15,57 @@ from j2_prequal_fixture import LINKED, build_fixture, compact  # noqa: E402
 from j2_prequalify_checker import (  # noqa: E402
     MEMORY_MAX,
     PEAK_LIMIT_BYTES,
+    TRIAL_LIMITS,
     VMHWM_LIMIT_KIB,
     checker_gates,
+    measure_trials,
 )
 from j2_qualification_evidence import read, verify, write  # noqa: E402
+
+
+def test_comparison_reuses_snapshot_even_when_control_live_fails(tmp_path, monkeypatch):
+    evidence, scratch = tmp_path / "evidence", tmp_path / "scratch"
+    evidence.mkdir()
+    scratch.mkdir()
+    for name in ("arrivals.json", "witness.json", "clock.json", "plan.json", "terminals.json"):
+        (evidence / name).write_text(name, encoding="utf-8")
+    count = 21002
+    tables = {f"engine.{name}": {"count": count * n} for name, (_, n) in LINKED.items()}
+    tables["engine.lease_acquisitions"] = {"count": 26 * count}
+    calls = []
+    snapshots = []
+
+    def checker(directory, binary, digest, population, path, limit):
+        calls.append((path, limit))
+        assert population == count and digest == "digest" and binary == Path("checker")
+        assert (directory / "arrivals.json").samefile(evidence / "arrivals.json")
+        if path == "offline":
+            assert (directory / "snapshot.json").samefile(evidence / "snapshot.json")
+        (directory / f"{path}-checker.stderr").write_text("gc telemetry", encoding="utf-8")
+        passed = path == "offline" or limit is not None
+        return {
+            "gates": {"pass": passed},
+            "tables": tables if passed else {},
+            "process": {"gomemlimit": limit},
+            "gc_count": 7,
+        }
+
+    def python_stage(directory, operation):
+        if operation == "extract":
+            snapshots.append(directory.name)
+            (directory / "snapshot.json").write_text("snapshot", encoding="utf-8")
+        return {"process_exit": 0}
+
+    monkeypatch.setattr("j2_prequalify_checker.checker_run", checker)
+    monkeypatch.setattr("j2_prequalify_checker.profile", python_stage)
+    trials = measure_trials(count, evidence, scratch, Path("checker"), "digest", TRIAL_LIMITS)
+    assert calls == [(path, limit) for path in ("live", "offline") for limit in TRIAL_LIMITS]
+    assert snapshots == ["1100MiB"]
+    assert {trial["offline_snapshot_from"] for trial in trials.values()} == {"1100MiB"}
+    assert [label for label, trial in trials.items() if trial["pass"]] == ["1100MiB", "1200MiB"]
+    assert trials["unset"]["paths"]["offline"]["gc_count"] == 7
+    assert (evidence / "gomemlimit" / "1200MiB" / "live-checker.stderr").is_file()
+    assert not list(scratch.iterdir())
 
 
 def test_checker_lock_hashes_match_committed_go_module_blobs():

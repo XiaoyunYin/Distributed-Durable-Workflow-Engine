@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -155,6 +156,7 @@ func checkPhaseSequence(t *testing.T, stderr []byte, want []string) {
 	t.Helper()
 	lines := bytes.Split(bytes.TrimSuffix(stderr, []byte("\n")), []byte("\n"))
 	previous := int64(0)
+	var previousGC uint32
 	if len(lines) != len(want) {
 		t.Fatalf("unexpected phase log: %s", stderr)
 	}
@@ -164,17 +166,41 @@ func checkPhaseSequence(t *testing.T, stderr []byte, want []string) {
 			t.Fatalf("unexpected phase marker %s", line)
 		}
 		var phase struct {
-			Phase     string `json:"phase"`
-			AtNS      int64  `json:"at_ns"`
-			HeapAlloc uint64 `json:"heap_alloc"`
-			HeapInuse uint64 `json:"heap_inuse"`
-			Sys       uint64 `json:"sys"`
+			Phase     string  `json:"phase"`
+			AtNS      int64   `json:"at_ns"`
+			HeapAlloc uint64  `json:"heap_alloc"`
+			HeapInuse uint64  `json:"heap_inuse"`
+			Sys       uint64  `json:"sys"`
+			NumGC     *uint32 `json:"num_gc"`
 		}
 		readParityJSON(t, payload, &phase)
 		if phase.Phase != want[i] || phase.AtNS < previous || phase.HeapAlloc == 0 || phase.HeapInuse < phase.HeapAlloc || phase.Sys < phase.HeapInuse {
 			t.Fatalf("invalid phase %s, want %s after %d", line, want[i], previous)
 		}
+		if phase.NumGC == nil || *phase.NumGC < previousGC {
+			t.Fatalf("missing or decreasing GC count in %s", line)
+		}
+		previousGC = *phase.NumGC
 		previous = phase.AtNS
+	}
+}
+
+func TestCampaignArrivalsKeepsLegacyDecoding(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "arrivals.json")
+	for _, src := range []string{
+		`{"ROWS":[{"expected": {"b":2,"a":1}}],"windows":[{"rate":1.5}]}`,
+		`{"rows":[{"expected":null}],"rows":[{"sequence":1}]}`,
+		`{"rows":[{"sequence":"invalid"}]}`,
+		`{"rows":[{"sequence":"invalid"}]`,
+		`{} {}`,
+	} {
+		putFile(t, path, []byte(src))
+		var want invariants.Arrivals
+		wantErr := json.Unmarshal([]byte(src), &want)
+		got, gotErr := readCampaignArrivals(path)
+		if fmt.Sprint(gotErr) != fmt.Sprint(wantErr) || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: got (%+v, %v), want (%+v, %v)", src, got, gotErr, want, wantErr)
+		}
 	}
 }
 
