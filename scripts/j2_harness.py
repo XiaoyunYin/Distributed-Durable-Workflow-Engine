@@ -12,6 +12,7 @@ import shutil
 import signal
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,10 +53,34 @@ DB_TABLES = (
     "consumer_offsets",
 )
 ARRIVALS = "/evidence/j2-reset-arrivals.json"
+STOP_REQUEST = "/evidence/j2-reset-stop.json"
 SEED_COUNT = 10
 INTERRUPTED_COUNT = 30
 WORK_SECONDS = 30 * 60
 CLOSEOUT_SECONDS = 8 * 60
+INTERRUPT_SECONDS = 20
+POD_IMPORTS = (
+    "importlib",
+    "json",
+    "pathlib",
+    "subprocess",
+    "sys",
+    "time",
+    "urllib.request",
+)
+
+IMPORT_PROBE = """import importlib,json,sys
+results={}
+for name in sys.argv[1:]:
+    try:
+        importlib.import_module(name)
+    except Exception as error:
+        results[name]=f'{type(error).__name__}: {error}'
+    else:
+        results[name]=None
+print(json.dumps({'python':sys.version,'imports':results},sort_keys=True))
+sys.exit(any(value is not None for value in results.values()))
+"""
 
 WITNESS = """import json,pathlib,urllib.request
 root=pathlib.Path('/witness')
@@ -67,39 +92,48 @@ print(json.dumps({'files':sorted(p.relative_to(root).as_posix() for p in
                   'inventory':inventory,'ledger':ledger.read_text()}))
 """
 
-# Wait for real committed work before interrupting the stock process. The
-# stock binary retains its pre-send plan on interruption. This supervisor
-# records a separate partial journal of independently observed admissions.
-INTERRUPT = """import json,os,subprocess,sys,time
-import psycopg
+# The host publishes the stop request atomically after reading durable admissions.
+PUBLISH_STOP = """import sys
+from pathlib import Path
+request=Path(sys.argv[1])
+temporary=request.with_suffix('.tmp')
+with temporary.open('xb') as out:
+    out.write(sys.stdin.buffer.read())
+temporary.rename(request)
+"""
+
+INTERRUPT = """import json,subprocess,sys,time
+from pathlib import Path
 
 def event(name, **data):
     print(json.dumps({'event':name,'utc_ns':time.time_ns(),**data}),flush=True)
 
-with psycopg.connect(os.environ['DATABASE_URL'],connect_timeout=3,autocommit=True,
-                     options='-c statement_timeout=2000 -c default_transaction_read_only=on') as db:
-    proc=subprocess.Popen(sys.argv[1:])
+request=Path(sys.argv[1])
+if request.exists():
+    raise RuntimeError('stop request already exists')
+proc=subprocess.Popen(sys.argv[3:])
+try:
+    event('started')
+    limit=time.monotonic()+int(sys.argv[2])
+    while time.monotonic()<limit and proc.poll() is None:
+        if request.exists():
+            observation=json.loads(request.read_bytes())
+            if not observation['ids']:
+                raise RuntimeError('stop request has no durable admissions')
+            event('committed',**observation)
+            break
+        time.sleep(.2)
+    else:
+        raise RuntimeError('no durable partial admission before stop')
+finally:
+    if proc.poll() is None:
+        proc.terminate()
     try:
-        event('started')
-        limit=time.monotonic()+20
-        while time.monotonic()<limit and proc.poll() is None:
-            rows=db.execute('SELECT workflow_id FROM engine.workflow_executions '
-                            'ORDER BY workflow_id').fetchall()
-            if rows:
-                event('committed',ids=[r[0] for r in rows])
-                break
-            time.sleep(.2)
-        else:
-            raise RuntimeError('no durable partial admission before stop')
-    finally:
-        if proc.poll() is None:
-            proc.terminate()
-        try:
-            code=proc.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            code=proc.wait(timeout=3)
-        event('stopped',exit_code=code)
+        code=proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        code=proc.wait(timeout=3)
+    event('stopped',exit_code=code)
 """
 
 
@@ -395,6 +429,31 @@ class Harness(J2Driver):
 
         self.until(ready, 75)
 
+    def probe_pod_imports(self):
+        observer = self.pod(APP, "observer")["metadata"]["name"]
+        result = self.k(
+            "-n",
+            APP,
+            "exec",
+            observer,
+            "--",
+            "python",
+            "-c",
+            IMPORT_PROBE,
+            *POD_IMPORTS,
+            allowed=True,
+            timeout=15,
+        )
+        write(
+            self.output / "pod-import-probe.json",
+            {"exit_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr},
+        )
+        require(result.returncode == 0, "observer Python import probe failed before population")
+        require(
+            json.loads(result.stdout)["imports"] == dict.fromkeys(POD_IMPORTS),
+            "observer Python import report incomplete",
+        )
+
     def pods_and_witness(self, *, empty):
         pods = self.kube("pods", "-n", APP)["items"] + self.kube("pods", "-n", NS)["items"]
         write(self.output / ("fresh-pods.json" if empty else "seeded-pods.json"), pods)
@@ -556,6 +615,7 @@ class Harness(J2Driver):
             "prior Kafka consumer state",
         )
         apply_profile(self, addresses, exporter, APP, DB, OTHER if previous is None else None)
+        self.probe_pod_imports()
         pods, _ = self.pods_and_witness(empty=True)
         self.assert_profile(pods, exporter)
         self.groups(empty=True)
@@ -602,6 +662,68 @@ class Harness(J2Driver):
         verify_new_identity(previous, identity)
         return identity
 
+    def fixture_admissions(self):
+        result = self.command(
+            [
+                "docker",
+                "exec",
+                "-i",
+                kind.CLUSTER + "-postgres",
+                "psql",
+                "-XAtq",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-U",
+                "durable",
+                "-d",
+                DB,
+            ],
+            data="SET default_transaction_read_only = on; SET statement_timeout = '2s'; "
+            "SELECT workflow_id FROM engine.workflow_executions ORDER BY workflow_id;",
+            timeout=5,
+            record=False,
+        )
+        return result.stdout.splitlines()
+
+    def interrupted_load(self, args, loadgen):
+        deadline = time.monotonic() + INTERRUPT_SECONDS
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            sender = executor.submit(
+                self.k,
+                *args,
+                "python",
+                "-c",
+                INTERRUPT,
+                STOP_REQUEST,
+                str(INTERRUPT_SECONDS),
+                *loadgen,
+                allowed=True,
+                timeout=40,
+            )
+            while not sender.done() and time.monotonic() < deadline:
+                ids = self.fixture_admissions()
+                if ids and not sender.done() and time.monotonic() < deadline:
+                    observation = {"ids": ids, "observed_unix_ns": time.time_ns()}
+                    write(self.output / "admissions-before-stop.json", observation)
+                    require(len(ids) < INTERRUPTED_COUNT, "fixture already fully admitted")
+                    self.k(
+                        "-n",
+                        APP,
+                        "exec",
+                        "-i",
+                        self.observer,
+                        "--",
+                        "python",
+                        "-c",
+                        PUBLISH_STOP,
+                        STOP_REQUEST,
+                        data=json.dumps(observation),
+                        timeout=5,
+                    )
+                    break
+                time.sleep(0.2)
+            return sender.result()
+
     def load(self, name, *, partial):
         run_id = f"j2-reset-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}-{name}"
         seed = int.from_bytes(hashlib.sha256(run_id.encode()).digest()[:4], "big") >> 1
@@ -631,8 +753,10 @@ class Harness(J2Driver):
             "-output",
             ARRIVALS,
         ]
-        launcher = ["python", "-c", INTERRUPT] if partial else []
-        result = self.k(*args, *launcher, *loadgen, allowed=True, timeout=60)
+        if partial:
+            result = self.interrupted_load(args, loadgen)
+        else:
+            result = self.k(*args, *loadgen, allowed=True, timeout=60)
         (self.output / "submission-events.jsonl").write_text(result.stdout, encoding="utf-8")
         raw = self.k(*args, "cat", ARRIVALS, allowed=True, timeout=10)
         (self.output / "arrivals.json").write_text(raw.stdout, encoding="utf-8")
@@ -658,9 +782,12 @@ class Harness(J2Driver):
                 and plan["status"] == "IN_PROGRESS",
                 "controlled stop did not retain a durable partial submission",
             )
-            committed = set(
-                self.sql("SELECT workflow_id FROM engine.workflow_executions;", DB).splitlines()
+            before = read(self.output / "admissions-before-stop.json")
+            require(
+                all(events[1].get(key) == before[key] for key in ("ids", "observed_unix_ns")),
+                "supervisor stop request differs from the runner DB observation",
             )
+            committed = set(self.fixture_admissions())
             write(self.output / "admissions-after-stop.json", sorted(committed))
             require(
                 set(events[1]["ids"]) <= committed <= ids and len(committed) < count,

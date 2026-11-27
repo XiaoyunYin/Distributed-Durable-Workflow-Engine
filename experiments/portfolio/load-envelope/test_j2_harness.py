@@ -1,11 +1,15 @@
+import ast
 import hashlib
 import json
 import signal
+import subprocess
 import sys
+import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
 from subprocess import CompletedProcess
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
@@ -244,6 +248,107 @@ def test_fresh_setup_quiesces_and_resets_transport_before_deploy(tmp_path, monke
     assert (tmp_path / "grid-reset/previous-cleanup.json").exists()
 
 
+def test_in_pod_scripts_use_the_verified_stdlib_imports():
+    sources = (harness.INTERRUPT, harness.WITNESS, harness.PUBLISH_STOP, harness.IMPORT_PROBE)
+    imports = set()
+    for source in sources:
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                imports.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                assert node.level == 0 and node.module is not None
+                imports.add(node.module)
+    assert imports == set(harness.POD_IMPORTS)
+    assert {name.split(".")[0] for name in imports} <= sys.stdlib_module_names
+
+
+def test_missing_pod_import_fails_fresh_setup_before_population(tmp_path, monkeypatch):
+    driver = harness.Harness(tmp_path, tmp_path)
+
+    def transport(*args, **kwargs):
+        harness.write(driver.output / "before-workloads-transport.json", {"groups": ""})
+        return {}
+
+    def import_probe(*args, **kwargs):
+        assert args[-len(harness.POD_IMPORTS) :] == harness.POD_IMPORTS
+        return CompletedProcess(args, 1, '{"imports":{"subprocess":"ImportError"}}', "")
+
+    monkeypatch.setattr(driver, "transport", transport)
+    monkeypatch.setattr(harness, "apply_profile", lambda *args: None)
+    monkeypatch.setattr(driver, "pod", lambda *_: {"metadata": {"name": "observer"}})
+    monkeypatch.setattr(driver, "k", import_probe)
+    monkeypatch.setattr(
+        driver, "pods_and_witness", lambda **kwargs: pytest.fail("fresh stage continued")
+    )
+    with pytest.raises(ValueError, match="observer Python import probe failed before population"):
+        driver.fresh_episode("grid-seed", {}, "exporter", None)
+    report = harness.read(tmp_path / "grid-seed/pod-import-probe.json")
+    assert report["exit_code"] == 1 and "ImportError" in report["stdout"]
+
+
+def test_stdlib_supervisor_waits_for_stop_request(tmp_path):
+    started = tmp_path / "child-started"
+    request = tmp_path / "stop.json"
+    observation = {"ids": ["key-0"], "observed_unix_ns": 42}
+    child = "from pathlib import Path; import sys,time; Path(sys.argv[1]).touch(); time.sleep(20)"
+    with subprocess.Popen(
+        [
+            sys.executable,
+            "-B",
+            "-S",
+            "-c",
+            harness.INTERRUPT,
+            str(request),
+            "8",
+            sys.executable,
+            "-B",
+            "-S",
+            "-c",
+            child,
+            str(started),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as process:
+        limit = time.monotonic() + 5
+        while not started.exists() and process.poll() is None and time.monotonic() < limit:
+            time.sleep(0.05)
+        assert started.exists() and process.poll() is None and not request.exists()
+        subprocess.run(
+            [sys.executable, "-B", "-S", "-c", harness.PUBLISH_STOP, str(request)],
+            input=json.dumps(observation),
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        stdout, stderr = process.communicate(timeout=10)
+    assert process.returncode == 0, stderr
+    events = [json.loads(line) for line in stdout.splitlines()]
+    assert [event["event"] for event in events] == ["started", "committed", "stopped"]
+    assert {key: events[1][key] for key in observation} == observation
+    assert events[2]["exit_code"] != 0
+
+
+def test_runner_sends_no_stop_request_without_durable_admission(tmp_path, monkeypatch):
+    driver = harness.Harness(tmp_path, tmp_path)
+    checked = Event()
+
+    def poll():
+        checked.set()
+        return []
+
+    def exec_supervisor(*args, **kwargs):
+        assert harness.INTERRUPT in args
+        assert checked.wait(3)
+        return CompletedProcess(args, 1, "", "no durable partial admission before stop")
+
+    monkeypatch.setattr(driver, "fixture_admissions", poll)
+    monkeypatch.setattr(driver, "k", exec_supervisor)
+    assert driver.interrupted_load([], []).returncode == 1
+    assert not (tmp_path / "admissions-before-stop.json").exists()
+
+
 def test_partial_fixture_keeps_real_plan_and_supervisor_journal(
     tmp_path, identity_env, monkeypatch
 ):
@@ -257,27 +362,44 @@ def test_partial_fixture_keeps_real_plan_and_supervisor_journal(
         "status": "IN_PROGRESS",
         "rows": [{"workflow_id": key} for key in ids],
     }
-    events = [
-        {"event": "started"},
-        {"event": "committed", "ids": ids[:1]},
-        {"event": "stopped", "exit_code": -signal.SIGTERM},
-    ]
-    raw = "\n".join(json.dumps(event) for event in events)
+    requested = Event()
+    observation = {}
+    tamper = False
 
     def dummy_exec(*args, **kwargs):
-        output = json.dumps(plan) if "cat" in args else raw
+        if harness.PUBLISH_STOP in args:
+            observation.update(json.loads(kwargs["data"]))
+            assert observation["ids"] == ids[:1]
+            assert harness.read(tmp_path / "admissions-before-stop.json") == observation
+            requested.set()
+            output = ""
+        elif harness.INTERRUPT in args:
+            assert requested.wait(3)
+            committed = {"event": "committed", **observation}
+            if tamper:
+                committed["observed_unix_ns"] += 1
+            events = [
+                {"event": "started"},
+                committed,
+                {"event": "stopped", "exit_code": -signal.SIGTERM},
+            ]
+            output = "\n".join(json.dumps(event) for event in events)
+        else:
+            assert "cat" in args
+            output = json.dumps(plan)
         return CompletedProcess(args, 0, output, "")
 
     monkeypatch.setattr(driver, "k", dummy_exec)
-    monkeypatch.setattr(driver, "sql", lambda *_: ids[0])
+    monkeypatch.setattr(driver, "fixture_admissions", lambda: ids[:1])
     with pytest.raises(harness.InjectedStop, match=run_id):
         driver.load("partial-failure", partial=True)
     assert harness.read(tmp_path / "arrivals.json") == plan
     assert harness.read(tmp_path / "admissions-after-stop.json") == ids[:1]
-    assert (tmp_path / "submission-events.jsonl").read_text() == raw
-    events[1]["ids"] = ["outside-plan"]
-    raw = "\n".join(json.dumps(event) for event in events)
-    with pytest.raises(ValueError, match="durable partial submission"):
+    raw = (tmp_path / "submission-events.jsonl").read_text().splitlines()
+    assert json.loads(raw[1]) == {"event": "committed", **observation}
+    requested.clear()
+    tamper = True
+    with pytest.raises(ValueError, match="supervisor stop request differs"):
         driver.load("partial-failure", partial=True)
 
 
