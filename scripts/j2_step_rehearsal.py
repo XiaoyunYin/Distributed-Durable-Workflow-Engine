@@ -66,7 +66,7 @@ from j2_verify_overlay import start_profile
 
 HOLD = 1800
 STEP = 300
-HOLD_RATES = ("1", "4")
+HOLD_RATES = ("1", "4", "8")
 POPULATION_LIMIT = 26678
 WORK_MINUTES = 75
 TERMINAL_SQL = (

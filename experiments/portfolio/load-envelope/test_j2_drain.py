@@ -531,6 +531,17 @@ def test_full_clock_schedule_stays_below_pinned_observer_volume(monkeypatch):
     assert cohorts["step"] == {"offered": 7300, "checked": 1, "successful_in_window": 1}
 
 
+def test_eight_per_second_hold_fits_observer_limit_and_preserves_c_period(monkeypatch):
+    monkeypatch.setenv("GITHUB_RUN_ID", "12")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    schedule = step.episode_schedule("step-drain", stepped=True, hold_rate="8")
+    assert schedule["periods"] == [
+        {"rate": "8", "count": 15360, "seconds": 1920},
+        {"rate": step.RATES["C"], "count": 7300, "seconds": 300},
+    ]
+    assert schedule["count"] == 22660 <= step.POPULATION_LIMIT
+
+
 def test_durable_request_hash_is_derived_from_the_immutable_plan(monkeypatch):
     monkeypatch.setenv("GITHUB_RUN_ID", "12")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")

@@ -33,9 +33,11 @@ on:
         type: boolean
         default: false
       engineering_hold_rate:
-        description: Harness-step hold arrivals/s (4 only to retry a valid no-carry result)
+        description: >-
+          Harness-step hold arrivals/s. Rates 4 and 8 are non-grid retries for a valid no-carry
+          result. Rate 8 is sized for natural carry-in under even spacing.
         type: choice
-        options: ['1', '4']
+        options: ['1', '4', '8']
         default: '1'
 
 permissions:
