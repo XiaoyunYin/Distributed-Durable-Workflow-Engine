@@ -22,6 +22,7 @@ on:
           - checker-prequalification
           - qualification
           - harness-reset
+          - harness-schedule
         default: overlay
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
@@ -85,12 +86,15 @@ jobs:
           if-no-files-found: warn
 
   harness-reset:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'harness-reset' && !github.event.repository.private
-    name: J2 unmeasured harness reset
+    if: >-
+      github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'harness-reset' || inputs.mode == 'harness-schedule')
+    name: J2 unmeasured ${{ inputs.mode }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       PYTHONDONTWRITEBYTECODE: '1'
+      J2_HARNESS_MODE: ${{ inputs.mode }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -103,12 +107,32 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/j2-harness-evidence"
           bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-harness-evidence/image-restore.log"
+      - uses: actions/setup-go@v5
+        if: inputs.mode == 'harness-schedule'
+        with:
+          go-version: '1.27.4'
+      - name: Build and record the stock K4 sender
+        if: inputs.mode == 'harness-schedule'
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-harness-evidence"
+          python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$RUNNER_TEMP/j2-sender/stock-loadgen" \
+            "$evidence/sender-build.json" 2>&1 | tee "$evidence/sender-build.log"
       - name: Rehearse fresh state and an interrupted submission
+        if: inputs.mode == 'harness-reset'
         timeout-minutes: 42
         run: |
           python3 scripts/j2_harness.py "$RUNNER_TEMP/j2-harness-evidence" \
             "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
             "$RUNNER_TEMP/j2-exporter-layouts"
+      - name: Rehearse the stock K4 schedule and interruption
+        if: inputs.mode == 'harness-schedule'
+        timeout-minutes: 42
+        run: |
+          python3 scripts/j2_schedule_rehearsal.py "$RUNNER_TEMP/j2-harness-evidence" \
+            "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts" "$RUNNER_TEMP/j2-sender/stock-loadgen"
       - name: Seal harness evidence
         id: seal
         if: always()
@@ -118,16 +142,16 @@ jobs:
         if: always() && steps.seal.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-harness-reset-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-harness-evidence/
           if-no-files-found: error
           compression-level: 1
           retention-days: 90
       - name: Retain unsealed evidence after a seal failure
-        if: always() && steps.seal.outcome != 'success'
+        if: always() && (steps.seal.outcome != 'success' || steps.upload.outcome != 'success')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-harness-reset-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-harness-evidence/
           if-no-files-found: warn
           retention-days: 90
@@ -149,16 +173,17 @@ jobs:
           gh api "$endpoint" > "$receipt/artifact.json"
           gh api "$endpoint/zip" > "$archive"
           python3 scripts/j2_harness_evidence.py verify-upload \
-            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST"
+            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" \
+            --mode "$J2_HARNESS_MODE"
           {
-            printf 'Verified J2 reset evidence [%s](%s)\n\n' "$ARTIFACT_ID" "$ARTIFACT_URL"
+            printf 'Verified J2 %s evidence [%s](%s)\n\n' "$J2_HARNESS_MODE" "$ARTIFACT_ID" "$ARTIFACT_URL"
             jq -r '"SHA-256 \(.digest) · expires \(.expires_at)"' "$receipt/artifact.json"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Retain the artifact verification receipt
         if: always() && steps.verify-archive.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-harness-reset-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-harness-receipt/artifact.json
           if-no-files-found: error
           retention-days: 90

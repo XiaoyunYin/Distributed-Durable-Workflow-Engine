@@ -48,7 +48,8 @@ def seal(directory):
     )
 
 
-def verify_upload(archive, metadata, artifact_id, artifact_digest):
+def verify_upload(archive, metadata, artifact_id, artifact_digest, *, mode="harness-reset"):
+    require(mode in {"harness-reset", "harness-schedule"}, "unexpected J2 artifact mode")
     digest = file_record(archive)["sha256"]
     require(
         metadata["id"] == int(artifact_id)
@@ -57,7 +58,7 @@ def verify_upload(archive, metadata, artifact_id, artifact_digest):
         and str(metadata["workflow_run"]["id"]) == os.environ["GITHUB_RUN_ID"]
         and metadata["workflow_run"]["head_sha"] == os.environ["GITHUB_SHA"]
         and metadata["name"]
-        == (f"j2-harness-reset-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}")
+        == (f"j2-{mode}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}")
         and metadata["digest"] == f"sha256:{digest}"
         and digest == artifact_digest,
         "Actions evidence artifact identity, expiry or digest mismatch",
@@ -101,6 +102,7 @@ def main():
     verify.add_argument("metadata", type=Path)
     verify.add_argument("artifact_id")
     verify.add_argument("artifact_digest")
+    verify.add_argument("--mode", default="harness-reset")
     args = parser.parse_args()
     if args.command == "seal":
         seal(args.directory)
@@ -110,6 +112,7 @@ def main():
             json.loads(args.metadata.read_bytes()),
             args.artifact_id,
             args.artifact_digest,
+            mode=args.mode,
         )
 
 

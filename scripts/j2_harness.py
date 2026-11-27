@@ -332,6 +332,9 @@ class Harness(J2Driver):
         self.deadline = time.monotonic() + WORK_SECONDS
         self.failed_stage = None
         self.observer = None
+        self.pod_journal = ARRIVALS
+        self.journal_name = "arrivals.json"
+        self.pod_imports = POD_IMPORTS
 
     def command(self, args, *, timeout=180, **kwargs):
         left = self.deadline - time.monotonic()
@@ -440,7 +443,7 @@ class Harness(J2Driver):
             "python",
             "-c",
             IMPORT_PROBE,
-            *POD_IMPORTS,
+            *self.pod_imports,
             allowed=True,
             timeout=15,
         )
@@ -450,7 +453,7 @@ class Harness(J2Driver):
         )
         require(result.returncode == 0, "observer Python import probe failed before population")
         require(
-            json.loads(result.stdout)["imports"] == dict.fromkeys(POD_IMPORTS),
+            json.loads(result.stdout)["imports"] == dict.fromkeys(self.pod_imports),
             "observer Python import report incomplete",
         )
 
@@ -820,7 +823,7 @@ class Harness(J2Driver):
     def retain_stop(self):
         self.deadline = time.monotonic() + CLOSEOUT_SECONDS
         if self.cluster_started:
-            journal = self.output / "arrivals.json"
+            journal = self.output / self.journal_name
             if self.observer and (not journal.exists() or not journal.stat().st_size):
                 raw = self.k(
                     "-n",
@@ -829,7 +832,7 @@ class Harness(J2Driver):
                     self.observer,
                     "--",
                     "cat",
-                    ARRIVALS,
+                    self.pod_journal,
                     allowed=True,
                     timeout=10,
                 )
@@ -908,10 +911,12 @@ def closeout(driver):
     return not errors and cleanup.get("status") == "PASS"
 
 
-def run(driver, layouts, exporter_layout):
+def run(
+    driver, layouts, exporter_layout, *, scenario=rehearse, scope="unmeasured J2 harness reset"
+):
     status = {
         "status": "FAIL",
-        "scope": "unmeasured J2 harness reset",
+        "scope": scope,
         "profile": PROFILE,
         "run_id": os.environ["GITHUB_RUN_ID"],
         "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
@@ -942,7 +947,7 @@ def run(driver, layouts, exporter_layout):
                 },
             },
         )
-        rehearse(driver, layouts, exporter_layout)
+        scenario(driver, layouts, exporter_layout)
     except InjectedStop as stop:
         expected_stop = True
         status.update(stop={"classification": "engineering_injected_stop", "run_id": str(stop)})
