@@ -7,6 +7,7 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from pathlib import Path
 from threading import Event
 
@@ -28,6 +29,7 @@ from j2_offline import SECOND, clock_bounds, utc_ns
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
 from j2_qualification_resources import checker_samples, sample_checker
 from j2_qualify_volume import OBSERVER_LIMIT, ObserverEvidence, prometheus, retain_scrapes, watch
+from j2_relay_diagnostics import bracketed, relay_attribution
 from j2_schedule import (
     ENGINEERING,
     MEASURED,
@@ -42,6 +44,7 @@ from j2_schedule_rehearsal import (
     LEAD_SECONDS,
     SCHEDULE_POD_IMPORTS,
     STEP_JOURNAL,
+    container_target,
     install_sender,
     observer_resources,
     run_continuous,
@@ -51,7 +54,7 @@ from j2_verify_overlay import start_profile
 
 HOLD = 1800
 STEP = 300
-ENGINEERING_SLEEP_MS = 150
+HOLD_RATES = ("1", "4")
 POPULATION_LIMIT = 26678
 WORK_MINUTES = 75
 TERMINAL_SQL = (
@@ -129,6 +132,10 @@ class DrainHarness(ObserverEvidence, Harness):
         return sorted(p["metadata"]["uid"] for p in pods)
 
 
+class CarryInUnobserved(ValueError):
+    classification = "carry_in_unobserved"
+
+
 class Polls:
     def __init__(self, output):
         self.path = output / "terminal-polls.jsonl"
@@ -139,17 +146,6 @@ class Polls:
         self.first.update(dict.fromkeys(new, bracket["upper_unix_ns"]))
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({**bracket, "terminal_ids": new}) + "\n")
-
-
-def bracketed(read):
-    before_mono, before_wall = time.monotonic_ns(), time.time_ns()
-    value = read()
-    return value, {
-        "lower_mono_ns": before_mono,
-        "lower_unix_ns": before_wall,
-        "upper_unix_ns": time.time_ns(),
-        "upper_mono_ns": time.monotonic_ns(),
-    }
 
 
 def observation(driver, polls):
@@ -170,50 +166,63 @@ def wait_until(event, target_ns):
     return not event.wait(max(0, (target_ns - time.monotonic_ns()) / SECOND))
 
 
+def observed_carry(reads, step_mono):
+    before, after = set(), set()
+    before_reads = after_reads = 0
+    for row in reads:
+        lower, upper = row["lower_mono_ns"], row["upper_mono_ns"]
+        if step_mono - SECOND <= lower <= upper < step_mono:
+            before.update(row["pending_hold_ids"])
+            before_reads += 1
+        elif step_mono <= lower <= upper <= step_mono + SECOND:
+            after.update(row["pending_hold_ids"])
+            after_reads += 1
+    return {
+        "valid_before_reads": before_reads,
+        "valid_after_reads": after_reads,
+        "observed_carry_ids": sorted(before & after),
+    }
+
+
 def carry_probe(driver, schedule, step_mono, cancelled):
-    """Hold dispatch at the boundary without replacing workers or stopping the sender."""
+    """Observe admitted hold identities on both sides of the live rate change."""
     if not wait_until(cancelled, step_mono - 4 * SECOND):
         return
-    output = driver.output
-    broker = kind.CLUSTER + "-kafka"
-    before_uids = driver.worker_uids()
+    prefix = f"dur053-{schedule['run_id']}-{schedule['seed']}-"
+    hold_keys = {f"{prefix}{sequence:06d}" for sequence in range(schedule["periods"][0]["count"])}
     record = {
         "scope": ENGINEERING,
-        "intervention": "brief Kafka pause",
+        "hold_rate_per_second": schedule["rate"],
         "worker_sleep_ms": driver.worker_sleep_ms,
-        "worker_uids_before": before_uids,
+        "step_mono_ns": step_mono,
+        "step_unix_ns": schedule["hold_end_ns"],
+        "reads": [],
     }
     try:
-        _, record["pause"] = bracketed(
-            lambda: driver.command(["docker", "pause", broker], timeout=8)
+        record["worker_uids_before"] = driver.worker_uids()
+        for offset_ms in (-750, -400, -150, -60, 0, 200, 400):
+            if not wait_until(cancelled, step_mono + offset_ms * 1_000_000):
+                return
+            pending, bracket = bracketed(lambda: driver.read_database(PENDING_SQL).splitlines())
+            record["reads"].append(
+                {**bracket, "pending_hold_ids": sorted(hold_keys & set(pending))}
+            )
+        record["worker_uids_after"] = driver.worker_uids()
+        require(
+            record["worker_uids_before"] == record["worker_uids_after"],
+            "worker identities changed across the step",
         )
-        if not wait_until(cancelled, step_mono - SECOND // 2):
-            return
-        pending, before = bracketed(lambda: driver.read_database(PENDING_SQL).splitlines())
-        prefix = f"dur053-{schedule['run_id']}-{schedule['seed']}-"
-        hold_count = schedule["periods"][0]["count"]
-        hold_keys = {f"{prefix}{sequence:06d}" for sequence in range(hold_count)}
-        record["pending_before_step"] = sorted(hold_keys.intersection(pending))
-        record["before_step_read"] = before
-        if not wait_until(cancelled, step_mono + SECOND // 4):
-            return
+        record.update(observed_carry(record["reads"], step_mono))
+        require(
+            record["valid_before_reads"] and record["valid_after_reads"],
+            "carry-in reads did not bracket the scheduled step",
+        )
+        record["status"] = "observed" if record["observed_carry_ids"] else "unobserved"
+    except (OSError, ValueError) as error:
+        record.update(status="invalid", error=str(error))
+        raise
     finally:
-        result, resumed = bracketed(
-            lambda: driver.command(["docker", "unpause", broker], timeout=8, allowed=True)
-        )
-        record["resume"] = resumed
-        record["resume_exit"] = result.returncode
-        write(output / "step-transition.json", record)
-        if "pause" in record:
-            require(result.returncode == 0, "engineering broker resume failed")
-    record["worker_uids_after"] = driver.worker_uids()
-    write(output / "step-transition.json", record)
-    require(
-        record["pending_before_step"]
-        and before["upper_mono_ns"] < step_mono
-        and resumed["lower_mono_ns"] >= step_mono,
-        "engineering transition lacked a bracketed pending hold identity",
-    )
+        write(driver.output / "step-transition.json", record)
 
 
 def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped):
@@ -314,7 +323,7 @@ def capture_checker(driver, expected_pods, errors, state, arrivals, sender, poll
     )
 
 
-def episode_schedule(name, *, stepped):
+def episode_schedule(name, *, stepped, hold_rate="1"):
     campaign = f"eng-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
     common = (
         campaign,
@@ -325,22 +334,28 @@ def episode_schedule(name, *, stepped):
         time.time_ns() + LEAD_SECONDS * SECOND,
     )
     if stepped:
+        require(hold_rate in HOLD_RATES, "unknown engineering hold rate")
         schedule = continuous_schedule(
-            *common, ("1", WARMUP + HOLD), (RATES["C"], STEP), warmup=WARMUP
+            *common, (hold_rate, WARMUP + HOLD), (RATES["C"], STEP), warmup=WARMUP
         )
+        schedule["hold_rate_scope"] = "non-grid engineering hold"
     else:
         schedule = stock_schedule(*common, "1", WARMUP, MEASURED)
-    schedule["worker_sleep_ms"] = ENGINEERING_SLEEP_MS if stepped else 100
-    schedule["intervention"] = "brief Kafka pause at step" if stepped else None
+    schedule["worker_sleep_ms"] = Harness.worker_sleep_ms
     require(schedule["count"] <= POPULATION_LIMIT, "episode exceeds the registered observer volume")
     return schedule
 
 
-def exercise(driver, name, *, stepped):
+def exercise(driver, name, *, stepped, hold_rate):
     output = driver.output
     polls = Polls(output)
     work_deadline = driver.deadline
-    with prometheus(driver) as query, observer_resources(driver), watch(driver) as (pods, errors):
+    with (
+        prometheus(driver) as query,
+        observer_resources(driver),
+        watch(driver) as (pods, errors),
+        ExitStack() as diagnostics,
+    ):
         setup = driver.clock()
         uncertainty = utc_ns(setup["observer_after"]) - utc_ns(setup["observer_before"])
         require(
@@ -349,7 +364,8 @@ def exercise(driver, name, *, stepped):
             <= utc_ns(setup["observer_after"]),
             "setup clock probe did not bracket database time",
         )
-        schedule = episode_schedule(name, stepped=stepped)
+        relay = container_target(driver, driver.pod(APP, "relay")["metadata"]["name"])
+        schedule = episode_schedule(name, stepped=stepped, hold_rate=hold_rate)
         anchor_wall, anchor_mono = time.time_ns(), time.monotonic_ns()
         stop_mono = anchor_mono + schedule["stop_ns"] - anchor_wall
         write(
@@ -362,6 +378,9 @@ def exercise(driver, name, *, stepped):
         )
         deadline = stop_mono + DRAIN_SECONDS * SECOND
         require(deadline / SECOND < work_deadline, "episode would exceed harness work budget")
+        diagnostics.enter_context(
+            relay_attribution(driver, schedule, stop_mono, work_deadline, relay)
+        )
         driver.deadline = deadline / SECOND
         try:
             retain_sender(driver, schedule, stop_mono, polls, errors, stepped=stepped)
@@ -409,20 +428,24 @@ def exercise(driver, name, *, stepped):
             raise
         finally:
             driver.deadline = work_deadline
+        diagnostics.close()
         durable = [row["id"] for row in final["db"]["submissions"]]
         report = k4_report(raw, schedule, durable)
         write(output / "sender-report.json", report)
         joined, _ = replay_episode(output)
         if stepped:
             carry = read(output / "step-transition.json")
-            pending_at_step = set(carry["pending_before_step"])
+            pending_at_step = set(carry["observed_carry_ids"])
             crossed = [
                 row["workflow_id"]
                 for row in joined
                 if row["workflow_id"] in pending_at_step
                 and row["scheduled_ns"] < schedule["hold_end_ns"] <= row["terminal_ns"]
             ]
-            require(crossed, "no checked hold identity completed at or after the step")
+            require(
+                set(crossed) == pending_at_step,
+                "observed carry-in did not reconcile to checked hold completions",
+            )
             carry["verified_crossing_ids"] = crossed
             write(output / "step-transition.json", carry)
         write(output / "phase-rows.json", joined)
@@ -450,14 +473,15 @@ def exercise(driver, name, *, stepped):
             len(durable),
         )
     require(fingerprint(final) == result["final_fingerprint"], "final read identity drift")
+    if stepped and not carry["verified_crossing_ids"]:
+        raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
 
-def rehearse(driver, layouts, exporter_layout, binaries):
+def rehearse(driver, layouts, exporter_layout, binaries, hold_rate):
     with driver.stage("bootstrap"):
         addresses, exporter = start_profile(driver, layouts, exporter_layout)
     previous = None
     for name, stepped in (("grid-drain", False), ("step-drain", True)):
-        driver.worker_sleep_ms = ENGINEERING_SLEEP_MS if stepped else 100
         with driver.stage(f"fresh-{name}"):
             previous = driver.fresh_episode(name, addresses, exporter, previous)
         with driver.stage(f"install-{name}"):
@@ -469,7 +493,7 @@ def rehearse(driver, layouts, exporter_layout, binaries):
             binary, manifest = binaries[stepped]
             install_sender(driver, binary, driver.evidence / manifest, continuous=stepped)
         with driver.stage(name):
-            exercise(driver, name, stepped=stepped)
+            exercise(driver, name, stepped=stepped, hold_rate=hold_rate)
 
 
 def main():
@@ -484,6 +508,7 @@ def main():
         "checker",
     ):
         parser.add_argument(name, type=Path)
+    parser.add_argument("--hold-rate", choices=HOLD_RATES, default="1")
     args = parser.parse_args()
     hosted_dispatch()
     args.evidence.mkdir(parents=True, exist_ok=True)
@@ -497,7 +522,9 @@ def main():
         DrainHarness(args.evidence, args.scratch, args.checker),
         args.layouts,
         args.exporter_layout,
-        scenario=lambda d, images, exporter: rehearse(d, images, exporter, binaries),
+        scenario=lambda d, images, exporter: rehearse(
+            d, images, exporter, binaries, args.hold_rate
+        ),
         scope=f"unmeasured J2 schedule 2b2 ({ENGINEERING})",
     )
 

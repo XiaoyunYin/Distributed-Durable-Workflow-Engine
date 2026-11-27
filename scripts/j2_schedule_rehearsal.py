@@ -144,36 +144,36 @@ def install_sender(driver, binary, manifest, *, continuous=False):
     )
 
 
-def observer_target(driver):
-    pod = driver.kube("pod", driver.observer, "-n", APP)
+def container_target(driver, pod_name):
+    pod = driver.kube("pod", pod_name, "-n", APP, timeout=10)
     name = pod["metadata"]["name"]
     uid = pod["metadata"]["uid"]
     (container,) = pod["status"]["containerStatuses"]
-    require(container["ready"] and container["restartCount"] == 0, "observer is not fresh")
+    require(container["ready"] and container["restartCount"] == 0, f"{name} is not fresh")
     runtime_id = container["containerID"].split("://", 1)[1]
     node = ["docker", "exec", kind.CLUSTER + "-control-plane"]
     result = driver.command([*node, "crictl", "inspect", runtime_id], record=False, timeout=5)
     pid = json.loads(result.stdout)["info"]["pid"]
-    require(type(pid) is int and pid > 0, "missing observer PID for diagnostics")
+    require(type(pid) is int and pid > 0, f"missing PID for {name}")
     membership = driver.command([*node, "cat", f"/proc/{pid}/cgroup"], record=False, timeout=5)
     leaf, _ = cgroup_paths(membership.stdout, uid)
-    require(runtime_id in PurePosixPath(leaf).name, "observer container cgroup differs")
+    require(runtime_id in PurePosixPath(leaf).name, f"container cgroup differs for {name}")
     return {"pod": name, "pod_uid": uid, "container_id": runtime_id, "cgroup": leaf, "pid": pid}
 
 
-def resource_summary(raw):
+def resource_summary(raw, fields=RESOURCE_FILES):
     samples = {}
     errors = []
     for line in raw.splitlines():
         at, field, status, text = line.split("\t", 3)
-        require(field in RESOURCE_FILES and status in {"ok", "error"}, "invalid observer sample")
+        require(field in fields and status in {"ok", "error"}, "invalid container sample")
         row = samples.setdefault(int(at), {})
-        require(field not in row, "duplicate observer counter sample")
+        require(field not in row, "duplicate container counter sample")
         row[field] = text
         if status != "ok":
             errors.append({"at_ns": int(at), "counter": field, "error": text})
     times = list(samples)
-    complete = all(set(row) == set(RESOURCE_FILES) for row in samples.values())
+    complete = all(set(row) == set(fields) for row in samples.values())
     return {
         "samples": len(samples),
         "complete": complete,
@@ -187,14 +187,13 @@ def resource_summary(raw):
 
 
 @contextmanager
-def observer_resources(driver):
-    target = observer_target(driver)
+def container_resources(driver, target, role, fields):
     output = driver.output
-    write(output / "observer-resource-target.json", target)
-    path = output / "observer-resources.tsv"
+    write(output / f"{role}-resource-target.json", target)
+    path = output / f"{role}-resources.tsv"
     with (
         path.open("wb") as out,
-        (output / "observer-resources.stderr").open("wb") as err,
+        (output / f"{role}-resources.stderr").open("wb") as err,
         subprocess.Popen(
             [
                 "docker",
@@ -206,7 +205,7 @@ def observer_resources(driver):
                 NODE_SAMPLE,
                 "bash",
                 target["cgroup"],
-                *RESOURCE_FILES,
+                *fields,
             ],
             stdin=subprocess.PIPE,
             stdout=out,
@@ -224,18 +223,30 @@ def observer_resources(driver):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=3)
-            summary = resource_summary(path.read_text(encoding="utf-8"))
-            write(
-                output / "observer-resource-summary.json", {"exit": process.returncode, **summary}
-            )
+            try:
+                summary = resource_summary(path.read_text(encoding="utf-8"), fields)
+            except (OSError, ValueError) as error:
+                summary = {"samples": 0, "complete": False, "errors": [{"error": str(error)}]}
+            write(output / f"{role}-resource-summary.json", {"exit": process.returncode, **summary})
+
+
+@contextmanager
+def observer_resources(driver):
+    target = container_target(driver, driver.observer)
+    with container_resources(driver, target, "observer", RESOURCE_FILES):
+        yield
+    summary = read(driver.output / "observer-resource-summary.json")
     require(
-        process.returncode == 0
+        summary["exit"] == 0
         and summary["samples"] >= 2
         and summary["complete"]
         and not summary["errors"],
         "observer resource sampling incomplete",
     )
-    require(observer_target(driver) == target, "observer changed during the sender rehearsal")
+    require(
+        container_target(driver, driver.observer) == target,
+        "observer changed during the sender rehearsal",
+    )
 
 
 def run_stock(driver, schedule, *, partial):

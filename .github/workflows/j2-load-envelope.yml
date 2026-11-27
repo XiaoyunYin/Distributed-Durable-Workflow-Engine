@@ -32,6 +32,11 @@ on:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
         type: boolean
         default: false
+      engineering_hold_rate:
+        description: Harness-step hold arrivals/s (4 only to retry a valid no-carry result)
+        type: choice
+        options: ['1', '4']
+        default: '1'
 
 permissions:
   contents: read
@@ -172,12 +177,14 @@ jobs:
       - name: Rehearse the full-clock step and both quiet drains
         if: inputs.mode == 'harness-step'
         timeout-minutes: 85
+        env:
+          J2_ENGINEERING_HOLD_RATE: ${{ inputs.engineering_hold_rate }}
         run: |
           binaries="$RUNNER_TEMP/j2-sender"
           python3 scripts/j2_step_rehearsal.py "$RUNNER_TEMP/j2-harness-evidence" \
             "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
             "$RUNNER_TEMP/j2-exporter-layouts" "$binaries/stock" \
-            "$binaries/continuous" "$binaries/checker"
+            "$binaries/continuous" "$binaries/checker" --hold-rate "$J2_ENGINEERING_HOLD_RATE"
       - name: Seal harness evidence
         id: seal
         if: always()

@@ -216,15 +216,21 @@ def test_checked_results_reconcile_receipts_and_final_witness(episode, monkeypat
 def test_full_clock_schedule_stays_below_pinned_observer_volume(monkeypatch):
     monkeypatch.setenv("GITHUB_RUN_ID", "12")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
-    grid = step.episode_schedule("grid-drain", stepped=False)
+    grid = step.episode_schedule("grid-drain", stepped=False, hold_rate="4")
     full = step.episode_schedule("step-drain", stepped=True)
     assert grid["count"] == 720
     assert full["warmup_end_ns"] - full["origin_ns"] == 120 * S
     assert full["hold_end_ns"] - full["origin_ns"] == 1920 * S
     assert full["stop_ns"] - full["hold_end_ns"] == 300 * S
     assert [period["count"] for period in full["periods"]] == [1920, 7300]
+    assert full["periods"][1]["rate"] == step.RATES["C"]
     assert full["count"] == 9220 < step.POPULATION_LIMIT
-    assert full["worker_sleep_ms"] != grid["worker_sleep_ms"]
+    retry = step.episode_schedule("step-drain", stepped=True, hold_rate="4")
+    assert full["worker_sleep_ms"] == retry["worker_sleep_ms"] == grid["worker_sleep_ms"] == 100
+    assert retry["hold_rate_scope"] == "non-grid engineering hold"
+    assert retry["periods"] == [{"rate": "4", "count": 7680, "seconds": 1920}, full["periods"][1]]
+    assert retry["count"] == 14980 < step.POPULATION_LIMIT
+    assert "intervention" not in full
     boundary = full["hold_end_ns"]
     cohorts = drain.cohort_counts(
         full,
@@ -270,28 +276,58 @@ def test_durable_request_hash_is_derived_from_the_immutable_plan(monkeypatch):
         drain.expected_arrivals(encoded(head, sent), schedule)
 
 
-def test_carry_probe_resumes_broker_when_pending_read_fails(tmp_path, monkeypatch):
-    calls = []
+@pytest.mark.parametrize("same_identity", [True, False])
+def test_carry_probe_reads_natural_pending_work_on_both_sides(tmp_path, monkeypatch, same_identity):
+    boundary = 10 * S
+    identity = "dur053-run-12-000001"
+    brackets = iter(
+        [
+            (-800, -770, []),
+            (-400, -380, ["dur053-run-12-000002"]),
+            (-150, -100, [identity]),
+            (-60, 60, ["dur053-run-12-000002"]),
+            (80, 130, [identity if same_identity else "dur053-run-12-000000"]),
+            (200, 250, []),
+            (400, 450, []),
+        ]
+    )
     monkeypatch.setattr(step, "wait_until", lambda *_: True)
 
-    def command(args, **_):
-        calls.append(args[1])
-        return SimpleNamespace(returncode=0)
+    def bracketed(probe):
+        lower, upper, ids = next(brackets)
+        assert probe() == []
+        return ids, {
+            "lower_mono_ns": boundary + lower * 1_000_000,
+            "upper_mono_ns": boundary + upper * 1_000_000,
+        }
 
-    def fail(_):
-        raise TimeoutError("pending read failed")
-
+    monkeypatch.setattr(step, "bracketed", bracketed)
     driver = SimpleNamespace(
-        command=command,
-        read_database=fail,
+        read_database=lambda _: "",
         worker_uids=lambda: ["a", "b"],
         output=tmp_path,
-        worker_sleep_ms=150,
+        worker_sleep_ms=100,
     )
-    with pytest.raises(TimeoutError, match="pending read failed"):
-        step.carry_probe(driver, {}, 0, None)
-    assert calls == ["pause", "unpause"]
-    assert drain.read(tmp_path / "step-transition.json")["worker_uids_before"] == ["a", "b"]
+    schedule = dict(run_id="run", seed=12, periods=[{"count": 2}], rate="4", hold_end_ns=boundary)
+    step.carry_probe(driver, schedule, boundary, None)
+    record = drain.read(tmp_path / "step-transition.json")
+    assert record["observed_carry_ids"] == ([identity] if same_identity else [])
+    assert record["status"] == ("observed" if same_identity else "unobserved")
+    assert record["worker_uids_before"] == record["worker_uids_after"] == ["a", "b"]
+    assert record["valid_before_reads"] == record["valid_after_reads"] == 3
+
+
+def test_a_straddling_or_stale_read_cannot_establish_carry_in():
+    reads = [
+        {"lower_mono_ns": 1, "upper_mono_ns": S - 1, "pending_hold_ids": ["old"]},
+        {"lower_mono_ns": 2 * S - 2, "upper_mono_ns": 2 * S + 2, "pending_hold_ids": ["old"]},
+        {"lower_mono_ns": 2 * S, "upper_mono_ns": 2 * S + 2, "pending_hold_ids": ["old"]},
+    ]
+    assert step.observed_carry(reads, 2 * S) == {
+        "valid_before_reads": 0,
+        "valid_after_reads": 1,
+        "observed_carry_ids": [],
+    }
 
 
 def test_archive_rejects_a_changed_two_period_schedule_before_replay(tmp_path, monkeypatch):

@@ -158,7 +158,11 @@ def topic_state(description, offsets):
         and len(set(topics.values())) == len(topics),
         "Kafka topic identity, partition count or replication drift",
     )
-    latest = {topic: {} for topic in topics}
+    return topics, partition_end_offsets(offsets)
+
+
+def partition_end_offsets(offsets):
+    latest = {topic: {} for topic in TOPICS.values()}
     for line in offsets.splitlines():
         if line.partition(":")[0] not in latest:
             continue
@@ -167,7 +171,7 @@ def topic_state(description, offsets):
         require(partition not in latest[topic] and offset >= 0, "invalid Kafka offset row")
         latest[topic][partition] = offset
     require(all(set(rows) == PARTITIONS for rows in latest.values()), "missing Kafka offsets")
-    return topics, latest
+    return latest
 
 
 def group_state(raw, group, *, empty):
@@ -358,10 +362,10 @@ class Harness(J2Driver):
             with (self.evidence / "stages.jsonl").open("a", encoding="utf-8") as log:
                 log.write(json.dumps(record) + "\n")
 
-    def kube(self, *args):
-        return json.loads(self.k("get", *args, "-o", "json").stdout)
+    def kube(self, *args, **kwargs):
+        return json.loads(self.k("get", *args, "-o", "json", **kwargs).stdout)
 
-    def kafka(self, tool, *args, **kwargs):
+    def kafka(self, tool, *args, timeout=15, **kwargs):
         return self.command(
             [
                 "docker",
@@ -372,7 +376,7 @@ class Harness(J2Driver):
                 "localhost:19092",
                 *args,
             ],
-            timeout=15,
+            timeout=timeout,
             **kwargs,
         )
 
