@@ -8,6 +8,7 @@ import re
 import signal
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from contextlib import contextmanager, suppress
 from pathlib import Path, PurePosixPath
 
@@ -42,6 +43,20 @@ CONTINUOUS = "/tmp/j2-continuous-sender"
 STOP = "/evidence/j2-stock-stop"
 JOURNAL = "/evidence/j2-stock-arrivals.jsonl"
 STEP_JOURNAL = "/evidence/j2-step-arrivals.jsonl"
+PEER_STOP = "/evidence/j2-peer-stop"
+PEER_SUPERVISOR = """import subprocess,sys,time
+from pathlib import Path
+stop=Path(sys.argv[1])
+with subprocess.Popen(sys.argv[2:]) as sender:
+    while sender.poll() is None:
+        if stop.is_file():
+            sender.terminate()
+            sender.wait(timeout=5)
+            print(stop.read_text(),flush=True)
+            sys.exit(1)
+        time.sleep(0.1)
+    sys.exit(sender.returncode if sender.returncode >= 0 else 128-sender.returncode)
+"""
 LEAD_SECONDS = 8
 RESOURCE_FILES = ("cpu.stat", "io.stat", "cpu.pressure", "io.pressure")
 SCHEDULE_POD_IMPORTS = (*POD_IMPORTS, "base64", "hashlib", "os")
@@ -304,7 +319,7 @@ def execute_stock(driver, schedule, *, partial, url):
     return execute_sender(driver, schedule, args, loadgen, JOURNAL, partial=partial)
 
 
-def run_continuous(driver, schedule, *, partial):
+def run_continuous(driver, schedule, *, partial, peer_stop=None):
     hold, step = schedule["periods"]
     args = ["-n", APP, "exec", driver.observer, "--"]
     loadgen = [
@@ -333,15 +348,51 @@ def run_continuous(driver, schedule, *, partial):
         STEP_JOURNAL,
     ]
     write(driver.output / "schedule.json", schedule)
-    return execute_sender(driver, schedule, args, loadgen, STEP_JOURNAL, partial=partial)
+    return execute_sender(
+        driver, schedule, args, loadgen, STEP_JOURNAL, partial=partial, peer_stop=peer_stop
+    )
 
 
-def execute_sender(driver, schedule, args, loadgen, journal, *, partial):
+def execute_sender(driver, schedule, args, loadgen, journal, *, partial, peer_stop=None):
     try:
         if partial:
             return driver.interrupted_load(args, loadgen)
         duration = (schedule["stop_ns"] - schedule["origin_ns"]) // SECOND
-        return driver.k(*args, *loadgen, allowed=True, timeout=duration + LEAD_SECONDS + 30)
+        timeout = duration + LEAD_SECONDS + 30
+        if peer_stop is None:
+            return driver.k(*args, *loadgen, allowed=True, timeout=timeout)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            sender = pool.submit(
+                driver.k,
+                *args,
+                "python",
+                "-c",
+                PEER_SUPERVISOR,
+                PEER_STOP,
+                *loadgen,
+                allowed=True,
+                timeout=timeout,
+            )
+            while not sender.done():
+                if peer_stop.is_file():
+                    driver.k(
+                        *args[:3],
+                        "-i",
+                        *args[3:],
+                        "python",
+                        "-c",
+                        PUBLISH_STOP,
+                        PEER_STOP,
+                        data=peer_stop.read_text(encoding="utf-8"),
+                        timeout=5,
+                    )
+                    break
+                try:
+                    return sender.result(timeout=0.25)
+                except TimeoutError:
+                    if sender.done():
+                        raise
+            return sender.result()
     finally:
         readback = driver.k(*args, "cat", journal, allowed=True, timeout=15)
         (driver.output / driver.journal_name).write_bytes(readback.stdout.encode("utf-8"))

@@ -50,7 +50,15 @@ def seal(directory):
 
 def verify_upload(archive, metadata, artifact_id, artifact_digest, *, mode="harness-reset"):
     require(
-        mode in {"harness-reset", "harness-schedule", "harness-sender", "harness-step", "controls"},
+        mode
+        in {
+            "harness-reset",
+            "harness-schedule",
+            "harness-sender",
+            "harness-step",
+            "controls",
+            "measure-replay",
+        },
         "unexpected J2 artifact mode",
     )
     digest = file_record(archive)["sha256"]

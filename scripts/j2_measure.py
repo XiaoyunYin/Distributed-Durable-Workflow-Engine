@@ -306,6 +306,9 @@ def serve(root, layouts, exporter_layout, stock, continuous, checker):
 
                 def release(driver, schedule, *, partial):
                     output = driver.output
+                    peer_stop = final / "peer-failure.json"
+                    if schedule["cell"] == "soak" and peer_stop.is_file():
+                        raise BarrierStop("peer_failure", "peer failed before the sender release")
                     write(
                         output / "sender-release.json",
                         {
@@ -317,12 +320,15 @@ def serve(root, layouts, exporter_layout, stock, continuous, checker):
                             "unix_ns": time.time_ns(),
                         },
                     )
-                    sender = run_continuous if schedule["cell"] == "soak" else run_stock
-                    return sender(driver, schedule, partial=partial)
+                    if schedule["cell"] == "soak":
+                        return run_continuous(
+                            driver, schedule, partial=partial, peer_stop=peer_stop
+                        )
+                    return run_stock(driver, schedule, partial=partial)
 
                 with driver.stage(cell):
                     try:
-                        with attribution_samples(driver):
+                        with attribution_samples(driver, campaign=True):
                             exercise_drain(
                                 driver, build_schedule, stepped=cell == "soak", execute=release
                             )
@@ -396,8 +402,46 @@ def request_cell(root, state, campaign, cell, rate, budget):
     emit(checkpoint=campaign.checkpoint(state["job"], cell), cell=cell)
     end = min(state["work_end"], time.monotonic() + budget)
     publish(command, {"action": "run", "rate": rate, "budget": budget})
-    wait_file(root / "commands" / f"{cell}-done.json", end, stopped=root / "driver" / "status.json")
+    if cell == "soak":
+        wait_for_soak(root, campaign, end)
+    else:
+        wait_file(
+            root / "commands" / f"{cell}-done.json", end, stopped=root / "driver" / "status.json"
+        )
     emit(sealed="true")
+
+
+def wait_for_soak(root, campaign, end, *, now=time.monotonic, sleep=time.sleep):
+    done = root / "commands" / "soak-done.json"
+    stopped = root / "driver" / "status.json"
+    released = root / "driver" / "soak" / "sender-release.json"
+    report = root / "final" / "peer-failure.json"
+    gate = client(campaign, root / "final", end)
+    next_poll = now()
+    while not done.is_file():
+        remaining = end - now()
+        require(
+            not stopped.is_file() and remaining > 0,
+            "continuous driver stopped or reached its deadline",
+        )
+        if not report.is_file() and now() >= next_poll:
+            try:
+                gate.api.jobs(campaign)
+            except BarrierStop as error:
+                # Atomically stop further sends while keeping the journal and checked evidence.
+                publish(
+                    report,
+                    {
+                        "reason": error.reason,
+                        "detail": str(error),
+                        "sender_released": released.is_file(),
+                        "observed_unix_ns": time.time_ns(),
+                    },
+                )
+            except RetryLater:
+                pass
+            next_poll = now() + 15
+        sleep(min(0.5, remaining))
 
 
 def bind_upload(root, state, campaign, cell):

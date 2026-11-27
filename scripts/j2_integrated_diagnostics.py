@@ -24,12 +24,20 @@ SELECT json_build_object(
     'pg_locks', (SELECT coalesce(json_agg(l), '[]') FROM pg_catalog.pg_locks AS l)
 );
 """
+PG_DATABASE_COUNTERS = """
+    'database_counters', (SELECT row_to_json(s) FROM (
+        SELECT xact_commit, xact_rollback, blks_read, blks_hit, blk_read_time, blk_write_time
+        FROM pg_catalog.pg_stat_database WHERE datname = current_database()) AS s),
+"""
 
 
 @contextmanager
-def attribution_samples(driver):
+def attribution_samples(driver, *, campaign=False):
     output = driver.output
     done = Event()
+    query = PG_SNAPSHOT
+    if campaign:
+        query = query.replace("    'sampled_at'", PG_DATABASE_COUNTERS + "    'sampled_at'")
     write(
         output / "attribution-sampler.json",
         {
@@ -47,7 +55,7 @@ def attribution_samples(driver):
                 started = time.monotonic_ns()
                 row = {"unix_ns": time.time_ns(), "errors": {}}
                 sources = {
-                    "postgres": lambda: json.loads(driver.read_database(PG_SNAPSHOT)),
+                    "postgres": lambda: json.loads(driver.read_database(query)),
                     "kafka_groups": lambda: (
                         driver.kafka(
                             "consumer-groups",

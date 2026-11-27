@@ -33,12 +33,34 @@ on:
           - rehearsal
           - checked-cut-replay
           - measure
+          - measure-replay
           - barrier-success
           - barrier-peer-failure
           - barrier-missing-peer
         default: overlay
       campaign_id:
         description: Reviewed campaign ID for measure mode
+        type: string
+        required: false
+      source_run_id:
+        description: Frozen engineering source run for measure-replay
+        type: string
+        required: false
+      replay_case:
+        description: Replay all checkpoints, the engineering partial fixture, or the Release copy
+        type: choice
+        options: [full, partial, release]
+        default: full
+      release_tag:
+        description: Reviewed J2 evidence tag for Release replay
+        type: string
+        required: false
+      release_index:
+        description: Release evidence index filename
+        type: string
+        required: false
+      release_index_sha256:
+        description: Verified digest of the published Release evidence index
         type: string
         required: false
       compare_gomemlimit:
@@ -812,6 +834,115 @@ jobs:
           name: j2-measure-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-measure-receipts/
           if-no-files-found: error
+          retention-days: 90
+
+  measure-replay:
+    needs: [measure, measure-receipts]
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'measure'
+        || (inputs.mode == 'measure-replay' && (startsWith(inputs.campaign_id, 'eng-')
+          || (inputs.campaign_id == 'j2-load-envelope-v1' && inputs.replay_case == 'release'))))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      J2_MODE: ${{ inputs.mode }}
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+      J2_SOURCE_RUN: ${{ inputs.source_run_id }}
+      J2_REPLAY_CASE: ${{ inputs.replay_case }}
+      J2_RELEASE_TAG: ${{ inputs.release_tag }}
+      J2_RELEASE_INDEX: ${{ inputs.release_index }}
+      J2_RELEASE_INDEX_SHA256: ${{ inputs.release_index_sha256 }}
+    steps:
+      - name: Anchor the reporter and its final upload reserve
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          printf 'J2_REPLAY_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/j2-measure-replay"
+          printf '{"status":"partial","reason":"reporter bootstrap has not finished"}\n' \
+            > "$RUNNER_TEMP/j2-measure-replay/reporter-start.json"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        timeout-minutes: 2
+        with:
+          go-version: '1.27.4'
+      - name: Build the frozen checker
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-measure-replay-tooling/checker" \
+            2>&1 | tee "$RUNNER_TEMP/j2-measure-replay/checker-build.log"
+      - name: Replay the complete or partial evidence archive
+        timeout-minutes: 72
+        shell: bash
+        run: |
+          options=(--campaign-id "$J2_CAMPAIGN")
+          if [[ "$J2_MODE" == measure-replay ]]; then
+            options+=(--source-run "${J2_SOURCE_RUN:?Select the frozen source run}" --case "$J2_REPLAY_CASE")
+            if [[ "$J2_REPLAY_CASE" == release ]]; then
+              options+=(--release-tag "$J2_RELEASE_TAG" --release-index "$J2_RELEASE_INDEX")
+              options+=(--release-index-sha256 "$J2_RELEASE_INDEX_SHA256")
+            fi
+          fi
+          python3 scripts/j2_measure_replay.py "$RUNNER_TEMP/j2-measure-replay" \
+            "$RUNNER_TEMP/j2-measure-replay-tooling/checker" "${options[@]}"
+      - name: Seal any partial output and anchor upload timing
+        id: seal
+        if: always()
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-measure-replay"
+          if [[ ! -f "$evidence/freeze.json" ]]; then
+            python3 scripts/j2_harness_evidence.py seal "$evidence"
+          fi
+          printf 'J2_REPLAY_UPLOAD_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+      - name: Upload the complete or partial replay report
+        id: upload
+        if: always()
+        timeout-minutes: 3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-measure-replay/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Verify uploaded bytes and retain upload timing
+        if: always() && steps.seal.outcome == 'success' && steps.upload.outcome == 'success'
+        timeout-minutes: 4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          receipt="$RUNNER_TEMP/j2-measure-replay-receipt"
+          mkdir "$receipt"
+          archive="$RUNNER_TEMP/j2-measure-replay.zip"
+          trap 'rm -f "$archive"' EXIT
+          endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+          python3 scripts/j2_artifact_fetch.py "$endpoint" "$receipt" "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload "$archive" "$receipt/artifact.json" \
+            "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode measure-replay
+          elapsed="$(($(date +%s) - J2_REPLAY_UPLOAD_START))"
+          printf '{"verified_upload_seconds":%s,"reserve_minutes":9}\n' "$elapsed" > "$receipt/upload-timing.json"
+          (( elapsed <= 540 ))
+      - name: Upload the replay verification receipt
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-replay-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-measure-replay-receipt/
+          if-no-files-found: warn
           retention-days: 90
 
   rehearsal-replay:

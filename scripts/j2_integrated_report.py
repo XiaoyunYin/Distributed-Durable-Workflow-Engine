@@ -21,7 +21,7 @@ from dur053_pilot import witness_events
 from j2_barrier import JOBS, BarrierStop, Campaign, RetryLater, canonical, decode, digest
 from j2_barrier_rehearsal import client, context, report_round
 from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, verify_binary
-from j2_checker_report import indexed_report, require_checker_pass
+from j2_checker_report import IntegrityError, indexed_report, require_checker_pass
 from j2_harness import hosted_dispatch, verify_new_identity
 from j2_harness_evidence import safe_name
 from j2_integrated_evidence import engineering_boundary, summarize_episode
@@ -247,7 +247,7 @@ def download(api, metadata, path):
     )
 
 
-def extract(archive, directory, *, integrated=True):
+def extract(archive, directory, *, integrated=True, binding=None, remaining=None):
     directory.mkdir()
     with zipfile.ZipFile(archive) as bundle:
         entries = [entry for entry in bundle.infolist() if not entry.is_dir()]
@@ -264,7 +264,15 @@ def extract(archive, directory, *, integrated=True):
         raw = bundle.read("freeze.json")
         index = decode(raw)
         require(names == set(index["files"]) | {"freeze.json"}, "archive membership differs")
-        if integrated:
+        if binding is not None:
+            require(
+                index["schema"] == "j2.harness.freeze.v1"
+                and index["head"] == binding.head
+                and index["run_id"] == str(binding.run)
+                and index["run_attempt"] == str(binding.attempt),
+                "archive run, attempt or head drift",
+            )
+        elif integrated:
             require(
                 index["schema"] == "j2.harness.freeze.v1"
                 and index["head"] == os.environ["GITHUB_SHA"]
@@ -279,7 +287,12 @@ def extract(archive, directory, *, integrated=True):
             target = directory / name
             target.parent.mkdir(parents=True, exist_ok=True)
             with bundle.open(name) as source, target.open("wb") as stream:
-                shutil.copyfileobj(source, stream)
+                if remaining is None:
+                    shutil.copyfileobj(source, stream)
+                else:
+                    while chunk := source.read(1 << 20):
+                        remaining()
+                        stream.write(chunk)
             require(file_record(target) == expected, f"archive digest drift: {name}")
     return hashlib.sha256(raw).hexdigest()
 
@@ -327,10 +340,8 @@ def checker_replay(root, checker, timeout, *, qualification=False):
         output, snapshot=snapshot, verify_tables=True, join_trace=not qualification
     )
     live, live_tables = indexed_report(root / "live-checker.json", verify_tables=True)
-    require(
-        file_record(snapshot) == file_record(root / "snapshot.json") and live_tables == tables,
-        "offline checker snapshot differs from the live export",
-    )
+    if file_record(snapshot) != file_record(root / "snapshot.json") or live_tables != tables:
+        raise IntegrityError("offline checker snapshot differs from the live export")
     if qualification:
         durations = check_witness_durations(
             read(root / "witness.json"),
@@ -352,15 +363,15 @@ def checker_replay(root, checker, timeout, *, qualification=False):
         row["workflow_id"]
         for row in reproduced["trace"]["Snapshot"]["engine.workflow_executions"]["rows"]
     ]
-    require(
-        sorted(live["workflow_ids"]) == sorted(offline_ids), "offline checker identity set differs"
-    )
+    if sorted(live["workflow_ids"]) != sorted(offline_ids):
+        raise IntegrityError("offline checker identity set differs")
     for report in (live, reproduced):
         report.pop("trace")
         # Snapshot mode does not receive separate workflow ID flags.
         report.pop("workflow_ids", None)
         report["non_terminal"] = sorted(report["non_terminal"] or [])
-    require(live == reproduced, "locked checker verdict differs")
+    if live != reproduced:
+        raise IntegrityError("locked checker verdict differs")
     return {
         "identities": len(offline_ids),
         "verdict": "PASS",
