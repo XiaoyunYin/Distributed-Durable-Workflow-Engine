@@ -28,6 +28,7 @@ on:
           - harness-schedule
           - harness-sender
           - harness-step
+          - controls
           - barrier-success
           - barrier-peer-failure
           - barrier-missing-peer
@@ -344,6 +345,102 @@ jobs:
         with:
           name: j2-${{ inputs.mode }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-harness-receipt/
+          if-no-files-found: error
+          retention-days: 90
+
+  controls:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'controls'
+    name: J2 unmeasured controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Restore the retained images
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir "$RUNNER_TEMP/j2-controls-evidence"
+          bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-controls-evidence/image-restore.log"
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the pinned stock K4 sender and reproduce the locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-controls-evidence"
+          binaries="$RUNNER_TEMP/j2-sender"
+          {
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/stock" "$evidence/stock-build.json"
+            python3 scripts/j2_checker.py "$binaries/checker"
+          } 2>&1 | tee "$evidence/controls-build.log"
+      - name: Run all four controls
+        timeout-minutes: 74
+        run: |
+          binaries="$RUNNER_TEMP/j2-sender"
+          python3 scripts/j2_controls.py hosted "$RUNNER_TEMP/j2-controls-evidence" \
+            "$RUNNER_TEMP/j2-controls-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts" "$binaries/stock" "$binaries/checker"
+      - name: Seal controls evidence
+        id: seal
+        if: always()
+        run: python3 scripts/j2_harness_evidence.py seal "$RUNNER_TEMP/j2-controls-evidence"
+      - name: Retain the sealed attempt
+        id: upload
+        if: always() && steps.seal.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-controls-evidence/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Retain unsealed evidence after a seal failure
+        if: always() && (steps.seal.outcome != 'success' || steps.upload.outcome != 'success')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-controls-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-controls-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Verify the published ZIP and independently replay the controls
+        id: verify-archive
+        if: always() && steps.upload.outcome == 'success'
+        timeout-minutes: 6
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          receipt="$RUNNER_TEMP/j2-controls-receipt"
+          archive="$RUNNER_TEMP/j2-controls-attempt.zip"
+          mkdir "$receipt"
+          endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+          gh api "$endpoint" > "$receipt/artifact.json"
+          gh api "$endpoint/zip" > "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload \
+            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode controls
+          python3 scripts/j2_controls.py replay "$archive" "$receipt/offline-replay.json"
+          {
+            printf 'Verified J2 controls evidence [%s](%s)\n\n' "$ARTIFACT_ID" "$ARTIFACT_URL"
+            jq -r '"SHA-256 \(.digest) · expires \(.expires_at)"' "$receipt/artifact.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the artifact verification receipt
+        if: always() && steps.verify-archive.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-controls-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-controls-receipt/
           if-no-files-found: error
           retention-days: 90
 

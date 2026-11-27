@@ -250,6 +250,10 @@ def observer_resources(driver):
 
 
 def run_stock(driver, schedule, *, partial):
+    return execute_stock(driver, schedule, partial=partial, url="http://api:8080")
+
+
+def execute_stock(driver, schedule, *, partial, url):
     args = ["-n", APP, "exec", driver.observer, "--"]
     loadgen = [
         STOCK,
@@ -261,7 +265,7 @@ def run_stock(driver, schedule, *, partial):
         "-namespace",
         APP,
         "-url",
-        "http://api:8080",
+        url,
         "-token-file",
         "/identity/token",
         "-run-id",

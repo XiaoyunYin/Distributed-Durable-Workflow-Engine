@@ -245,8 +245,9 @@ def carry_probe(driver, schedule, step_mono, cancelled):
         write(driver.output / "step-transition.json", record)
 
 
-def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped):
-    execute = run_continuous if stepped else run_stock
+def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped, execute=None):
+    if execute is None:
+        execute = run_continuous if stepped else run_stock
     cancelled = Event()
     with ThreadPoolExecutor(max_workers=2) as pool:
         sender = pool.submit(execute, driver, schedule, partial=False)
@@ -369,6 +370,15 @@ def episode_schedule(name, *, stepped, hold_rate="1"):
 
 
 def exercise(driver, name, *, stepped, hold_rate):
+    return exercise_drain(
+        driver,
+        lambda: episode_schedule(name, stepped=stepped, hold_rate=hold_rate),
+        stepped=stepped,
+        hold_rate=hold_rate,
+    )
+
+
+def exercise_drain(driver, build_schedule, *, stepped=False, hold_rate=None, execute=None):
     output = driver.output
     polls = Polls(output)
     work_deadline = driver.deadline
@@ -388,7 +398,7 @@ def exercise(driver, name, *, stepped, hold_rate):
             "setup clock probe did not bracket database time",
         )
         relay = container_target(driver, driver.pod(APP, "relay")["metadata"]["name"])
-        schedule = episode_schedule(name, stepped=stepped, hold_rate=hold_rate)
+        schedule = build_schedule()
         anchor_wall, anchor_mono = time.time_ns(), time.monotonic_ns()
         stop_mono = anchor_mono + schedule["stop_ns"] - anchor_wall
         write(
@@ -407,7 +417,9 @@ def exercise(driver, name, *, stepped, hold_rate):
         driver.deadline = deadline / SECOND
         expired = None
         try:
-            retain_sender(driver, schedule, stop_mono, polls, errors, stepped=stepped)
+            retain_sender(
+                driver, schedule, stop_mono, polls, errors, stepped=stepped, execute=execute
+            )
             binding = file_record(output / "schedule.json")
             require(read(output / "schedule.json") == schedule, "schedule changed after launch")
             write(output / "schedule-binding.json", binding)
