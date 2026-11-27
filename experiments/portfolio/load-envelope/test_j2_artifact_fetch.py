@@ -13,8 +13,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 import j2_artifact_fetch as artifact  # noqa: E402
+import j2_publish_evidence as publisher  # noqa: E402
 import j2_replay_storage as storage  # noqa: E402
 from j2_barrier import canonical, digest  # noqa: E402
+from j2_qualification_evidence import file_record  # noqa: E402
 
 ENDPOINT = "repos/owner/repo/actions/artifacts/42"
 
@@ -194,3 +196,193 @@ def test_release_download_refuses_a_missing_public_asset(tmp_path):
             opener=missing,
         )
     assert not (tmp_path / "never.zip").exists()
+
+
+@pytest.mark.parametrize("extra", [0, 1])
+def test_publisher_splits_only_above_64_mib(tmp_path, monkeypatch, extra):
+    limit = 64 << 20
+    source = tmp_path / "source.zip"
+    with source.open("wb") as stream:
+        stream.truncate(limit)
+        if extra:
+            stream.seek(limit)
+            stream.write(b"X")
+    published = []
+
+    def capture(repository, tag, release_id, path, existing, budget, *, retries=0):
+        record = {"name": path.name, **file_record(path)}
+        published.append((record, retries))
+        return record
+
+    monkeypatch.setattr(publisher, "publish_asset", capture)
+    archive = publisher.publish_archive("owner/repo", "tag", 1, source, {}, None)
+    assert archive["bytes"] == limit + extra and archive["name"] == source.name
+    if extra:
+        first = {
+            "name": "source.zip.part-001-of-002",
+            "bytes": limit,
+            "sha256": published[0][0]["sha256"],
+        }
+        last = {"name": "source.zip.part-002-of-002", "bytes": 1, "sha256": digest(b"X")}
+        assert archive["parts"] == [first, last]
+        assert published == [(first, 3), (last, 3)]
+        assert list(tmp_path.iterdir()) == [source]
+    else:
+        assert "parts" not in archive
+        assert published == [(archive, 0)]
+
+
+@pytest.mark.parametrize("damage", [None, "part", "whole", "order"])
+def test_split_release_index_round_trip(tmp_path, monkeypatch, damage):
+    release = {
+        "schema": storage.INDEX_SCHEMA,
+        "campaign": "eng-grid",
+        "repository": "owner/repo",
+        "tag": "eng-replay-j2-evidence",
+        "run": 10,
+        "attempt": 1,
+    }
+    meta = {"source_run": 10, "source_attempt": 1, "job": "job-1", "kind": "grid-A", "id": 20}
+    source = tmp_path / storage.asset_name(release["campaign"], meta)
+    body = frozen_zip(source)
+    meta.update(size_in_bytes=len(body), digest=f"sha256:{digest(body)}")
+    monkeypatch.setattr(storage, "RELEASE_PART_BYTES", len(body) // 2 + 1)
+    assets = {}
+
+    def capture(repository, tag, release_id, path, existing, budget, *, retries):
+        url = storage.public_url(repository, tag, path.name)
+        assets[url] = path.read_bytes()
+        return {"name": path.name, "url": url, "id": len(assets), **file_record(path)}
+
+    monkeypatch.setattr(publisher, "publish_asset", capture)
+    monkeypatch.setattr(storage, "download", lambda *_: pytest.fail("Actions transport used"))
+    index_name = "eng-grid--r10--a1--index.json"
+    published = publisher.publish_archive(
+        release["repository"], release["tag"], 1, source, {}, None
+    )
+    if damage in {"part", "whole"}:
+        part = published["parts"][-1]
+        last = assets[part["url"]]
+        assets[part["url"]] = last[:-1] + bytes([last[-1] ^ 1])
+        if damage == "whole":
+            part["sha256"] = digest(assets[part["url"]])
+    elif damage == "order":
+        published["parts"].reverse()
+    published["inventory"] = storage.archive_members(source, meta["kind"])
+    meta["release"] = published
+    release["artifacts"] = {"source": meta}
+    raw = canonical(release)
+    assets[storage.public_url(release["repository"], release["tag"], index_name)] = raw
+
+    class Response(BytesIO):
+        status = 200
+
+    def open_public(url, *, timeout):
+        assert timeout > 0
+        return Response(assets[url])
+
+    monkeypatch.setattr(storage, "urlopen", open_public)
+    loaded = storage.load_release_index(
+        release["repository"],
+        release["campaign"],
+        release["run"],
+        release["tag"],
+        index_name,
+        digest(raw),
+        opener=open_public,
+    )
+    assert loaded == release
+    target = tmp_path / "reassembled.zip"
+    if damage:
+        reason = {
+            "part": "asset size or digest differs",
+            "whole": "reassembled release ZIP digest differs",
+            "order": "part identity, order, size or digest differs",
+        }[damage]
+        with pytest.raises(ValueError, match=reason):
+            storage.pull_archive(
+                None, loaded["artifacts"]["source"], target, release=loaded, remaining=lambda: 60
+            )
+        assert not target.exists()
+    else:
+        storage.pull_archive(
+            None, loaded["artifacts"]["source"], target, release=loaded, remaining=lambda: 60
+        )
+        assert target.read_bytes() == body
+        assert storage.release_member_record(target, meta, lambda: 60) == published["inventory"]
+
+
+def test_part_retry_cleans_only_its_own_starter_and_surfaces_stderr(tmp_path, monkeypatch, capsys):
+    repo, tag = "owner/repo", "eng-replay-j2-evidence"
+    path = tmp_path / "source.zip.part-001-of-002"
+    path.write_bytes(b"part")
+    remote = {
+        "unrelated.zip": {"id": 7, "state": "starter"},
+        "existing.zip": {"id": 8, "state": "uploaded"},
+    }
+    failed = {"id": 9, "name": path.name, "state": "starter"}
+    uploaded = {
+        "id": 10,
+        "name": path.name,
+        "state": "uploaded",
+        "size": 4,
+        "browser_download_url": storage.public_url(repo, tag, path.name),
+    }
+    calls = []
+    endpoint = f"repos/{repo}/releases/assets/9"
+
+    def get(request):
+        assert request == endpoint
+        return remote[path.name]
+
+    def run(argv, **options):
+        if argv[1] == "api":
+            assert argv == ["gh", "api", "--method", "DELETE", endpoint]
+            assert remote.pop(path.name) == failed
+            calls.append("delete")
+        else:
+            assert argv == ["gh", "release", "upload", tag, str(path), "--repo", repo]
+            assert options["capture_output"] and options["check"]
+            calls.append("upload")
+            if calls == ["upload"]:
+                remote[path.name] = failed
+                raise subprocess.CalledProcessError(
+                    1, argv, stderr="remote error: tls: bad record MAC\n"
+                )
+            remote[path.name] = uploaded
+
+    monkeypatch.setattr(publisher, "assets", lambda *_: remote.copy())
+    monkeypatch.setattr(publisher, "gh_json", get)
+    monkeypatch.setattr(publisher.subprocess, "run", run)
+    actual = publisher.publish_asset(
+        repo, tag, 1, path, remote.copy(), SimpleNamespace(remaining=lambda: 60), retries=3
+    )
+    assert calls == ["upload", "delete", "upload"] and actual["id"] == 10
+    assert remote["unrelated.zip"]["state"] == "starter"
+    assert remote["existing.zip"]["state"] == "uploaded"
+    assert "remote error: tls: bad record MAC" in capsys.readouterr().err
+
+
+def test_starter_cleanup_preserves_an_asset_that_completed(monkeypatch):
+    item = {"id": 9, "name": "part", "state": "starter"}
+    complete = {**item, "state": "uploaded"}
+    monkeypatch.setattr(publisher, "gh_json", lambda _: complete)
+    monkeypatch.setattr(
+        publisher.subprocess, "run", lambda *_a, **_k: pytest.fail("asset deletion")
+    )
+    assert publisher.discard_starter("owner/repo", "part", item) == complete
+
+
+def test_part_upload_retries_at_most_three_times(tmp_path, monkeypatch):
+    calls = []
+
+    def failed(*args):
+        calls.append(args)
+        raise subprocess.TimeoutExpired("gh", 1)
+
+    monkeypatch.setattr(publisher, "upload", failed)
+    monkeypatch.setattr(publisher, "assets", lambda *_: {})
+    budget = SimpleNamespace(remaining=lambda: 60)
+    with pytest.raises(subprocess.TimeoutExpired):
+        publisher.publish_asset("owner/repo", "tag", 1, tmp_path / "part", {}, budget, retries=3)
+    assert len(calls) == 4

@@ -41,6 +41,7 @@ QUALIFICATION_RUN = 45893066798
 QUALIFICATION_NAME = f"j2-volume-26678-{QUALIFICATION_RUN}-1"
 INDEX_SCHEMA = "j2.release-evidence.v1"
 MAX_INDEX_BYTES = 8 << 20
+RELEASE_PART_BYTES = 64 << 20
 
 
 def source_campaign(repository, run, campaign_id, head, attempt=1):
@@ -175,6 +176,19 @@ def asset_name(campaign_id, meta):
     )
 
 
+def release_part_layout(name, size):
+    if size <= RELEASE_PART_BYTES:
+        return []
+    count = (size + RELEASE_PART_BYTES - 1) // RELEASE_PART_BYTES
+    return [
+        (
+            f"{name}.part-{part:03d}-of-{count:03d}",
+            min(RELEASE_PART_BYTES, size - (part - 1) * RELEASE_PART_BYTES),
+        )
+        for part in range(1, count + 1)
+    ]
+
+
 def release_tag_ok(campaign_id, tag):
     if engineering(campaign_id):
         return isinstance(tag, str) and re.fullmatch(r"eng-[a-z0-9-]{1,60}-j2-evidence", tag)
@@ -189,6 +203,24 @@ def public_url(repository, tag, member):
     return f"https://github.com/{repository}/releases/download/{quote(tag, safe='')}/{filename}"
 
 
+def _copy_public_asset(source, stream, expected, remaining, whole=None):
+    require(source.status == 200, "release asset response is not successful")
+    hashed = hashlib.sha256()
+    left = expected["bytes"]
+    while chunk := source.read(1 << 20):
+        remaining()
+        left -= len(chunk)
+        require(left >= 0, "release asset exceeds its recorded size")
+        hashed.update(chunk)
+        if whole is not None:
+            whole.update(chunk)
+        stream.write(chunk)
+    require(
+        left == 0 and hashed.hexdigest() == expected["sha256"],
+        "release asset size or digest differs",
+    )
+
+
 def public_download(url, target, expected, remaining, *, opener=urlopen):
     require(
         type(expected["bytes"]) is int
@@ -196,20 +228,42 @@ def public_download(url, target, expected, remaining, *, opener=urlopen):
         and sha256(expected["sha256"]),
         "release asset size or digest is invalid",
     )
-    hashed = hashlib.sha256()
-    left = expected["bytes"]
     with opener(url, timeout=min(15, remaining())) as source, target.open("wb") as stream:
-        require(source.status == 200, "release asset response is not successful")
-        while chunk := source.read(1 << 20):
-            remaining()
-            left -= len(chunk)
-            require(left >= 0, "release asset exceeds its recorded size")
-            hashed.update(chunk)
-            stream.write(chunk)
+        _copy_public_asset(source, stream, expected, remaining)
+
+
+def pull_release_parts(release, asset, target, expected, remaining):
+    parts = asset["parts"]
+    layout = release_part_layout(asset["name"], expected["bytes"])
     require(
-        left == 0 and hashed.hexdigest() == expected["sha256"],
-        "release asset size or digest differs",
+        isinstance(parts, list) and bool(layout) and len(parts) == len(layout),
+        "release part count differs from the archive size",
     )
+    ids = set()
+    for part, (name, size) in zip(parts, layout, strict=True):
+        require(isinstance(part, dict), "release part record must be an object")
+        ident = part.get("id")
+        require(
+            part.get("name") == name
+            and part.get("url") == public_url(release["repository"], release["tag"], name)
+            and type(ident) is int
+            and ident > 0
+            and ident not in ids
+            and part.get("bytes") == size
+            and sha256(part.get("sha256")),
+            "release part identity, order, size or digest differs from the index",
+        )
+        ids.add(ident)
+    whole = hashlib.sha256()
+    try:
+        with target.open("wb") as stream:
+            for part in parts:
+                with urlopen(part["url"], timeout=min(15, remaining())) as source:
+                    _copy_public_asset(source, stream, part, remaining, whole)
+        require(whole.hexdigest() == expected["sha256"], "reassembled release ZIP digest differs")
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
 
 
 def archive_members(path, kind, remaining=lambda: 60):
@@ -268,22 +322,28 @@ def pull_archive(barrier, meta, target, *, release=None, remaining=None):
         return
     recomputed = asset_name(release["campaign"], meta)
     asset = meta["release"]
-    url = public_url(release["repository"], release["tag"], recomputed)
     require(
-        asset["name"] == recomputed and asset["url"] == url and asset["id"] > 0,
+        asset["name"] == recomputed,
         "release asset identity differs from the evidence index",
     )
     expected = {"bytes": meta["size_in_bytes"], "sha256": meta["digest"][7:]}
     require(
-        all(asset.get(key) == value for key, value in expected.items()),
+        type(expected["bytes"]) is int
+        and 0 < expected["bytes"] <= ZIP_BOUND
+        and sha256(expected["sha256"])
+        and all(asset.get(key) == value for key, value in expected.items()),
         "release asset size or digest differs from the original evidence",
     )
-    public_download(
-        url,
-        target,
-        expected,
-        remaining or barrier.api.budget.remaining,
+    remaining = remaining or barrier.api.budget.remaining
+    if "parts" in asset:
+        pull_release_parts(release, asset, target, expected, remaining)
+        return
+    url = public_url(release["repository"], release["tag"], recomputed)
+    require(
+        asset["url"] == url and asset["id"] > 0,
+        "release asset identity differs from the evidence index",
     )
+    public_download(url, target, expected, remaining)
 
 
 def load_release_index(repository, campaign_id, run, tag, name, checksum, *, opener=urlopen):
