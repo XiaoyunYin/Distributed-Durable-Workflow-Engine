@@ -7,7 +7,6 @@ import re
 import subprocess
 import time
 from fractions import Fraction
-from math import ceil
 from pathlib import Path
 
 LOCK = (
@@ -15,7 +14,8 @@ LOCK = (
     / "experiments/portfolio/observability/runner-gate.lock.json"
 )
 WINDOW_SECONDS = 120
-BASELINE_SIZE = 10
+BASELINE_SIZE = 20
+MIN_ADMISSION_RATE = Fraction(3, 5)
 ATTEMPT_CAP = 3
 SECOND = 1_000_000_000
 
@@ -91,16 +91,10 @@ def lock_threshold(path):
         lock["window_seconds"] != WINDOW_SECONDS
         or lock["baseline_size"] != BASELINE_SIZE
         or type(x) is not int
-        or x < 5
+        or not 0 < x <= 1000
     ):
         raise ValueError("invalid runner gate lock")
     return Fraction(x, 10)
-
-
-def candidate_threshold(shares):
-    if len(shares) != BASELINE_SIZE or any(share < 0 or share > 100 for share in shares):
-        raise ValueError("expected ten complete baseline shares")
-    return max(5, ceil(30 * max(shares)))
 
 
 def previous_attempts(names, stage, run, workflow_attempt):
@@ -194,10 +188,12 @@ def collect(stage, output, index=None):
 
 
 def baseline_report(source, output):
-    records = [json.loads(path.read_bytes()) for path in sorted(source.rglob("baseline.json"))]
-    if sorted(row["baseline_index"] for row in records) != list(range(1, BASELINE_SIZE + 1)):
-        raise ValueError("expected the ten distinct baseline jobs")
+    records = [json.loads(path.read_bytes()) for path in source.rglob("baseline.json")]
+    records.sort(key=lambda row: row["baseline_index"])
+    if [row["baseline_index"] for row in records] != list(range(1, BASELINE_SIZE + 1)):
+        raise ValueError(f"expected {BASELINE_SIZE} distinct baseline jobs")
     current = identity()
+    threshold = lock_threshold(LOCK)
     for row in records:
         if (
             any(row[key] != value for key, value in current.items())
@@ -205,23 +201,26 @@ def baseline_report(source, output):
             or row["window_seconds"] != WINDOW_SECONDS
         ):
             raise ValueError("baseline provenance mismatch")
-    shares = [Fraction(row["io_full_share_ratio"]) for row in records]
-    x = candidate_threshold(shares)
+        share = Fraction(row["io_full_share_ratio"])
+        if not 0 <= share <= 100:
+            raise ValueError("invalid baseline IO-full share")
+        row.update(io_full_share_pct=float(share), admitted=share < threshold)
+    admitted = sum(row["admitted"] for row in records)
+    rate = Fraction(admitted, BASELINE_SIZE)
+    verdict = "PASS" if rate >= MIN_ADMISSION_RATE else "FAIL"
     output.mkdir(parents=True, exist_ok=True)
     save(
-        output / "runner-gate.candidate.json",
+        output / "baseline-report.json",
         {
-            "baseline_run": current["run"],
-            "baseline_head": current["head"],
-            "baseline_attempt": current["workflow_attempt"],
+            **current,
             "baseline_size": BASELINE_SIZE,
             "window_seconds": WINDOW_SECONDS,
-            "max_baseline_share_pct": float(max(shares)),
-            "x_tenths_percentage_point": x,
-            "x_pct": x / 10,
+            "admitted_count": admitted,
+            "admission_rate": float(rate),
+            "verdict": verdict,
+            "runners": records,
         },
     )
-    save(output / "baseline-records.json", records)
     prior_share = Fraction(482, 100)
     save(
         output / "prior-run-comparison.json",
@@ -229,11 +228,12 @@ def baseline_report(source, output):
             "run": "45980467098",
             "verdict": "FAIL",
             "pre_origin_io_full_share_pct": float(prior_share),
-            "x_pct": x / 10,
-            "numerically_below_x": prior_share < Fraction(x, 10),
+            "numerically_below_x": prior_share < threshold,
             "classification": "informational_only_window_included_setup",
         },
     )
+    print(f"Runner validation baseline {verdict}: {admitted}/{BASELINE_SIZE} admitted ({rate:.1%})")
+    return verdict
 
 
 def verify_admission(output, stage):
@@ -260,10 +260,10 @@ def main():
     parser.add_argument("--source", type=Path)
     args = parser.parse_args()
     if args.mode == "report":
-        baseline_report(args.source, args.output)
-    else:
-        collect(args.mode, args.output, args.index)
+        return int(baseline_report(args.source, args.output) == "FAIL")
+    collect(args.mode, args.output, args.index)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

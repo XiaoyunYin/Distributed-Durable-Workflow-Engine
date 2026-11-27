@@ -238,7 +238,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -268,13 +268,14 @@ jobs:
         with:
           pattern: j3-baseline-row-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: ${{ runner.temp }}/j3-baseline-inputs
-      - name: Compute the candidate runner gate lock for review
+      - name: Check the validation baseline against the locked runner gate
         run: |
           python3 scripts/j3_runner_gate.py report "$RUNNER_TEMP/j3-baseline-report" \
             --source "$RUNNER_TEMP/j3-baseline-inputs"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: j3-runner-gate-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j3-runner-baseline-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-baseline-report/
           if-no-files-found: error
   sql-benchmark:
