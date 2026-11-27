@@ -200,8 +200,48 @@ def observed_carry(reads, step_mono):
     return {
         "valid_before_reads": before_reads,
         "valid_after_reads": after_reads,
+        "pending_before_ids": sorted(before),
+        "pending_after_ids": sorted(after),
         "observed_carry_ids": sorted(before & after),
     }
+
+
+def verified_crossings(carry, checked, step_ns, clock_width, *, pending=()):
+    if carry["step_unix_ns"] != step_ns:
+        raise IntegrityError("carry-in probe step differs from the schedule")
+    reads = observed_carry(carry["reads"], carry["step_mono_ns"])
+    before, after = (set(reads[key]) for key in ("pending_before_ids", "pending_after_ids"))
+    terminals = {
+        row["workflow_id"]: row["terminal_ns"] for row in checked if row["scheduled_ns"] < step_ns
+    }
+    # A checked expiry may still contain pending submissions. A checked
+    # terminal, when present, must agree with every valid after-step read.
+    unreconciled = after - terminals.keys() - set(pending)
+    unreconciled.update(key for key in after & terminals.keys() if terminals[key] < step_ns)
+    if unreconciled:
+        raise IntegrityError(
+            f"after-step pending IDs lack consistent checked terminals: {sorted(unreconciled)}"
+        )
+    return sorted(
+        key
+        for key in before & terminals.keys()
+        if terminals[key] >= step_ns + clock_width or key in after
+    )
+
+
+def replay_crossings(root):
+    """Recompute the crossing IDs from the retained harness reads and checked phase rows."""
+    schedule = read(root / "schedule.json")
+    carry = read(root / "step-transition.json")
+    checked = read(root / "phase-rows.json")
+    step_ns = schedule["hold_end_ns"]
+    last_observation = max((row["first_observed_ns"] for row in checked), default=step_ns)
+    width = clock_bounds(
+        read(root / "clock.json"), schedule["origin_ns"], max(step_ns, last_observation)
+    )
+    result_path = root / "drain-result.json"
+    pending = read(result_path)["pending"] if result_path.is_file() else ()
+    return verified_crossings(carry, checked, step_ns, width, pending=pending)
 
 
 def carry_probe(driver, schedule, step_mono, cancelled):
@@ -224,8 +264,14 @@ def carry_probe(driver, schedule, step_mono, cancelled):
             if not wait_until(cancelled, step_mono + offset_ms * 1_000_000):
                 return
             pending, bracket = bracketed(lambda: driver.read_database(PENDING_SQL).splitlines())
+            lower, upper = bracket["lower_mono_ns"], bracket["upper_mono_ns"]
             record["reads"].append(
-                {**bracket, "pending_hold_ids": sorted(hold_keys & set(pending))}
+                {
+                    **bracket,
+                    "pending_hold_ids": sorted(hold_keys & set(pending)),
+                    "duration_ns": upper - lower,
+                    "straddles_step": lower < step_mono <= upper,
+                }
             )
         record["worker_uids_after"] = driver.worker_uids()
         require(
@@ -370,15 +416,16 @@ def episode_schedule(name, *, stepped, hold_rate="1"):
 
 
 def exercise(driver, name, *, stepped, hold_rate):
-    return exercise_drain(
+    exercise_drain(
         driver,
         lambda: episode_schedule(name, stepped=stepped, hold_rate=hold_rate),
         stepped=stepped,
-        hold_rate=hold_rate,
     )
+    if stepped and not read(driver.output / "step-transition.json")["verified_crossing_ids"]:
+        raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
 
-def exercise_drain(driver, build_schedule, *, stepped=False, hold_rate=None, execute=None):
+def exercise_drain(driver, build_schedule, *, stepped=False, execute=None):
     output = driver.output
     polls = Polls(output)
     work_deadline = driver.deadline
@@ -531,23 +578,15 @@ def exercise_drain(driver, build_schedule, *, stepped=False, hold_rate=None, exe
         report = k4_report(raw, schedule, durable)
         write(output / "sender-report.json", report)
         try:
-            joined, _ = replay_episode(output)
+            joined, clock_width = replay_episode(output)
         except (KeyError, OSError, ValueError) as error:
             raise IntegrityError(f"checked evidence failed replay: {error}") from error
         if stepped:
             carry = read(output / "step-transition.json")
-            pending_at_step = set(carry["observed_carry_ids"])
-            crossed = [
-                row["workflow_id"]
-                for row in joined
-                if row["workflow_id"] in pending_at_step
-                and row["scheduled_ns"] < schedule["hold_end_ns"] <= row["terminal_ns"]
-            ]
-            if set(crossed) != pending_at_step - set(result["pending"]):
-                raise IntegrityError(
-                    "observed carry-in did not reconcile to checked hold completions"
-                )
-            carry["verified_crossing_ids"] = crossed
+            carry["clock_bracket_width_ns"] = clock_width
+            carry["verified_crossing_ids"] = verified_crossings(
+                carry, joined, schedule["hold_end_ns"], clock_width, pending=result["pending"]
+            )
             write(output / "step-transition.json", carry)
         write(output / "phase-rows.json", joined)
         write(output / "cohorts.json", cohort_counts(schedule, joined))
@@ -580,8 +619,6 @@ def exercise_drain(driver, build_schedule, *, stepped=False, hold_rate=None, exe
         raise IntegrityError("final read identity drift")
     if expired is not None:
         raise expired
-    if stepped and not carry["verified_crossing_ids"]:
-        raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
 
 def rehearse(driver, layouts, exporter_layout, binaries, hold_rate):

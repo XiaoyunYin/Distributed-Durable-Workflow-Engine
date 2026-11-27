@@ -614,6 +614,18 @@ def test_carry_probe_reads_natural_pending_work_on_both_sides(tmp_path, monkeypa
     assert record["status"] == ("observed" if same_identity else "unobserved")
     assert record["worker_uids_before"] == record["worker_uids_after"] == ["a", "b"]
     assert record["valid_before_reads"] == record["valid_after_reads"] == 3
+    assert [row["duration_ns"] for row in record["reads"]] == [
+        ms * 1_000_000 for ms in (30, 20, 50, 120, 50, 50, 50)
+    ]
+    assert [row["straddles_step"] for row in record["reads"]] == [
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+        False,
+    ]
 
 
 def test_a_straddling_or_stale_read_cannot_establish_carry_in():
@@ -625,8 +637,71 @@ def test_a_straddling_or_stale_read_cannot_establish_carry_in():
     assert step.observed_carry(reads, 2 * S) == {
         "valid_before_reads": 0,
         "valid_after_reads": 1,
+        "pending_before_ids": [],
+        "pending_after_ids": ["old"],
         "observed_carry_ids": [],
     }
+
+
+@pytest.mark.parametrize(
+    ("terminal_offset", "seen_after", "expected"),
+    [(100, False, ["hold"]), (-1, False, []), (99, False, []), (0, True, ["hold"])],
+)
+def test_verified_crossing_uses_clock_width_or_an_after_read(terminal_offset, seen_after, expected):
+    boundary = 2 * S
+    carry = {
+        "step_unix_ns": boundary,
+        "step_mono_ns": boundary,
+        "reads": [
+            {
+                "lower_mono_ns": boundary - 5,
+                "upper_mono_ns": boundary - 1,
+                "pending_hold_ids": ["hold"],
+            },
+            {
+                "lower_mono_ns": boundary + 1,
+                "upper_mono_ns": boundary + 2,
+                "pending_hold_ids": ["hold"] if seen_after else [],
+            },
+        ],
+    }
+    checked = [
+        {
+            "workflow_id": "hold",
+            "scheduled_ns": boundary - 10,
+            "terminal_ns": boundary + terminal_offset,
+        }
+    ]
+    assert step.verified_crossings(carry, checked, boundary, clock_width=100) == expected
+
+
+def test_after_step_pending_requires_reconciliation_even_without_a_before_read():
+    boundary = 2 * S
+    carry = {
+        "step_unix_ns": boundary,
+        "step_mono_ns": boundary,
+        "reads": [
+            {"lower_mono_ns": boundary, "upper_mono_ns": boundary + 2, "pending_hold_ids": ["hold"]}
+        ],
+    }
+    checked = [{"workflow_id": "hold", "scheduled_ns": boundary - 10, "terminal_ns": boundary - 1}]
+    with pytest.raises(drain.IntegrityError, match="after-step pending IDs"):
+        step.verified_crossings(carry, checked, boundary, clock_width=100)
+    with pytest.raises(drain.IntegrityError, match="after-step pending IDs"):
+        step.verified_crossings(carry, [], boundary, clock_width=100)
+    assert step.verified_crossings(carry, [], boundary, clock_width=100, pending=["hold"]) == []
+
+
+@pytest.mark.parametrize("stepped", [False, True])
+def test_only_the_engineering_step_requires_a_crossing(tmp_path, monkeypatch, stepped):
+    driver = SimpleNamespace(output=tmp_path)
+    drain.write(tmp_path / "step-transition.json", {"verified_crossing_ids": []})
+    monkeypatch.setattr(step, "exercise_drain", lambda *_, **__: None)
+    if stepped:
+        with pytest.raises(step.CarryInUnobserved):
+            step.exercise(driver, "step-drain", stepped=True, hold_rate="8")
+    else:
+        step.exercise(driver, "grid-drain", stepped=False, hold_rate="8")
 
 
 @pytest.mark.parametrize("expired", [False, True])
