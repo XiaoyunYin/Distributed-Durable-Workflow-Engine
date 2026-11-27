@@ -196,7 +196,7 @@ def verify(directory):
     }
 
 
-def scrape_summary(series, start, end, count):
+def scrape_summary(series, start, end, count, *, require_quiet=True):
     def samples(key):
         require(len(series[key]) == 1, f"missing or multiple {key} series")
         return {t: float(value) for t, value in series[key][0]["values"]}
@@ -213,7 +213,8 @@ def scrape_summary(series, start, end, count):
         if up.get(t) == ok.get(t) == 1 and all(t in metric for metric in metrics)
     ]
     require(
-        any(
+        not require_quiet
+        or any(
             samples("j2_admissions").get(t) == samples("j2_terminals").get(t) == count
             and samples("j2_unpublished").get(t) == samples("j2_outstanding").get(t) == 0
             for t, _ in valid[-10:]

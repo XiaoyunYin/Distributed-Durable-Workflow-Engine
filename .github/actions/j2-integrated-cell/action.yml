@@ -1,0 +1,39 @@
+name: Run and checkpoint one J2 engineering grid cell
+description: Drive the existing runner's next cell, then upload its immutable checked evidence
+inputs:
+  job:
+    description: Logical job number
+    required: true
+  slot:
+    description: Position in the registered grid order
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Run grid cell
+      id: cell
+      shell: bash
+      env:
+        J2_JOB: ${{ inputs.job }}
+        J2_SLOT: ${{ inputs.slot }}
+      run: python3 scripts/j2_integrated_rehearsal.py cell "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_SLOT"
+    - name: Retain the checked checkpoint
+      id: upload
+      if: steps.cell.outputs.sealed == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ steps.cell.outputs.checkpoint }}
+        path: ${{ env.J2_INTEGRATED_ROOT }}/driver/${{ steps.cell.outputs.cell }}/
+        if-no-files-found: error
+        compression-level: 1
+        retention-days: 90
+        overwrite: false
+    - name: Bind the upload to its checkpoint index
+      if: steps.upload.outcome == 'success'
+      shell: bash
+      env:
+        J2_JOB: ${{ inputs.job }}
+        J2_CELL: ${{ steps.cell.outputs.cell }}
+        CHECKPOINT_ID: ${{ steps.upload.outputs.artifact-id }}
+        CHECKPOINT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+      run: python3 scripts/j2_integrated_rehearsal.py receipt "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_CELL"

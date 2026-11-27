@@ -214,3 +214,4 @@ def test_scrape_gap_uses_fresh_queries_and_required_series():
     series["j2_terminals"] = metric([21002] * 10)
     with pytest.raises(ValueError, match="full quiet population"):
         scrape_summary(series, 0, 10, 26678)
+    assert scrape_summary(series, 0, 10, 26678, require_quiet=False)["valid_scrapes"] == 10

@@ -23,7 +23,7 @@ from j2_prequalify_checker import (  # noqa: E402
     measure_trials,
     prequalify,
 )
-from j2_qualification_evidence import read, verify, write  # noqa: E402
+from j2_qualification_evidence import CapacityFailure, read, verify, write  # noqa: E402
 
 
 @pytest.mark.parametrize("compare", [False, True])
@@ -218,7 +218,20 @@ def test_prequalification_gates_apply_all_four_thresholds():
         }
 
 
-def test_retained_fixture_rewrites_linked_identities_for_reconciliation(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("failure", "criterion", "message"),
+    [
+        (None, None, None),
+        ("verdict_drift", "checker_mismatch", "live/offline verdict drift"),
+        ("missing_live", "missing_identity", "live checker is missing IDs"),
+        ("missing_db", "missing_identity", "DB terminals is missing IDs"),
+        ("missing_drain", "missing_identity", "drain identity mismatch"),
+        ("missing_checked", "missing_identity", "missing checked results"),
+    ],
+)
+def test_retained_fixture_reconciles_registered_qualification_outcomes(
+    tmp_path, monkeypatch, failure, criterion, message
+):
     count = 10
     build_fixture(tmp_path, tmp_path, count)
     sql = (tmp_path / "fixture.sql").read_text(encoding="utf-8")
@@ -278,10 +291,31 @@ def test_retained_fixture_rewrites_linked_identities_for_reconciliation(tmp_path
             ],
         },
     }
-    for mode in ("live", "offline"):
-        write(tmp_path / f"{mode}-checker.json", report)
+    if failure == "missing_live":
+        write(tmp_path / "live-checker.json", {**report, "workflow_ids": ids[:-1]})
+    else:
+        write(tmp_path / "live-checker.json", report)
+    if failure == "missing_db":
+        path = tmp_path / "terminals.json"
+        terminals = read(path)
+        terminals["ids"].pop()
+        write(path, terminals)
+    if failure == "missing_drain":
+        report["campaign"]["executions"].pop()
+        write(tmp_path / "live-checker.json", report)
+    if failure in {"verdict_drift", "missing_checked"}:
+        report["campaign"]["accepted_results"] -= 1
+        if failure == "missing_checked":
+            # Keep the two verdicts equal to exercise the result-count gate.
+            write(tmp_path / "live-checker.json", report)
+    write(tmp_path / "offline-checker.json", report)
     # Use a small local fixture while the production verifier retains the two registered volumes.
     monkeypatch.setattr("j2_qualification_evidence.VOLUMES", (count,))
+    if failure is not None:
+        with pytest.raises(CapacityFailure, match=message) as stopped:
+            verify(tmp_path)
+        assert stopped.value.criterion == criterion
+        return
     result = verify(tmp_path)
     assert result["identities"] == count
     assert result["phase_join_counts"] == {"observed": count}

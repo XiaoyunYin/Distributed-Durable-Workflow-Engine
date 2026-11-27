@@ -49,6 +49,12 @@ def apply_app(driver, endpoints, namespace=APP_NS, database=DB, unrelated=OTHER)
     _, objects = driver.render("kind", endpoints)
     objects = json.loads(json.dumps(objects).replace("dur053-kind", namespace))
     for o in objects:
+        if o["kind"] == "Deployment" and o["metadata"]["name"] == "worker":
+            sleep_ms = getattr(driver, "worker_sleep_ms", None)
+            if sleep_ms is not None:
+                (worker,) = o["spec"]["template"]["spec"]["containers"]
+                (delay,) = (e for e in worker["env"] if e["name"] == "DUR048_ACTIVITY_DELAY_MS")
+                delay["value"] = str(sleep_ms)
         if o["kind"] == "ScaledObject":
             o["metadata"].setdefault("annotations", {}).update(
                 {
@@ -202,9 +208,9 @@ def check_db_denial(driver, password, database=DB):
     )
 
 
-def check_network(driver):
+def check_network(driver, namespace=APP_NS):
     ip = driver.pod(NS, EXPORTER)["status"]["podIP"]
-    api = json.loads(driver.k("-n", APP_NS, "get", "svc", "api", "-o", "json").stdout)["spec"][
+    api = json.loads(driver.k("-n", namespace, "get", "svc", "api", "-o", "json").stdout)["spec"][
         "clusterIP"
     ]
     worker = driver.images["worker"]
@@ -253,7 +259,7 @@ try:
 except TimeoutError:
     print('TCP timeout')
 """
-    allowed = driver.python(APP_NS, "observer", write_probe.replace("sys.argv[1]", repr(api)))
+    allowed = driver.python(namespace, "observer", write_probe.replace("sys.argv[1]", repr(api)))
     require(allowed in {"400", "401", "403", "422"}, "application route positive control failed")
     denied = driver.k(
         "-n",
@@ -366,9 +372,7 @@ def check_scrapes(driver):
             forwarding.terminate()
 
 
-def install_profile(
-    driver, layouts, exporter_layout, namespace=APP_NS, database=DB, unrelated=OTHER
-):
+def start_profile(driver, layouts, exporter_layout):
     lock = json.loads((J2 / "images.lock.json").read_bytes())
     driver.images = {name: lock[name] for name in ("runtime", "worker")}
     exporter = json.loads((J2 / "exporter.lock.json").read_bytes())["image"]
@@ -420,6 +424,10 @@ def install_profile(
             exporter,
         ]
     )
+    return addresses, exporter
+
+
+def apply_profile(driver, addresses, exporter, namespace, database, unrelated=None):
     apply_app(driver, addresses, namespace, database, unrelated)
     password = driver.monitor_password
     db_ip = addresses["192.0.2.1"]
@@ -472,6 +480,13 @@ def install_profile(
         for c in pod["status"].get("containerStatuses", []):
             require(c["restartCount"] == 0, "pod restarted during overlay pilot")
             require(c["imageID"].endswith(pin.split("@")[1]), f"running image differs for {app}")
+
+
+def install_profile(
+    driver, layouts, exporter_layout, namespace=APP_NS, database=DB, unrelated=OTHER
+):
+    addresses, exporter = start_profile(driver, layouts, exporter_layout)
+    apply_profile(driver, addresses, exporter, namespace, database, unrelated)
     return exporter
 
 
