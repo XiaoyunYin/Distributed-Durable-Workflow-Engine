@@ -1,6 +1,8 @@
 # J2 slice 1b volume qualification
 
-The slice 3 volume pin is unset and the eligible soak-rate set is empty. In dispatch 45768781911, the 26,678-identity primary and the 21,002-identity fallback both returned `capacity_failure` after confirmed OOM kills during live export.
+The registered slice 3 volume pin is **26,678 distinct full short-workflow identities**, with soak rates **A and AB** eligible. [Slice 1c registered qualification](#slice-1c-registered-qualification)
+
+In the earlier slice 1b dispatch `45768781911`, the 26,678-identity primary and the 21,002-identity fallback both returned `capacity_failure` after confirmed OOM kills during live export.
 
 The `qualification` dispatch in the J2 workflow uses the **rebuilt registered profile**. It starts a fresh kind cluster and uses the pinned short-workflow sender at four submissions per second, below the lowest registered grid rate. Live submission produces the actual database history, results, outbox and worker witness bytes. The plan includes identical workload settings and resource limits for both volume attempts.
 
@@ -51,3 +53,31 @@ The live checkers exited 137 after 464.39 s and 281.53 s, respectively. Both pod
 Both jobs reached teardown with empty live checker reports. Offline replay was unperformed. Both cleanups passed, both ZIPs matched their Actions digests, and all 127 freeze entries verified in each archive. The terminal verdict job confirmed both `capacity_failure` results and ended the dispatch.
 
 The subsequent checker revision, standalone binary pin and pre-qualification are recorded in [slice 1c checker tooling](slice-1c-checker.md).
+
+## Slice 1c engineering pre-qualification
+
+All four dispatches were unmeasured engineering runs in `checker-prequalification` mode.
+
+| Tooling commit | Engineering run outcome |
+| --- | --- |
+| `e298ed1` | Both jobs stopped at the checker lock's `go.mod` hash check before loading fixtures. [Run 45883761097](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45883761097) |
+| `4bbfc66` | All gates passed at 21,002. At 26,678, live VmHWM reached 1.64 GiB and offline VmHWM reached 1.42 GiB, exceeding the 1.4 GiB gate. [Run 45884706097](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45884706097) |
+| `fbce0d9` | The `1100MiB` and `1200MiB` settings passed live and offline at both volumes. The unset control exceeded the VmHWM gate at 26,678. [Run 45889171119](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45889171119) |
+| `03f3c76` | The locked checker with `GOMEMLIMIT=1200MiB` passed all live and offline gates at 21,002 and 26,678. [Run 45891341815](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45891341815) |
+
+## Slice 1c registered qualification
+
+Dispatch `45893066798`, attempt 1, passed at tooling commit `03f3c767a8143e47e0cd725fd33f1ce16a72faba`. The primary accepted all **26,678** identities in 6,670 s. The final drain recorded 26,678 succeeded, zero unpublished outbox entries and zero claimed attempts. The verdict qualified soak rates A and AB under the registered 26,678-identity volume pin. The fallback was skipped. [Actions dispatch](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45893066798) · [Verdict job](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45893066798/job/140205320974) · [Measurement protocol](protocol.md)
+
+Both checker paths used SHA-256 `823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e` and `GOMEMLIMIT=1200MiB`. Both exited 0 with `valid: true` and zero cgroup OOM events.
+
+| Path | Checker wall time | Checker VmHWM | cgroup memory peak |
+| --- | ---: | ---: | ---: |
+| Live | 40.4 s (40.8 s stage) | 1,111,820 KiB (1.06 GiB) | 1,258,627,072 bytes in the node-side samples |
+| Offline | 12.3 s | 1,137,196 KiB | 1,166,303,232 bytes |
+
+The node-side sampler took 41 live samples and recorded a maximum checker VmHWM of 1,112,280 KiB. The observer limit was 2,147,483,648 bytes. Live export completed 94.3 s after the scheduled end, within the 600 s drain and the 480 s engineering target. Verified artifact upload completed 73.7 s after export.
+
+Offline reconciliation returned `identical_verdict: PASS` for 26,678 identities and observed all 26,678 phase joins. Offline replay took 36.8 s. Telemetry recorded 6,758 valid scrapes, zero failed queries and zero failed scrapes. The maximum query and scrape gaps were 1.25 s and 1.00 s, respectively. Teardown passed.
+
+Archive **15158465873**, `j2-volume-26678-45893066798-1`, is 241,102,239 bytes with SHA-256 `7e8e5d09f3ca5499b36dd9ddb88afaccb550f6ebaed552d62dd731191542202f`. The downloaded ZIP and all 144 frozen entries matched their recorded sizes and hashes. [Qualification archive](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45893066798/artifacts/15158465873)
