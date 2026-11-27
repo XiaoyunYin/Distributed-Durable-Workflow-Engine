@@ -21,6 +21,7 @@ on:
           - overlay
           - checker-prequalification
           - qualification
+          - harness-reset
         default: overlay
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
@@ -82,6 +83,85 @@ jobs:
           name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-overlay-evidence/
           if-no-files-found: warn
+
+  harness-reset:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'harness-reset' && !github.event.repository.private
+    name: J2 unmeasured harness reset
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Restore the retained images
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir "$RUNNER_TEMP/j2-harness-evidence"
+          bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-harness-evidence/image-restore.log"
+      - name: Rehearse fresh state and an interrupted submission
+        timeout-minutes: 42
+        run: |
+          python3 scripts/j2_harness.py "$RUNNER_TEMP/j2-harness-evidence" \
+            "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts"
+      - name: Seal harness evidence
+        id: seal
+        if: always()
+        run: python3 scripts/j2_harness_evidence.py seal "$RUNNER_TEMP/j2-harness-evidence"
+      - name: Retain the sealed attempt
+        id: upload
+        if: always() && steps.seal.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-harness-reset-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-harness-evidence/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Retain unsealed evidence after a seal failure
+        if: always() && steps.seal.outcome != 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-harness-reset-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-harness-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Verify the published ZIP and record expiry
+        id: verify-archive
+        if: always() && steps.upload.outcome == 'success'
+        timeout-minutes: 3
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          receipt="$RUNNER_TEMP/j2-harness-receipt"
+          archive="$RUNNER_TEMP/j2-harness-attempt.zip"
+          mkdir "$receipt"
+          endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+          gh api "$endpoint" > "$receipt/artifact.json"
+          gh api "$endpoint/zip" > "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload \
+            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST"
+          {
+            printf 'Verified J2 reset evidence [%s](%s)\n\n' "$ARTIFACT_ID" "$ARTIFACT_URL"
+            jq -r '"SHA-256 \(.digest) · expires \(.expires_at)"' "$receipt/artifact.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the artifact verification receipt
+        if: always() && steps.verify-archive.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-harness-reset-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-harness-receipt/artifact.json
+          if-no-files-found: error
+          retention-days: 90
 
   checker-prequalification:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'checker-prequalification'
