@@ -66,7 +66,7 @@ CONTROLS_PATHS = LEGACY_CONTROLS_PATHS + (
     "internal/dur053/j2_dispatch.go",
     "internal/dur053/j2_dispatch_transport.go",
     "internal/dur053/j2_dispatch_journal.go",
-    "internal/dur053/j2_dispatch_rss_linux.go",
+    "internal/dur053/j2_dispatch_rss_procfs.go",
     "internal/dur053/j2_dispatch_rss_other.go",
     "scripts/j2_control_proxy.py",
     "scripts/j2_dispatch_journal.py",
