@@ -6,9 +6,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -80,12 +82,20 @@ func main() {
 	if (*campaignPath == "") != (*witnessPath == "") {
 		fatal(fmt.Errorf("arrivals and witness-export required together"))
 	}
+	phase := checkerPhases(os.Getenv("J2_CHECKER_PHASES") == "1")
 	emit := func(trace invariants.Trace, ids []string) bool {
-		verdict, fence := check(trace, *preFaultRevision, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
+		var integrityErr error
+		if *campaignPath != "" {
+			integrityErr = invariants.SnapshotIntegrity(trace)
+			phase.mark("hash")
+		}
+		baseVerdict := invariants.Check(trace)
+		verdict, fence := checkFence(trace, baseVerdict, *preFaultRevision, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
 		if *requireTerminal && len(verdict.NonTerminal) > 0 {
 			verdict.Violations = append(verdict.Violations, "accepted work is non-terminal")
 			verdict.Valid = false
 		}
+		phase.mark("check")
 		covered, missing, outcomes := invariants.PureCoverage()
 		result := report{Status: status(verdict.Valid), WorkflowIDs: ids, Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence, NonTerminal: verdict.NonTerminal, InvariantsCovered: covered, InvariantsNotCovered: missing, InvariantOutcomes: outcomes}
 		// Legacy reports do not claim a PURE campaign's reconciliation coverage.
@@ -95,20 +105,20 @@ func main() {
 		result.InvariantsCovered = []string{"supplied history/results/submission/attempt/transport structural checks"}
 		result.InvariantsNotCovered = append(missing, "campaign-wide submission and external witness reconciliation NOT COVERED without -arrivals")
 		if *campaignPath != "" {
-			var arrivals invariants.Arrivals
 			var witness invariants.WitnessExport
-			read := func(path string, target any) {
-				b, e := os.ReadFile(path)
-				if e != nil {
-					fatal(e)
-				}
-				if e = json.Unmarshal(b, target); e != nil {
-					fatal(e)
-				}
+			arrivals, err := readCampaignArrivals(*campaignPath)
+			if err != nil {
+				fatal(err)
 			}
-			read(*campaignPath, &arrivals)
-			read(*witnessPath, &witness)
-			campaign := invariants.CheckCampaign(trace, arrivals, witness)
+			ledger, err := os.ReadFile(*witnessPath)
+			if err != nil {
+				fatal(err)
+			}
+			if err := json.Unmarshal(ledger, &witness); err != nil {
+				fatal(err)
+			}
+			campaign := invariants.ReconcileCampaign(trace, arrivals, witness, baseVerdict, integrityErr)
+			phase.mark("campaign_check")
 			result.Campaign = &campaign
 			result.Valid = result.Valid && campaign.Valid
 			result.Status = status(result.Valid)
@@ -116,19 +126,19 @@ func main() {
 			result.InvariantsNotCovered = campaign.InvariantsNotCovered
 			result.InvariantOutcomes = campaign.InvariantOutcomes
 		}
-		write(result)
+		if err := writeReport(os.Stdout, result); err != nil {
+			fatal(err)
+		}
+		phase.mark("write")
 		return result.Valid
 	}
 
 	if *snapshotPath != "" {
-		data, err := os.ReadFile(*snapshotPath)
+		trace, err := readSnapshot(*snapshotPath)
 		if err != nil {
 			fatal(err)
 		}
-		var trace invariants.Trace
-		if err := json.Unmarshal(data, &trace); err != nil {
-			fatal(err)
-		}
+		phase.mark("offline_decode")
 		if !emit(trace, nil) {
 			os.Exit(1)
 		}
@@ -159,13 +169,13 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	phase.mark("load")
 	if !emit(trace, ids) {
 		os.Exit(1)
 	}
 }
 
-func check(trace invariants.Trace, preFaultRevision, recoveryRevision, recoveryEpoch, staleAttemptNumber int64) (invariants.Verdict, *fenceReport) {
-	verdict := invariants.Check(trace)
+func checkFence(trace invariants.Trace, verdict invariants.Verdict, preFaultRevision, recoveryRevision, recoveryEpoch, staleAttemptNumber int64) (invariants.Verdict, *fenceReport) {
 	if preFaultRevision == 0 && recoveryRevision == 0 && recoveryEpoch == 0 && staleAttemptNumber == 0 {
 		return verdict, nil
 	}
@@ -222,10 +232,44 @@ func status(valid bool) string {
 	return "FAIL"
 }
 
+func readCampaignArrivals(path string) (invariants.Arrivals, error) {
+	var arrivals invariants.Arrivals
+	file, err := os.Open(path)
+	if err != nil {
+		return arrivals, err
+	}
+	// Legacy error reporting pre-validates the complete document. Stream the
+	// normal path and replay malformed inputs through the legacy decoder.
+	err = jsonv2.UnmarshalRead(file, &arrivals, json.DefaultOptionsV1(), json.ReportErrorsWithLegacySemantics(false))
+	file.Close()
+	if err == nil {
+		return arrivals, nil
+	}
+	arrivals = invariants.Arrivals{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return arrivals, err
+	}
+	err = json.Unmarshal(data, &arrivals)
+	return arrivals, err
+}
+
 func write(value any) {
 	if err := json.NewEncoder(os.Stdout).Encode(value); err != nil {
 		fatal(err)
 	}
+}
+
+type checkerPhases bool
+
+func (enabled checkerPhases) mark(phase string) {
+	if !enabled {
+		return
+	}
+	var memory runtime.MemStats
+	runtime.ReadMemStats(&memory)
+	fmt.Fprintf(os.Stderr, "J2_PHASE {\"phase\":%q,\"at_ns\":%d,\"heap_alloc\":%d,\"heap_inuse\":%d,\"sys\":%d,\"num_gc\":%d}\n",
+		phase, time.Now().UnixNano(), memory.HeapAlloc, memory.HeapInuse, memory.Sys, memory.NumGC)
 }
 
 func fatal(err error) {

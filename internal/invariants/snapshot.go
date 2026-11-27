@@ -2,7 +2,6 @@ package invariants
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -154,25 +153,29 @@ func loadSnapshot(ctx context.Context, tx pgx.Tx, ids []string) (Trace, error) {
 	if err != nil {
 		return t, err
 	}
+	digest := newSnapshotHash()
 	for _, table := range tables {
+		digest.start(false)
 		parts := strings.SplitN(table, ".", 2)
 		name := pgx.Identifier{parts[0], parts[1]}.Sanitize()
 		rows, e := tx.Query(ctx, `SELECT row_to_json(r)::jsonb FROM `+name+` r ORDER BY row_to_json(r)::text`)
 		if e != nil {
 			return t, e
 		}
-		raw, e := pgx.CollectRows(rows, pgx.RowTo[json.RawMessage])
+		raw, e := pgx.CollectRows(rows, func(row pgx.CollectableRow) (json.RawMessage, error) {
+			raw, err := pgx.RowTo[json.RawMessage](row)
+			if err != nil {
+				return nil, err
+			}
+			return raw, digest.add(raw)
+		})
 		if e != nil {
 			return t, e
 		}
 		if raw == nil {
 			raw = []json.RawMessage{}
 		}
-		b, e := json.Marshal(raw)
-		if e != nil {
-			return t, e
-		}
-		sum := sha256.Sum256(b)
+		sum := digest.finish(false)
 		t.Snapshot[table] = SnapshotTable{len(raw), hex.EncodeToString(sum[:]), raw}
 	}
 	// Approvals need independent argument canonicalization before existing checks.
@@ -203,16 +206,20 @@ func loadSnapshot(ctx context.Context, tx pgx.Tx, ids []string) (Trace, error) {
 		}
 		t.Approvals = append(t.Approvals, ApprovalRecord{a.IntentID, a.WorkflowID, a.NodeID, a.Iteration, a.ProposalHash, a.Target, true, hash, a.Expected, a.Decision, a.Dispatch, a.Scope, a.Token})
 	}
+	type historyTail struct {
+		count int64
+		state string
+	}
+	tails := make(map[string]historyTail, len(t.Workflows))
+	for _, h := range t.History {
+		tail := tails[h.WorkflowID]
+		tail.count++
+		tail.state = h.NewState
+		tails[h.WorkflowID] = tail
+	}
 	for _, wf := range t.Workflows {
-		n := int64(0)
-		last := ""
-		for _, h := range t.History {
-			if h.WorkflowID == wf.WorkflowID {
-				n++
-				last = h.NewState
-			}
-		}
-		if n != wf.Revision || last != wf.State {
+		tail := tails[wf.WorkflowID]
+		if tail.count != wf.Revision || tail.state != wf.State {
 			return t, fmt.Errorf("history snapshot incomplete: %s", wf.WorkflowID)
 		}
 	}
@@ -223,7 +230,9 @@ func loadSnapshot(ctx context.Context, tx pgx.Tx, ids []string) (Trace, error) {
 // must have history. In-flight work is explicit, and campaign closeout rejects it.
 func reconcileSubmissions(t Trace, violations *[]string) []string {
 	latest := map[string]HistoryRecord{}
+	counts := make(map[string]int64, len(t.Workflows))
 	for _, h := range t.History {
+		counts[h.WorkflowID]++
 		if h.Revision > latest[h.WorkflowID].Revision {
 			latest[h.WorkflowID] = h
 		}
@@ -241,12 +250,7 @@ func reconcileSubmissions(t Trace, violations *[]string) []string {
 	}
 	for _, wf := range t.Workflows {
 		h, ok := latest[wf.WorkflowID]
-		count := int64(0)
-		for _, entry := range t.History {
-			if entry.WorkflowID == wf.WorkflowID {
-				count++
-			}
-		}
+		count := counts[wf.WorkflowID]
 		if !ok || h.Revision != wf.Revision || h.NewState != wf.State || count != wf.Revision {
 			*violations = append(*violations, "workflow/history snapshot incomplete: "+wf.WorkflowID)
 		}
@@ -267,12 +271,15 @@ func SnapshotIntegrity(t Trace) error {
 			return fmt.Errorf("missing snapshot table: %s", name)
 		}
 	}
+	digest := newSnapshotHash()
 	for name, table := range t.Snapshot {
-		b, err := json.Marshal(table.Rows)
-		if err != nil {
-			return err
+		digest.start(table.Rows == nil)
+		for _, row := range table.Rows {
+			if err := digest.add(row); err != nil {
+				return err
+			}
 		}
-		sum := sha256.Sum256(b)
+		sum := digest.finish(table.Rows == nil)
 		if table.Count != len(table.Rows) || !strings.EqualFold(table.SHA256, hex.EncodeToString(sum[:])) {
 			return fmt.Errorf("snapshot count/hash mismatch: %s", name)
 		}

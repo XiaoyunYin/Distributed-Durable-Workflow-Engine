@@ -74,6 +74,7 @@ var envOutsideK6Deployment = map[string]string{
 	"DURABLE_SOURCE_COMMIT":             "DUR-048 load generator metadata",
 	"HOSTNAME":                          "process-environment fallback, absent from the PodSpec inventory",
 	"INCIDENT_LIVE_APPROVED":            "incident-agent execution entry point",
+	"J2_CHECKER_PHASES":                 "J2 checker phase diagnostics outside the control topology",
 	"KAFKA_BROKERS":                     "local demo command",
 	"OPENAI_API_KEY":                    "incident-agent provider entry point",
 	"OTEL_EXPORTER_OTLP_ENDPOINT":       "optional external exporter, absent in hosted G controls",

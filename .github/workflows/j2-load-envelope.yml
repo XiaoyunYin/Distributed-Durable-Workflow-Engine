@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/j2-load-envelope.yml'
+      - '.github/workflows/j2-volume-qualification.yml'
       - 'experiments/portfolio/load-envelope/**'
       - 'scripts/j2_*'
       - 'mutations/j2-manifest.json'
@@ -12,17 +13,31 @@ on:
       - 'go.mod'
       - 'go.sum'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Unmeasured engineering job
+        type: choice
+        options:
+          - overlay
+          - checker-prequalification
+          - qualification
+        default: overlay
+      compare_gomemlimit:
+        description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}
+  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}-${{ inputs.mode || 'pr' }}
   cancel-in-progress: false
 
 jobs:
   tooling:
+    if: github.event_name == 'pull_request' || inputs.mode == 'overlay'
     name: ${{ github.event_name == 'pull_request' && 'J2 tooling smoke' || 'J2 unmeasured overlay pilot' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 35 }}
@@ -30,6 +45,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-go@v5
         if: github.event_name == 'pull_request'
         with:
@@ -50,17 +67,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          lock=experiments/portfolio/load-envelope/images.lock.json
-          for kind in images exporter; do
-            lock="experiments/portfolio/load-envelope/$kind.lock.json"
-            artifact=$(jq -er .artifact "$lock")
-            archive="$RUNNER_TEMP/j2-$kind.zip"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
-            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
-            unzip -q "$archive" -d "$RUNNER_TEMP/j2-$kind-layouts"
-          done
+        run: bash scripts/j2_restore_images.sh
       - name: Verify the overlay on a disposable cluster
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -75,3 +82,92 @@ jobs:
           name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-overlay-evidence/
           if-no-files-found: warn
+
+  checker-prequalification:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'checker-prequalification'
+    name: J2 checker pre-qualification (${{ matrix.population }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        population: [21002, 26678]
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+      POPULATION: ${{ matrix.population }}
+      COMPARE_GOMEMLIMIT: ${{ inputs.compare_gomemlimit }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Verify the checker lock and build the migrator
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/j2-prequalification"
+          build_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            build_args+=(--comparison-source "$GITHUB_SHA")
+          fi
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-tooling/checker" "${build_args[@]}" 2>&1 | tee "$RUNNER_TEMP/j2-prequalification/checker-build.log"
+          go build -p 1 -mod=readonly -buildvcs=false -o "$RUNNER_TEMP/j2-tooling/migrate" ./cmd/dur053-migrate
+      - name: Measure both cgroups and profile Python on the runner
+        run: |
+          trial_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            trial_args+=(--compare-gomemlimit)
+          fi
+          python3 scripts/j2_prequalify_checker.py "$POPULATION" "$RUNNER_TEMP/j2-prequalification" \
+            "$RUNNER_TEMP/j2-prequalification-scratch" "$RUNNER_TEMP/j2-tooling/checker" "$RUNNER_TEMP/j2-tooling/migrate" "${trial_args[@]}"
+      - name: Retain pre-qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-checker-prequalification-${{ matrix.population }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-prequalification/
+          if-no-files-found: error
+          compression-level: 1
+
+  qualification:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'
+    uses: ./.github/workflows/j2-volume-qualification.yml
+    with:
+      population: 26678
+
+  fallback:
+    needs: qualification
+    if: >-
+      ${{ !cancelled() && needs.qualification.outputs.verdict == 'capacity_failure'
+      && needs.qualification.outputs.artifact_id != ''
+      }}
+    uses: ./.github/workflows/j2-volume-qualification.yml
+    with:
+      population: 21002
+
+  qualification-verdict:
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification' }}
+    needs: [qualification, fallback]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    env:
+      PRIMARY: ${{ needs.qualification.outputs.verdict || 'invalid' }}
+      FALLBACK: ${{ needs.fallback.outputs.verdict }}
+    steps:
+      - run: |
+          case "$PRIMARY/$FALLBACK" in
+            pass/) echo "26,678 identities qualified for soak A and AB" ;;
+            capacity_failure/pass) echo "21,002 identities qualified for soak A" ;;
+            capacity_failure/capacity_failure)
+              echo "Both volumes returned capacity_failure. See archived evidence."
+              exit 1
+              ;;
+            *)
+              echo "Qualification halted as invalid (primary=$PRIMARY, fallback=${FALLBACK:-skipped}). See archived evidence."
+              exit 1
+              ;;
+          esac

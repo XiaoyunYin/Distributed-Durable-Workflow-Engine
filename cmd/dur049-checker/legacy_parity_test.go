@@ -46,7 +46,7 @@ func legacyParity(t *testing.T, name string, args []string, clock bool) {
 		t.Fatal(err)
 	}
 	command := exec.Command(exe, append([]string{"-test.run=^TestLegacyCheckerProcess$", "--"}, args...)...)
-	command.Env = append(os.Environ(), "DUR049_PARITY_CHILD=1", "DATABASE_URL=", "DUR049_RECORD_LEASE_ACQUISITIONS=", "TZ=UTC")
+	command.Env = append(os.Environ(), "DUR049_PARITY_CHILD=1", "DATABASE_URL=", "DUR049_RECORD_LEASE_ACQUISITIONS=", "J2_CHECKER_PHASES=0", "TZ=UTC")
 	var stdout, stderr bytes.Buffer
 	command.Stdout, command.Stderr = &stdout, &stderr
 	err = command.Run()
@@ -199,7 +199,18 @@ func TestLegacyParityPostgres(t *testing.T) {
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload,created_at,next_attempt_at)
 		VALUES ('deadbeef-0000-0000-0000-000000000003','legacy',1,'workflow.created','{"workflow_id":"legacy"}','2026-01-01 00:00:00+00','2026-01-01 00:00:00+00');
 	`)
-	legacyParity(t, "live-pass", []string{"-database-url", dsn, "-workflow-ids", "legacy"}, false)
+	liveArgs := []string{"-database-url", dsn, "-workflow-ids", "legacy"}
+	legacyParity(t, "live-pass", liveArgs, false)
 	legacyParity(t, "live-read-fail", []string{"-database-url", dsn, "-workflow-ids", "absent"}, false)
 	legacyParity(t, "clock-pass", []string{"-database-url", dsn, "-clock-probe"}, true)
+	if previous := os.Getenv("DUR049_PREVIOUS_CHECKER"); previous != "" {
+		t.Run("j2-pre-revision-live", func(t *testing.T) {
+			old := parityProcess(t, exec.Command(previous, liveArgs...), false)
+			new := parityProcess(t, currentParityProcess(t, liveArgs), true)
+			if old.exit != 0 || new.exit != 0 || len(old.stderr) != 0 || !bytes.Equal(old.stdout, new.stdout) {
+				t.Fatalf("live reports differ or failed, exits %d and %d", old.exit, new.exit)
+			}
+			checkPhaseSequence(t, new.stderr, []string{"load", "check", "write"})
+		})
+	}
 }
