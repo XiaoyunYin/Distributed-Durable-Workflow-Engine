@@ -8,6 +8,7 @@ import math
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal
 
+from j2_dispatch_journal import DISPATCH_JOURNAL, dispatch_report
 from j2_offline import SECOND, utc_ns
 from j2_qualification_evidence import require
 
@@ -115,13 +116,15 @@ def schedule_slots(schedule):
     periods = schedule.get("periods") or [
         {"rate": schedule["rate"], "count": schedule["count"], "seconds": (stop - start) / SECOND}
     ]
-    for period in periods:
+    versioned = schedule.get("dispatch_journal") == DISPATCH_JOURNAL
+    for segment, period in enumerate(periods):
         rate = float(period["rate"])
         end = start + int(period["seconds"] * SECOND)
         for i in range(period["count"]):
             at = start + int(float(i) * SECOND / rate)
-            cutoff = min(end, start + int(float(i + 1) * SECOND / rate))
-            require(at < cutoff, "scheduled arrival outside its period")
+            nominal = start + int(float(i + 1) * SECOND / rate)
+            cutoff = nominal if versioned and segment == len(periods) - 1 else min(end, nominal)
+            require(at < end and at < cutoff, "scheduled arrival outside its period")
             yield at, cutoff
         start = end
     require(start == stop, "periods do not reach scheduled stop")
@@ -318,4 +321,29 @@ def k4_report(raw, schedule, durable):
             else "FAIL"
         ),
         "sender_samples": sender_samples,
+    }
+
+
+def sender_report(raw, schedule, durable, *, schedule_sha256=None):
+    version = schedule.get("dispatch_journal")
+    if version == DISPATCH_JOURNAL:
+        return dispatch_report(
+            raw,
+            schedule,
+            list(schedule_slots(schedule)),
+            durable,
+            schedule_sha256,
+            admission_states,
+        )
+    require(version is None, "unknown J2 dispatch journal version")
+    header = json.loads(raw.split(b"\n", 1)[0])
+    require("schema" not in header, "versioned sender requires a bound J2 schedule")
+    return k4_report(raw, schedule, durable)
+
+
+def sent_keys(report):
+    if report.get("schema") == DISPATCH_JOURNAL:
+        return set(report["sent_keys"])
+    return {
+        row["key"] for row in report["sender_samples"] if row["phase"] in {"intent", "finished"}
     }

@@ -99,11 +99,29 @@ def _sender_samples(root, schedule, edges):
         {
             "peak_in_flight": max((row["in_flight_from_journal"] for row in group), default=0),
             "peak_intent_lateness_ns": max(
-                (row["recorded_intent_lateness_ns"] for row in group if row["phase"] == "intent"),
+                (
+                    row["recorded_intent_lateness_ns"]
+                    for row in group
+                    if row["phase"] == "intent" or "dispatch_intent_ns" in row
+                ),
                 default=None,
             ),
             "unsent_records": sum(row["outcome"] == "unsent" for row in group),
             "concurrency_cap": schedule["cap"],
+            **(
+                {
+                    "peak_request_write_lateness_ns": max(
+                        (
+                            row["request_write_lateness_ns"]
+                            for row in group
+                            if row["request_write_lateness_ns"] is not None
+                        ),
+                        default=None,
+                    ),
+                }
+                if sender.get("schema")
+                else {}
+            ),
         }
         for group in samples
     ]

@@ -65,12 +65,16 @@ func recordJ2Cutoff(entry map[string]any) {
 }
 
 func j2Plan(c Config, segments []J2Segment) (Config, invariants.Arrivals, []j2Slot, error) {
+	return buildJ2Plan(c, segments, false)
+}
+
+func buildJ2Plan(c Config, segments []J2Segment, precommitted bool) (Config, invariants.Arrivals, []j2Slot, error) {
 	if len(segments) < 1 || len(segments) > 2 {
 		return c, invariants.Arrivals{}, nil, errors.New("J2 needs one or two scheduled periods")
 	}
 	var start time.Duration
 	var slots []j2Slot
-	for _, period := range segments {
+	for segment, period := range segments {
 		if period.Duration <= 0 || period.Duration > maxJ2Duration-start ||
 			period.Rate <= 0 || period.Rate > 100000 || math.IsNaN(period.Rate) {
 			return c, invariants.Arrivals{}, nil, errors.New("invalid J2 period duration or rate")
@@ -88,7 +92,7 @@ func j2Plan(c Config, segments []J2Segment) (Config, invariants.Arrivals, []j2Sl
 		}
 		for i := range count {
 			next := Offset(i+1, period.Rate)
-			if len(segments) == 2 {
+			if len(segments) == 2 && (!precommitted || segment == 0) {
 				next = min(next, period.Duration)
 			}
 			slots = append(slots, j2Slot{

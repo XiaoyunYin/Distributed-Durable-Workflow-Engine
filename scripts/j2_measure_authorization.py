@@ -30,7 +30,7 @@ from j2_barrier import (
 )
 from j2_checker import ROOT
 from j2_qualification_evidence import file_record, read
-from j2_schedule import MEASURED_CAMPAIGN, k4_report
+from j2_schedule import DISPATCH_JOURNAL, MEASURED_CAMPAIGN, sender_report
 
 AUTH_SCHEMA = "j2.campaign-authorization.v1"
 AUTH_PATH = "authorization.json"
@@ -341,18 +341,82 @@ def recheck(record, campaign):
     require(current == record, "authorization ref changed after bootstrap")
 
 
+def dispatch_traffic(root, raw, schedule, info, schedule_sha256):
+    from j2_checker_report import indexed_report, require_checker_exit, require_checker_pass
+    from j2_drain import checked_submission_keys, expected_arrivals
+
+    receipt_file, exit_file = root / "sender-events.jsonl", root / "sender-exit.json"
+    if receipt_file.is_file() and exit_file.is_file() and read(exit_file)["exec_exit"] == 2:
+        receipt = read(receipt_file)
+        # A surviving precommit alone proves nothing about launch. Only an
+        # explicit negative receipt from the exited sender can close this path.
+        complete = raw.splitlines(keepends=True)
+        if complete and not complete[-1].endswith(b"\n"):
+            complete.pop()
+        events = (json.loads(line)["event"] for line in complete)
+        if (
+            receipt["schema"] == DISPATCH_JOURNAL
+            and receipt["run_id"] == schedule["run_id"]
+            and receipt["schedule_sha256"] == schedule_sha256
+            and receipt["dispatch_enabled"] is False
+            and receipt["accepted"] == 0
+            and not any(event in {"flush", "outcome", "closed"} for event in events)
+        ):
+            return {
+                **info,
+                "disposition": "no_requests",
+                "reason": "sender preflight refused dispatch",
+            }
+    inspected = sender_report(raw, schedule, [], schedule_sha256=schedule_sha256)
+    positive = inspected["request_evidence_keys"]
+    if not positive and (root / "live-checker.json").is_file():
+        require_checker_exit(read(root / "live-checker-read.json")["exit"])
+        report, _ = indexed_report(root / "live-checker.json", join_trace=True, verify_tables=True)
+        require_checker_pass(report)
+        expected, _ = expected_arrivals(raw, schedule, schedule_sha256=schedule_sha256)
+        admitted = checked_submission_keys(report["trace"]["Submissions"], expected)
+        inspected = sender_report(raw, schedule, admitted, schedule_sha256=schedule_sha256)
+        positive = inspected["durable_admissions"]
+    if positive:
+        return {
+            **info,
+            "disposition": "consumed",
+            "reason": "request write, response or checked admission",
+            "first_key": positive[0],
+        }
+    if (
+        inspected["closed"]
+        and not inspected["torn_suffix"]
+        and len(inspected["explicitly_unsent"]) == inspected["offered"]
+        and read(root / "journal-read.json")["exit"] == 0
+    ):
+        return {
+            **info,
+            "disposition": "no_requests",
+            "reason": "all planned rows explicitly refused",
+        }
+    return {
+        **info,
+        "disposition": "unresolved",
+        "reason": "J2 evidence does not establish zero requests",
+    }
+
+
 def cell_traffic(root: Path):
     launched = root / "sender-release.json"
     journal = root / "sender-journal.jsonl"
     if not launched.exists() and not journal.exists():
         return {"disposition": "no_requests", "reason": "sender was never released"}
-    if not journal.is_file():
-        return {"disposition": "unresolved", "reason": "released sender journal is absent"}
-    info = {"journal": file_record(journal)}
+    info = {"journal": file_record(journal)} if journal.is_file() else {}
     try:
-        raw = journal.read_bytes()
-        schedule = read(root / "schedule.json")
-        inspected = k4_report(raw, schedule, [])
+        schedule_path = root / "schedule.json"
+        schedule = read(schedule_path)
+        raw = journal.read_bytes() if info else b""
+        if schedule.get("dispatch_journal") == DISPATCH_JOURNAL:
+            return dispatch_traffic(root, raw, schedule, info, file_record(schedule_path)["sha256"])
+        if not info:
+            return {"disposition": "unresolved", "reason": "released sender journal is absent"}
+        inspected = sender_report(raw, schedule, [])
         sent = next(
             (row["key"] for row in inspected["sender_samples"] if row["phase"] == "finished"), None
         )
@@ -375,7 +439,7 @@ def cell_traffic(root: Path):
                 "disposition": "no_requests",
                 "reason": "all planned rows explicitly unsent",
             }
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
         # A malformed or missing journal cannot authorize a replacement run.
         pass
     return {

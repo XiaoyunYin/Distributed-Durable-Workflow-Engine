@@ -6,10 +6,10 @@ from j2_checker_report import IntegrityError, indexed_report, require_checker_ex
 from j2_control_evidence import gates_samples, quiet_evidence
 from j2_drain import checked_cut, cohort_counts, expected_arrivals, replay_episode
 from j2_offline import ClockEvidenceError, bins_gate, clock_evidence, summarize
-from j2_qualification_evidence import DRAIN_SECONDS, read, require
+from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require
 from j2_qualification_resources import checker_resource_summary, require_checker_resources
 from j2_qualify_volume import OBSERVER_LIMIT
-from j2_schedule import RATES, k4_report, population_record, registered_population
+from j2_schedule import RATES, population_record, registered_population, sender_report, sent_keys
 from j2_step_rehearsal import verified_crossings
 
 
@@ -37,9 +37,10 @@ def summarize_episode(root, *, snapshot_only=False):
     ):
         raise IntegrityError("checked phase rows or counts differ from retained replay evidence")
     raw = (root / "sender-journal.jsonl").read_bytes()
-    expected, _ = expected_arrivals(raw, schedule)
+    schedule_sha256 = file_record(root / "schedule.json")["sha256"]
+    expected, _ = expected_arrivals(raw, schedule, schedule_sha256=schedule_sha256)
     committed = {row["id"] for row in final["db"]["submissions"]}
-    sender = k4_report(raw, schedule, sorted(committed))
+    sender = sender_report(raw, schedule, sorted(committed), schedule_sha256=schedule_sha256)
     require(sender == read(root / "sender-report.json"), "retained sender report differs")
     require(
         read(root / "journal-read.json")["exit"] == 0
@@ -82,14 +83,13 @@ def summarize_episode(root, *, snapshot_only=False):
             "claimed": result["claimed"],
             "checked_export_seconds": result["checked_export_seconds"],
         }
-    sent = {
-        row["key"] for row in sender["sender_samples"] if row["phase"] in {"intent", "finished"}
-    }
+    sent = sent_keys(sender)
     sender_valid = (
         sender["closed"]
         and not sender["torn_suffix"]
         and not sender["outside_slot"]
         and not sender["remaining_intents"]
+        and not sender.get("timing_exceptions")
         and sent == committed == expected.keys()
     )
     attempts = Counter(
@@ -184,6 +184,8 @@ def summarize_episode(root, *, snapshot_only=False):
         "verified_crossing_ids": crossing,
         "measured_eligible": False,
     }
+    if "all_accepted_verdict" in sender:
+        summary["all_accepted_verdict"] = sender["all_accepted_verdict"]
     if not snapshot_only:
         summary["checker_peak_rss_kib"] = resources["checker_peak_rss_kib"]
     if campaign:

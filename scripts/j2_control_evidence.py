@@ -43,7 +43,16 @@ from j2_offline import (
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require
 from j2_qualification_resources import checker_resource_summary, require_checker_resources
 from j2_qualify_volume import OBSERVER_LIMIT
-from j2_schedule import MEASURED, REQUEST_TIMEOUT, WARMUP, k4_report, stock_schedule, timestamp
+from j2_schedule import (
+    DISPATCH_JOURNAL,
+    MEASURED,
+    REQUEST_TIMEOUT,
+    WARMUP,
+    sender_report,
+    sent_keys,
+    stock_schedule,
+    timestamp,
+)
 
 DELAY_BASE = "delay-100"
 DELAY_HIGH = "delay-2100"
@@ -108,6 +117,8 @@ def gates_samples(series):
 
 def journal_arrivals(raw):
     events = [json.loads(line) for line in raw.splitlines()]
+    if events[0].get("schema") == DISPATCH_JOURNAL:
+        return events[0]["plan"]["rows"], [e for e in events[1:] if e["event"] == "outcome"]
     return events[0]["plan"]["rows"], [e for e in events[1:] if e["event"] == "arrival"]
 
 
@@ -157,14 +168,18 @@ def quiet_evidence(root, final, expected, sender, checker_read, state):
 
 def read_episode(root, campaign, namespace):
     schedule = read(root / "schedule.json")
+    expected_schedule = control_schedule(root.name, campaign, namespace, schedule["origin_ns"])
+    if schedule.get("dispatch_journal") == DISPATCH_JOURNAL:
+        expected_schedule["dispatch_journal"] = DISPATCH_JOURNAL
+    binding = file_record(root / "schedule.json")
     require(
-        schedule == control_schedule(root.name, campaign, namespace, schedule["origin_ns"])
-        and file_record(root / "schedule.json") == read(root / "schedule-binding.json")
+        schedule == expected_schedule
+        and binding == read(root / "schedule-binding.json")
         and schedule["request_timeout"] == REQUEST_TIMEOUT,
         "control schedule or journal binding differs",
     )
     raw = (root / "sender-journal.jsonl").read_bytes()
-    expected, _ = expected_arrivals(raw, schedule)
+    expected, _ = expected_arrivals(raw, schedule, schedule_sha256=binding["sha256"])
     plan, journal = journal_arrivals(raw)
     final = read(root / "final.json")
     witness = read(root / "witness.json")
@@ -182,7 +197,7 @@ def read_episode(root, campaign, namespace):
     except (KeyError, OSError, ValueError) as error:
         raise IntegrityError(f"locked checker cut is invalid: {error}") from error
     admitted = [row["id"] for row in state["db"]["submissions"]]
-    sender = k4_report(raw, schedule, admitted)
+    sender = sender_report(raw, schedule, admitted, schedule_sha256=binding["sha256"])
     polls = read_polls(root / "terminal-polls.jsonl")
     width = clock_bounds(read(root / "clock.json"), schedule["origin_ns"], final["upper_unix_ns"])
     try:
@@ -211,13 +226,18 @@ def read_episode(root, campaign, namespace):
         == schedule["stop_ns"] - anchor["anchor_unix_ns"],
         "scheduled stop differs from retained clock anchor",
     )
-    sent = {e["key"] for e in journal if e["sent"] is not None}
+    sent = sent_keys(sender)
     accepted = set(sender["acknowledged"])
     require(
         read(root / "sender-exit.json")["exec_exit"] == 0
         and sender["closed"]
         and not sender["torn_suffix"]
-        and not (sender["outside_slot"] or sender["remaining_intents"] or sender["unresolved"])
+        and not (
+            sender["outside_slot"]
+            or sender["remaining_intents"]
+            or sender["unresolved"]
+            or sender.get("timing_exceptions")
+        )
         and sent == accepted == set(admitted),
         "control sends, acknowledgments and checked admissions do not reconcile",
     )
@@ -294,7 +314,7 @@ def cohort_delivery(episode):
 
 def gate_control(root, episode):
     schedule, sender, rows = (episode[name] for name in ("schedule", "sender", "rows"))
-    valid = sender["stock_verdict"] == "PASS"
+    valid = sender.get("all_accepted_verdict", sender["stock_verdict"]) == "PASS"
     gate = bins_gate(
         [
             rows.get(

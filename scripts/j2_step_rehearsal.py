@@ -43,12 +43,13 @@ from j2_qualification_resources import (
 from j2_qualify_volume import OBSERVER_LIMIT, ObserverEvidence, prometheus, retain_scrapes, watch
 from j2_relay_diagnostics import bracketed, relay_attribution
 from j2_schedule import (
+    DISPATCH_JOURNAL,
     ENGINEERING,
     MEASURED,
     RATES,
     WARMUP,
     continuous_schedule,
-    k4_report,
+    sender_report,
     stock_schedule,
 )
 from j2_schedule_rehearsal import (
@@ -306,6 +307,14 @@ def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped, execut
                 if sender.done():
                     outcome = sender.result()
                     if (
+                        schedule.get("dispatch_journal") == DISPATCH_JOURNAL
+                        and outcome.returncode == 2
+                    ):
+                        write(driver.output / "sender-exit.json", {"exec_exit": outcome.returncode})
+                        (driver.output / "sender-events.jsonl").write_text(
+                            outcome.stdout, encoding="utf-8"
+                        )
+                    if (
                         outcome.returncode not in (0, 1)
                         or not (driver.output / driver.journal_name).stat().st_size
                     ):
@@ -471,7 +480,7 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
             require(read(output / "schedule.json") == schedule, "schedule changed after launch")
             write(output / "schedule-binding.json", binding)
             raw = (output / "sender-journal.jsonl").read_bytes()
-            arrivals, sender = expected_arrivals(raw, schedule)
+            arrivals, sender = expected_arrivals(raw, schedule, schedule_sha256=binding["sha256"])
 
             def observe():
                 check_monitor(errors)
@@ -577,7 +586,7 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
         write(output / "drain-result.json", result)
         diagnostics.close()
         durable = [row["id"] for row in final["db"]["submissions"]]
-        report = k4_report(raw, schedule, durable)
+        report = sender_report(raw, schedule, durable, schedule_sha256=binding["sha256"])
         write(output / "sender-report.json", report)
         try:
             joined, clock_width = replay_episode(output)

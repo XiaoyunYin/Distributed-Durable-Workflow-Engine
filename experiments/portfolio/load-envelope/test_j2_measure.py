@@ -45,8 +45,34 @@ CONTEXT = dict(
 )
 
 
-def test_frozen_dispatch_packet_matches_the_registered_schedule_and_prerequisites():
-    root = measure.ROOT
+@pytest.fixture
+def frozen_dispatch_checkout(tmp_path, monkeypatch):
+    basis = "86f62726d54b9589d1d7f202b1deaefb4c284565"
+    original_git = packet.git_output
+    root = tmp_path / "frozen-checkout"
+    # This is the accepted incarnation of the packet. 5a changes the source
+    # identities, and 5c will publish the next packet.
+    paths = {
+        *packet.PIN_FILES.values(),
+        *packet.TOOLING_FILES,
+        *auth.CONTROLS_PATHS,
+        (packet.PACKET / "manifest.json").as_posix(),
+        *((packet.PACKET / name).as_posix() for name in packet.EVIDENCE_FILES),
+    }
+    for name in paths:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(original_git(measure.ROOT, "show", f"{basis}:{name}"))
+    monkeypatch.setattr(
+        packet, "git_output", lambda _root, *args: original_git(measure.ROOT, *args)
+    )
+    return root
+
+
+def test_frozen_dispatch_packet_matches_the_registered_schedule_and_prerequisites(
+    frozen_dispatch_checkout,
+):
+    root = frozen_dispatch_checkout
     pins = {label: packet.text_sha(root / path) for label, path in packet.PIN_FILES.items()}
     proof = packet.verify_package(root, pins)
     assert len(proof["prerequisites"]) == 3
@@ -55,8 +81,10 @@ def test_frozen_dispatch_packet_matches_the_registered_schedule_and_prerequisite
 
 
 @pytest.mark.parametrize("change", ["missing", "digest", "seed"])
-def test_frozen_dispatch_packet_refuses_missing_or_changed_evidence(tmp_path, monkeypatch, change):
-    root = measure.ROOT
+def test_frozen_dispatch_packet_refuses_missing_or_changed_evidence(
+    tmp_path, monkeypatch, change, frozen_dispatch_checkout
+):
+    root = frozen_dispatch_checkout
     destination = tmp_path / "packet"
     shutil.copytree(root / packet.PACKET, destination)
     monkeypatch.setattr(packet, "PACKET", destination)

@@ -20,7 +20,7 @@ from j2_checker_report import (
 )
 from j2_offline import SECOND, ClockEvidenceError, attempt_key, clock_bounds, drain_identities, join
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
-from j2_schedule import k4_report, schedule_slots
+from j2_schedule import schedule_slots, sender_report
 
 QUIET_NS = 30 * SECOND
 POLL_SECONDS = 2
@@ -38,9 +38,8 @@ def json_bytes(value, *, sort_keys=True):
     return json.dumps(value, separators=(",", ":"), sort_keys=sort_keys).encode()
 
 
-def expected_arrivals(raw, schedule):
-    # k4_report verifies schedule geometry independently of the header rate.
-    report = k4_report(raw, schedule, [])
+def expected_arrivals(raw, schedule, *, schedule_sha256=None):
+    report = sender_report(raw, schedule, [], schedule_sha256=schedule_sha256)
     manifest = json.loads(raw.split(b"\n", 1)[0])["plan"]
     arrivals = {}
     for i, (row, (scheduled, _)) in enumerate(
@@ -91,6 +90,14 @@ def expected_arrivals(raw, schedule):
                 f"journal request hash differs: {key}",
             )
             require(event["status"] != 429, f"unexpected HTTP 429: {key}")
+        elif event["event"] == "intent":
+            key = event["key"]
+            require(
+                event["request_sha256"] == arrivals[key]["request_hash"],
+                f"journal request hash differs: {key}",
+            )
+        elif event["event"] == "outcome":
+            require(event["status"] != 429, f"unexpected HTTP 429: {event['key']}")
     return arrivals, report
 
 
@@ -333,6 +340,21 @@ def quiet_drain(
     expire_drain(stop_ns, deadline, last, check_expiry, expected, sender, retain, now=now)
 
 
+def checked_submission_keys(submissions, expected):
+    admitted = []
+    for s in submissions:
+        key = s["WorkflowID"]
+        require(
+            key in expected
+            and s["Key"] == key
+            and s["Hash"] == expected[key]["hash"]
+            and s["Namespace"] == expected[key]["namespace"],
+            f"checked durable key or payload hash differs: {key}",
+        )
+        admitted.append(key)
+    return admitted
+
+
 def checked_results(
     report,
     expected,
@@ -347,18 +369,10 @@ def checked_results(
 ):
     require_checker_pass(report)
     trace = report["trace"]
-    submissions = trace["Submissions"]
-    admitted = [s["WorkflowID"] for s in submissions]
+    admitted = checked_submission_keys(trace["Submissions"], expected)
     admitted_ids = set(admitted)
-    for s in submissions:
-        key = s["WorkflowID"]
-        require(
-            key in expected
-            and s["Key"] == key
-            and s["Hash"] == expected[key]["hash"]
-            and s["Namespace"] == expected[key]["namespace"],
-            f"checked durable key or payload hash differs: {key}",
-        )
+    if admitted_ids.intersection(sender["explicitly_unsent"]):
+        raise IntegrityError("explicitly refused identity has a checked durable admission")
     pending = report["non_terminal"]
     if expiry is None:
         require(not pending, "locked checker failed terminal checks")
@@ -498,11 +512,12 @@ def cohort_counts(schedule, phases):
 def replay_episode(root, *, snapshot_only=False):
     schedule = read(root / "schedule.json")
     raw = (root / "sender-journal.jsonl").read_bytes()
+    binding = file_record(root / "schedule.json")
     require(
-        file_record(root / "schedule.json") == read(root / "schedule-binding.json"),
+        binding == read(root / "schedule-binding.json"),
         "schedule hash differs from journal binding",
     )
-    expected, sender = expected_arrivals(raw, schedule)
+    expected, sender = expected_arrivals(raw, schedule, schedule_sha256=binding["sha256"])
     result = read(root / "drain-result.json")
     expired = result.get("classification") == "drain_failure"
     require(result["status"] == ("FAIL" if expired else "PASS"), "invalid drain replay outcome")

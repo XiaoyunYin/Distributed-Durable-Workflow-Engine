@@ -55,7 +55,7 @@ from j2_replay_storage import (
     verify_prerequisite,
     verify_report_source,
 )
-from j2_schedule import ORDERS, RATES
+from j2_schedule import DISPATCH_JOURNAL, ORDERS, RATES
 
 CAP_MINUTES = 90
 MINUTES = {
@@ -262,8 +262,11 @@ def verify_checkpoint(
         "source checkpoint binding differs",
     )
     schedule = read(root / "schedule.json")
+    expected_schedule = schedule_for(campaign, job, cell, rate, schedule["origin_ns"])
+    if schedule.get("dispatch_journal") == DISPATCH_JOURNAL:
+        expected_schedule["dispatch_journal"] = DISPATCH_JOURNAL
     require(
-        schedule == schedule_for(campaign, job, cell, rate, schedule["origin_ns"]),
+        schedule == expected_schedule,
         "verified schedule differs from the source clock",
     )
     released = read(root / "sender-release.json")
