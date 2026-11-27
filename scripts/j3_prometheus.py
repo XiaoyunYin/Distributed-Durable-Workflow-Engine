@@ -1,5 +1,7 @@
 """Join raw Prometheus evaluations to their exact exporter visibility samples."""
 
+import json
+import re
 from bisect import bisect_right
 from decimal import Decimal
 
@@ -13,7 +15,21 @@ def epoch_ns(value):
     return int(ns)
 
 
-def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
+def scrape_timeout_ns(overlay):
+    (encoded,) = (
+        obj["data"]["prometheus.yml"]
+        for obj in overlay["items"]
+        if obj["kind"] == "ConfigMap" and "prometheus.yml" in obj["data"]
+    )
+    config = json.loads(encoded)
+    (job,) = (job for job in config["scrape_configs"] if job["job_name"] == "j3")
+    timeout = job.get("scrape_timeout", config["global"]["scrape_timeout"])
+    match = re.fullmatch(r"([1-9][0-9]*)(ms|s)", timeout)
+    require(match is not None, "invalid rendered J3 scrape timeout")
+    return int(match[1]) * (SECOND if match[2] == "s" else SECOND // 1000)
+
+
+def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health, timeout_ns):
     """Input matrices contain raw samples, including original evaluation times."""
     rules = unique(rule_health, lambda rule: rule.get("name"))
     required_rules = {
@@ -80,6 +96,8 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
             "sql_oldest_claimable_seconds",
         )
     }
+    source_times = signals["sample_timestamp_seconds"]
+    source_ticks = sorted(source_times)
     windows = {
         window: {field: metric("j3_" + field, window) for field in ("eligible", "bad")}
         for window in WINDOWS
@@ -104,9 +122,22 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
             row["ready_slots"] = int(slots[slot_ticks[slot_i]][1])
         if row["valid"]:
             require(i >= 0, "valid evaluation has no matching scrape")
-            scrape = up_ticks[i]
-            require(up[scrape][1] == "1" and valid[at][1] == "1", "invalid success marker")
-            source = float(value_at(signals["sample_timestamp_seconds"], scrape))
+            require(valid[at][1] == "1", "invalid success marker")
+            source_i = bisect_right(source_ticks, at) - 1
+            require(source_i >= 0, "valid evaluation has no matching sample timestamp")
+            scrape = source_ticks[source_i]
+            require(
+                scrape in up and up[scrape][1] == "1", "sample timestamp has no successful scrape"
+            )
+            # Prometheus appends after the scrape returns but stamps it with its start time.
+            later = up_ticks[bisect_right(up_ticks, scrape) : i + 1]
+            require(
+                all(up[t][1] == "0" and at - t <= timeout_ns for t in later),
+                "invalid success marker: later scrape could not have been in flight",
+            )
+            if later:
+                row["in_flight_scrape_starts_ns"] = later
+            source = float(value_at(source_times, scrape))
             require(source in samples, f"missing visibility evidence for source {source}")
             sample = samples[source]
             demand = sample["demand"]
@@ -117,6 +148,7 @@ def evaluation_rows(series, stream, target, start_ns, end_ns, rule_health):
                 "demand timestamp differs from the exporter witness",
             )
             row.update(
+                up=1,
                 sample_ns=sample["sample_ns"],
                 scrape_ns=scrape,
                 demand_ns=demand_ns,

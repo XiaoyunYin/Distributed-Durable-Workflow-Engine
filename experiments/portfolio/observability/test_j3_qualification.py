@@ -48,9 +48,9 @@ def test_round_590_outage_2_refire_remains_fail_despite_unpaired_delivery():
     )
 
 
-def test_clear_hold_uses_distinct_campaign_id(monkeypatch):
+def test_scrape_pairing_uses_distinct_campaign_id(monkeypatch):
     monkeypatch.setenv("GITHUB_RUN_ID", "42")
-    assert gate.campaign_id() == "j3-r420-42"
+    assert gate.campaign_id() == "j3-r421-42"
 
 
 @pytest.mark.parametrize("stage", ["calibration", "confirmation"])

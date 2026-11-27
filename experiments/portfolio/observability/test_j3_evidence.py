@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 import j3_episode as episode  # noqa: E402
+import j3_pilot as pilot  # noqa: E402
 from j3_evidence import (  # noqa: E402
     SECOND,
     foreign_isolation,
@@ -18,7 +19,7 @@ from j3_evidence import (  # noqa: E402
     slot_occupancy,
     target_only_attainment,
 )
-from j3_prometheus import evaluation_rows  # noqa: E402
+from j3_prometheus import evaluation_rows, scrape_timeout_ns  # noqa: E402
 from j3_resources import cgroup_paths, checker_failure, checker_outcome  # noqa: E402
 from j3_slots import ready_slots, sample_ready_slots  # noqa: E402
 
@@ -811,11 +812,86 @@ def test_prometheus_joins_original_visibility_ns_and_rejects_missing_scrape_fiel
             "ScrapeAbsent",
         )
     ]
-    (event,) = evaluation_rows(rows, stream, target, t, t + 2 * SECOND, health)
+    (event,) = evaluation_rows(rows, stream, target, t, t + 2 * SECOND, health, SECOND)
     assert event["sample_ns"] == sample
     assert event["scrape_ns"] == scrape
     assert event["at_ns"] == at
     with pytest.raises(ValueError, match="missing visibility evidence"):
-        evaluation_rows(rows, [], target, t, t + 2 * SECOND, health)
+        evaluation_rows(rows, [], target, t, t + 2 * SECOND, health, SECOND)
     with pytest.raises(ValueError, match="required metric missing"):
-        evaluation_rows(rows[:-1], stream, target, t, t + 2 * SECOND, health)
+        evaluation_rows(rows[:-1], stream, target, t, t + 2 * SECOND, health, SECOND)
+
+
+@pytest.fixture
+def scrape_cut_trace():
+    return json.loads((Path(__file__).with_name("fixtures") / "r421-scrape-cut.json").read_bytes())
+
+
+def scrape_cut_evaluations(trace):
+    cut = trace["cut_ns"]
+    return evaluation_rows(
+        trace["matrices"],
+        trace["visibility"],
+        trace["target"],
+        cut,
+        cut + 7 * SECOND,
+        trace["rule_health"],
+        scrape_timeout_ns(trace["rendered_overlay"]),
+    )
+
+
+def test_scrape_cut_pairs_the_recorded_valid_evaluation_to_its_successful_scrape(
+    scrape_cut_trace, tmp_path, monkeypatch
+):
+    cut = scrape_cut_trace["cut_ns"]
+    (tmp_path / "overlay.json").write_text(json.dumps(scrape_cut_trace["rendered_overlay"]))
+    matrices = iter([scrape_cut_trace["matrices"], [], [], []])
+
+    def get_json(_port, path, **_params):
+        if path == "/api/v1/rules":
+            return {"data": {"groups": [{"rules": scrape_cut_trace["rule_health"]}]}}
+        return {"data": {"result": next(matrices)}}
+
+    visibility = "\n".join(map(json.dumps, scrape_cut_trace["visibility"])).encode()
+    monkeypatch.setattr(pilot, "json_request", get_json)
+    monkeypatch.setattr(pilot, "request", lambda _port, _path: visibility)
+    paired, invalid = pilot.collect_replay_inputs(
+        SimpleNamespace(output=tmp_path), scrape_cut_trace["target"], cut, cut + 7 * SECOND
+    )
+    assert paired["at_ns"] - scrape_cut_trace["cut_ns"] == 1_245_829_718
+    assert paired["valid"] and paired["up"] == 1
+    assert paired["scrape_ns"] == 1_795_802_560_549_000_000
+    assert paired["sample_ns"] == scrape_cut_trace["visibility"][-1]["sample_ns"]
+    assert paired["in_flight_scrape_starts_ns"] == [1_795_802_561_549_000_000]
+    assert not invalid["valid"] and invalid["up"] == 0
+    assert "in_flight_scrape_starts_ns" not in invalid
+    assert json.loads((tmp_path / "in-flight-scrape-pairings.json").read_bytes()) == [paired]
+    assert (
+        json.loads((tmp_path / "prometheus-raw.json").read_bytes())["scrape_timeout_ns"] == SECOND
+    )
+
+
+def test_scrape_cut_rejects_failed_scrape_older_than_rendered_timeout(scrape_cut_trace):
+    (configmap,) = scrape_cut_trace["rendered_overlay"]["items"]
+    config = json.loads(configmap["data"]["prometheus.yml"])
+    config["scrape_configs"][0]["scrape_timeout"] = "600ms"
+    configmap["data"]["prometheus.yml"] = json.dumps(config)
+    with pytest.raises(ValueError, match="later scrape could not have been in flight"):
+        scrape_cut_evaluations(scrape_cut_trace)
+
+
+@pytest.mark.parametrize("case", ["mismatched_source", "older_success"])
+def test_scrape_cut_rejects_mismatched_sample_timestamp(scrape_cut_trace, case):
+    (source,) = (
+        row
+        for row in scrape_cut_trace["matrices"]
+        if row["metric"]["__name__"] == "j3_sample_timestamp_seconds"
+    )
+    if case == "mismatched_source":
+        source["values"][-1][1] = source["values"][0][1]
+        message = "demand timestamp differs from the exporter witness"
+    else:
+        source["values"].pop()
+        message = "later scrape could not have been in flight"
+    with pytest.raises(ValueError, match=message):
+        scrape_cut_evaluations(scrape_cut_trace)

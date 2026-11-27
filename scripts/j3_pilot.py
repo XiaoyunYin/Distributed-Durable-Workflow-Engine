@@ -36,7 +36,7 @@ from j3_overlay import (
     budget,
     render,
 )
-from j3_prometheus import evaluation_rows
+from j3_prometheus import evaluation_rows, scrape_timeout_ns
 from j3_replay import SECOND, replay, require
 from j3_slots import sample_ready_slots
 
@@ -600,10 +600,21 @@ def collect_replay_inputs(driver, target, origin, end):
         )
         matrices.extend(response["data"]["result"])
     (group,) = json_request(19090, "/api/v1/rules")["data"]["groups"]
-    kind.save(output / "prometheus-raw.json", {"matrices": matrices, "rule_group": group})
+    timeout_ns = scrape_timeout_ns(json.loads((output / "overlay.json").read_bytes()))
+    kind.save(
+        output / "prometheus-raw.json",
+        {"matrices": matrices, "rule_group": group, "scrape_timeout_ns": timeout_ns},
+    )
     path = output / "visibility.jsonl"
     path.write_bytes(request(19188, "/visibility.jsonl"))
-    return evaluation_rows(matrices, jsonl(path), target, origin, end, group["rules"])
+    evaluations = evaluation_rows(
+        matrices, jsonl(path), target, origin, end, group["rules"], timeout_ns
+    )
+    kind.save(
+        output / "in-flight-scrape-pairings.json",
+        [row for row in evaluations if "in_flight_scrape_starts_ns" in row],
+    )
+    return evaluations
 
 
 def pilot_replay(driver, target, keys, origin, setup):

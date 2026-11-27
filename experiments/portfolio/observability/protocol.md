@@ -179,3 +179,5 @@ This amendment follows review Round 590 and was informed by run 45993299758. Use
 4. **Clear bounds and disclosure.** Apply the existing clear bound and 10 s alignment tolerance to the amended clear transition. Report the first below-threshold time and the amended alert clear time. Disclose the original rule’s flap FAIL.
 5. **Rule and replay agreement.** The Prometheus rule, independent replay and promtool tests use the same 24-evaluation state machine.
 6. **Diagnostic replay.** After commit, replay the amended rule over the retained outages of runs 45915019609, 45942670753 and 45993299758. Label the results diagnostic. They cannot change any verdict.
+
+**2026-11-27 replay clarification (review Round 597).** Match each valid evaluation to the successful scrape carrying its exporter sample timestamp, and record any later-stamped failed scrape as possibly in flight only if it started within the rendered scrape timeout before that evaluation.
