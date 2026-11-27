@@ -193,29 +193,33 @@ def checkpoint(driver, job, label, identity, rate):
     return file_record(root / "freeze.json")["sha256"]
 
 
+def install_episode(driver, cell, previous, binaries):
+    if previous is None:
+        check_network(driver, APP)
+        for namespace in (NS, OTHER):
+            driver.k("-n", namespace, "delete", "pod", "unrelated", "--wait=true")
+    stepped = cell == "soak"
+    driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
+    driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
+    driver.pod_journal = STEP_JOURNAL if stepped else JOURNAL
+    driver.journal_name = "sender-journal.jsonl"
+    driver.install_checker()
+    binary, manifest = binaries[stepped]
+    install_sender(driver, binary, manifest, continuous=stepped)
+
+
 def exercise(driver, job, cell, rate, addresses, exporter, previous, binaries):
     with driver.stage(f"fresh-{cell}"):
         current = driver.fresh_episode(cell, addresses, exporter, previous)
     with driver.stage(f"install-{cell}"):
-        if previous is None:
-            check_network(driver, APP)
-            for namespace in (NS, OTHER):
-                driver.k("-n", namespace, "delete", "pod", "unrelated", "--wait=true")
-        stepped = cell == "soak"
-        driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
-        driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
-        driver.pod_journal = STEP_JOURNAL if stepped else JOURNAL
-        driver.journal_name = "sender-journal.jsonl"
-        driver.install_checker()
-        binary, manifest = binaries[stepped]
-        install_sender(driver, binary, manifest, continuous=stepped)
+        install_episode(driver, cell, previous, binaries)
     force_expiry = (job, cell) == EXPIRY_FIXTURE
     try:
         with driver.stage(cell), attribution_samples(driver):
             exercise_drain(
                 driver,
                 lambda: episode_schedule(job, cell, rate, time.time_ns() + LEAD_SECONDS * SECOND),
-                stepped=stepped,
+                stepped=cell == "soak",
                 visibility_delay=DRAIN_SECONDS - 15 if force_expiry else 0,
             )
     except DrainExpired as error:

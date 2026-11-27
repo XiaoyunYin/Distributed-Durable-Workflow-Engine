@@ -607,14 +607,20 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
         )
         check_monitor(errors)
         try:
-            retain_scrapes(
+            args = (
                 driver,
                 query,
                 schedule["origin_ns"] / SECOND,
                 final["upper_unix_ns"] / SECOND,
                 len(durable),
-                require_quiet=expired is None,
             )
+            if schedule.get("campaign_clock"):
+                from j2_measure_telemetry import cell_samples
+
+                series = retain_scrapes(*args, require_quiet=False, allow_gaps=True)
+                write(output / "cell-scrape-evidence.json", cell_samples(series, schedule))
+            else:
+                retain_scrapes(*args, require_quiet=expired is None)
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise ResourceEvidenceError(f"incomplete scrape evidence: {error}") from error
     if fingerprint(final) != result["final_fingerprint"]:

@@ -13,11 +13,12 @@ import tempfile
 import time
 import zipfile
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from urllib.request import Request
 
 from dur053_pilot import witness_events
-from j2_barrier import JOBS, RetryLater, canonical, decode
+from j2_barrier import JOBS, BarrierStop, Campaign, RetryLater, canonical, decode, digest
 from j2_barrier_rehearsal import client, context, report_round
 from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, verify_binary
 from j2_checker_report import indexed_report, require_checker_pass
@@ -32,6 +33,7 @@ from j2_integrated_rehearsal import (
     forecast,
     label_name,
 )
+from j2_measure_authorization import control_identity, traffic_disposition
 from j2_offline import SECOND, utc_ns
 from j2_prequalify_checker import WORKER_BASE
 from j2_qualification_evidence import file_record, read, require, verify, write
@@ -42,6 +44,174 @@ QUALIFICATION_HASH = "7e8e5d09f3ca5499b36dd9ddb88afaccb550f6ebaed552d62dd7311915
 QUALIFICATION_HEAD = "03f3c767a8143e47e0cd725fd33f1ce16a72faba"
 ZIP_BOUND = 512 << 20
 UNCOMPRESSED_BOUND = 3 << 30
+CONTROL_RUN = 45986168460
+CONTROL_HEAD = "fc8119bb8747a1b25b8a9f38877d998624c02e38"
+CONTROL_ARTIFACTS = {
+    f"j2-controls-{CONTROL_RUN}-1": (
+        15194936094,
+        "0b83fedd499fe8eccc86a7210c0baf068be22a0449ae54f87baf27b8d19c24ad",
+    ),
+    f"j2-controls-receipt-{CONTROL_RUN}-1": (
+        15194551561,
+        "69f12ef1defb05bc884a97e3b9da4fde0d14849c9119f9b11eed2c900489a1c5",
+    ),
+}
+
+
+def control_applicability(root, campaign):
+    from j2_controls import replay_archive
+
+    approved = read(root / "authorization.json")["ledger"]["dispatches"][-1]
+    paths = control_identity()
+    approved_digest = digest(canonical(paths))
+    require(
+        approved["head"] == campaign.head and approved["controls_sha256"] == approved_digest,
+        "approved control path applicability has drifted",
+    )
+    historical = Campaign(campaign.repository, CONTROL_RUN, 1, CONTROL_HEAD, "", {}, 0, "")
+    barrier = client(historical, root, time.monotonic() + 150)
+    metadata = barrier.retry(lambda: barrier.api.artifacts(historical, set(CONTROL_ARTIFACTS)))
+    require(set(metadata) == set(CONTROL_ARTIFACTS), "accepted control artifacts unavailable")
+    with tempfile.TemporaryDirectory(dir=root.parent) as tmp:
+        directory = Path(tmp)
+        archives = []
+        for index, (name, (artifact_id, hash_value)) in enumerate(CONTROL_ARTIFACTS.items()):
+            item = metadata[name]
+            require(
+                item["id"] == artifact_id and item["digest"] == "sha256:" + hash_value,
+                "historical control artifact binding differs",
+            )
+            archive = directory / f"{index}.zip"
+            barrier.retry(partial(download, barrier.api, item, archive))
+            archives.append(archive)
+        with zipfile.ZipFile(archives[1]) as receipt:
+            historical_replay = decode(receipt.read("offline-replay.json"))
+            source = decode(receipt.read("artifact.json"))
+        original = metadata[next(iter(CONTROL_ARTIFACTS))]
+        require(
+            source["id"] == original["id"]
+            and source["digest"] == original["digest"]
+            and source["workflow_run"]["head_sha"] == CONTROL_HEAD,
+            "control receipt does not bind the archived inputs",
+        )
+        replay = directory / "replay.json"
+        replay_archive(archives[0], replay)
+        observed = read(replay)
+    require(
+        canonical(observed) == canonical(historical_replay), "controls replay at this head differs"
+    )
+    write(
+        root / "controls-applicability.json",
+        {
+            "status": "PASS",
+            "head": campaign.head,
+            "controls_sha256": approved_digest,
+            "reviewer_approved_component_hashes": paths,
+            "artifacts": metadata,
+            "coverage": {
+                "execution_delay": "winning-attempt and latency join",
+                "withheld_terminal": "durable identity and checked drain",
+                "healthy_low_load": "stock K4 delivery, bins and quiet drain",
+                "capped_sender": "stock K4 misses and invalid delivery",
+            },
+            "verdicts": {
+                key: observed[key]
+                for key in (
+                    "execution_delay",
+                    "withheld_terminal",
+                    "healthy_low_load",
+                    "capped_sender",
+                )
+            },
+        },
+    )
+
+
+def measurement_receipts(output, campaign):
+    """Summarize immutable dispatch receipts and compare the live decisions."""
+    output.mkdir(parents=True)
+    gate = client(campaign, output, time.monotonic() + 240)
+    normal = {job: campaign.name("final", job) for job in JOBS}
+    denied = {
+        job: f"j2-measure-authorization-stop-{campaign.run}-{campaign.attempt}-job-{job}"
+        for job in JOBS
+    }
+    jobs = gate.retry(lambda: gate.api.jobs(campaign, allow_failed=True))
+    metadata = gate.retry(
+        lambda: gate.api.artifacts(campaign, {*normal.values(), *denied.values()})
+    )
+    dispatches, errors = {}, {}
+    for job in JOBS:
+        try:
+            require(job in jobs and jobs[job]["status"] == "completed", "matrix job is not closed")
+            require(
+                not (normal[job] in metadata and denied[job] in metadata),
+                "conflicting dispatch receipts",
+            )
+            name = normal[job] if normal[job] in metadata else denied[job]
+            artifact = metadata[name]
+            with tempfile.TemporaryDirectory(dir=output.parent) as temp:
+                directory = Path(temp)
+                archive = directory / "receipt.zip"
+                gate.retry(partial(download, gate.api, artifact, archive))
+                if name == normal[job]:
+                    extract(archive, directory / "verified")
+                    record = read(directory / "verified" / "campaign-dispatch.json")
+                    require(
+                        campaign.matches(record["binding"], job, jobs[job]["id"]),
+                        "dispatch receipt scope differs",
+                    )
+                else:
+                    with zipfile.ZipFile(archive) as bundle:
+                        record = decode(bundle.read("authorization-stop.json"))
+                    require(
+                        record["run"] == str(campaign.run)
+                        and record["job"] == job
+                        and record["campaign"] == campaign.campaign
+                        and record["bootstrap"] == "unperformed"
+                        and record["disposition"] == "no_requests",
+                        "pre-bootstrap refusal scope differs",
+                    )
+                dispatches[job] = {
+                    **record,
+                    "artifact_id": artifact["id"],
+                    "digest": artifact["digest"],
+                }
+        except (KeyError, OSError, ValueError, zipfile.BadZipFile) as error:
+            errors[job] = str(error)
+    disposition = traffic_disposition(
+        [*dispatches.values(), *({"disposition": "unresolved"} for _ in errors)]
+    )
+    agreement = {"status": "unverified"}
+    if len(jobs) == len(JOBS) and all(row["conclusion"] == "success" for row in jobs.values()):
+        try:
+            decision, peers = gate.grids()
+            agreement = {
+                "status": "verified",
+                "decision": decision,
+                "receipts": gate.decisions(decision, peers),
+            }
+        except (BarrierStop, RetryLater) as error:
+            agreement["reason"] = str(error)
+    write(
+        output / "campaign-dispatch-manifest.json",
+        {
+            "campaign": campaign.campaign,
+            "head": campaign.head,
+            "run_id": campaign.run,
+            "attempt": campaign.attempt,
+            "scope": campaign.scope,
+            "disposition": disposition,
+            "reason": {
+                "consumed": "at least one job retained an HTTP send",
+                "no_requests": "all three jobs retained verified no-request dispositions",
+                "unresolved": "the closed job receipts do not establish zero requests",
+            }[disposition],
+            "jobs": dispatches,
+            "errors": errors,
+            "live_grid_agreement": agreement,
+        },
+    )
 
 
 def download(api, metadata, path):

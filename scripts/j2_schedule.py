@@ -28,6 +28,10 @@ MEASURED = 600
 HOLD = 1800
 STEP = 300
 MEASURED_CAMPAIGN = "j2-load-envelope-v1"
+ENGINEERING_WARMUP = 15
+ENGINEERING_GRID = 60
+ENGINEERING_HOLD = 115
+ENGINEERING_STEP = 60
 CAP = 16
 REQUEST_TIMEOUT = "10s"
 ENGINEERING = "engineering timing only"
@@ -146,9 +150,13 @@ def registered_population(schedule, cohorts):
         and sum(window_counts.values()) == expected["count"],
         "registered schedule or population bound differs",
     )
+    return population_record(schedule, cohorts)
+
+
+def population_record(schedule, cohorts):
     return {
-        "bound": expected["population_bound"],
-        "scheduled": expected["count"],
+        "bound": schedule.get("population_bound", schedule["count"]),
+        "scheduled": schedule["count"],
         "windows": {
             name: {
                 "scheduled": cohort["offered"],

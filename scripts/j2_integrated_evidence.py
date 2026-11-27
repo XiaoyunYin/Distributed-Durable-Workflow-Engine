@@ -9,7 +9,7 @@ from j2_offline import ClockEvidenceError, bins_gate, clock_evidence, summarize
 from j2_qualification_evidence import DRAIN_SECONDS, read, require
 from j2_qualification_resources import checker_resource_summary, require_checker_resources
 from j2_qualify_volume import OBSERVER_LIMIT
-from j2_schedule import RATES, k4_report, registered_population
+from j2_schedule import RATES, k4_report, population_record, registered_population
 from j2_step_rehearsal import verified_crossings
 
 
@@ -19,14 +19,15 @@ def summarize_episode(root, *, snapshot_only=False):
     final = read(root / "final.json")
     expired = result.get("classification") == "drain_failure"
     registered = schedule.get("registered_clock") is True
-    if registered:
+    campaign = registered or schedule.get("campaign_clock") is True
+    if campaign:
         require_checker_exit(read(root / "live-checker-read.json")["exit"])
     try:
         checked, width = (
             replay_episode(root, snapshot_only=True) if snapshot_only else replay_episode(root)
         )
     except ClockEvidenceError as error:
-        if registered:
+        if campaign:
             raise
         raise IntegrityError(f"checked evidence failed replay: {error}") from error
     except (KeyError, OSError, ValueError) as error:
@@ -122,7 +123,7 @@ def summarize_episode(root, *, snapshot_only=False):
             raise IntegrityError("workers changed across the continuous step")
         crossing = verified_crossings(probe, checked, boundary, width, pending=result["pending"])
     samples = gates_samples(read(root / "prometheus-samples.json"))
-    pending = set(result["pending"]) if registered and expired else set()
+    pending = set(result["pending"]) if campaign and expired else set()
     cohorts = {}
     for name, lo, hi in windows:
         offered = {
@@ -133,14 +134,14 @@ def summarize_episode(root, *, snapshot_only=False):
             {
                 "workflow_id": key,
                 "scheduled_ns": entry["scheduled_ns"],
-                "status": "censored" if not registered or key in pending else "unresolved",
+                "status": "censored" if not campaign or key in pending else "unresolved",
                 "admitted": key in committed,
                 "attempts": attempts[key],
             }
             for key, entry in offered.items()
             if key not in rows
         ]
-        phases = summarize([*observed, *unresolved] if registered else observed)
+        phases = summarize([*observed, *unresolved] if campaign else observed)
         if unresolved:
             phases["censored_keys"] = sorted(
                 row["workflow_id"] for row in unresolved if row["status"] == "censored"
@@ -168,9 +169,9 @@ def summarize_episode(root, *, snapshot_only=False):
                 lo,
                 hi,
                 sender_valid,
-                checked_expiry=registered and expired,
+                checked_expiry=campaign and expired,
             )
-        if registered:
+        if campaign:
             cohorts[name]["first_observed_minus_durable_ns"] = {
                 row["workflow_id"]: row["polling_minus_durable_ns"] for row in observed
             }
@@ -185,13 +186,17 @@ def summarize_episode(root, *, snapshot_only=False):
     }
     if not snapshot_only:
         summary["checker_peak_rss_kib"] = resources["checker_peak_rss_kib"]
-    if registered:
+    if campaign:
         clock = clock_evidence(read(root / "clock.json"), start, final["upper_unix_ns"])
         require(clock["uncertainty_ns"] == width, "replayed clock uncertainty differs")
         summary.update(
-            registered_clock=True,
+            registered_clock=registered,
             clock=clock,
-            population=registered_population(schedule, cohorts),
+            population=(
+                registered_population(schedule, cohorts)
+                if registered
+                else population_record(schedule, cohorts)
+            ),
         )
         if boundary is not None:
             summary["soak_evidence_eligible"] = (

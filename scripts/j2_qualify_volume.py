@@ -783,12 +783,14 @@ def populate(driver, count, plan, monitor_errors):
     return start, stop
 
 
-def retain_scrapes(driver, query, start, end, count, *, require_quiet=True):
+def retain_scrapes(driver, query, start, end, count, *, require_quiet=True, allow_gaps=False):
     span = int(end - start) + 12
     series = {metric: query(f"{metric}{{job='j2'}}[{span}s]", end) for metric in METRICS}
     write(driver.output / "prometheus-samples.json", series)
     summary = scrape_summary(series, start, end, count, require_quiet=require_quiet)
     write(driver.output / "sample-gaps.json", summary)
+    if allow_gaps:
+        return series
     require(
         summary["max_scrape_gap_seconds"] <= 5 and summary["max_query_gap_seconds"] <= 5,
         f"qualification sample gap: {summary}",

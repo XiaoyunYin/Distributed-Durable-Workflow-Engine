@@ -7,6 +7,10 @@ inputs:
   slot:
     description: Position in the registered grid order
     required: true
+  driver:
+    description: Integrated cell driver
+    required: false
+    default: rehearsal
 runs:
   using: composite
   steps:
@@ -16,7 +20,14 @@ runs:
       env:
         J2_JOB: ${{ inputs.job }}
         J2_SLOT: ${{ inputs.slot }}
-      run: python3 scripts/j2_integrated_rehearsal.py cell "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_SLOT"
+        J2_CELL_DRIVER: ${{ inputs.driver }}
+      run: |
+        case "$J2_CELL_DRIVER" in
+          rehearsal) script=scripts/j2_integrated_rehearsal.py ;;
+          measure) script=scripts/j2_measure.py ;;
+          *) exit 1 ;;
+        esac
+        python3 "$script" cell "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_SLOT"
     - name: Retain the checked checkpoint
       id: upload
       if: steps.cell.outputs.sealed == 'true'
@@ -36,4 +47,11 @@ runs:
         J2_CELL: ${{ steps.cell.outputs.cell }}
         CHECKPOINT_ID: ${{ steps.upload.outputs.artifact-id }}
         CHECKPOINT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
-      run: python3 scripts/j2_integrated_rehearsal.py receipt "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_CELL"
+        J2_CELL_DRIVER: ${{ inputs.driver }}
+      run: |
+        case "$J2_CELL_DRIVER" in
+          rehearsal) script=scripts/j2_integrated_rehearsal.py ;;
+          measure) script=scripts/j2_measure.py ;;
+          *) exit 1 ;;
+        esac
+        python3 "$script" receipt "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_CELL"

@@ -192,7 +192,18 @@ def test_three_local_decisions_and_matching_reporting_bytes(scenario, volume, ra
     assert all("secret" not in str(event) for event in gh.log)
 
 
-@pytest.mark.parametrize("change", [None, "bound", "checked_count", "window_count"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        None,
+        "bound",
+        "checked_count",
+        "window_count",
+        "resource_invalid",
+        "unverified_reset",
+        "incomplete",
+    ],
+)
 def test_registered_grid_binds_actual_window_counts(change):
     gh = GitHub()
     gh.campaign = replace(gh.campaign, scope=barrier.REGISTERED_GRID_SCOPE)
@@ -217,6 +228,7 @@ def test_registered_grid_binds_actual_window_counts(change):
                     ),
                 },
             )
+            cell["recovery"] = None
         population = body["cells"][0]["population"]
         if change == "bound":
             population["bound"] -= 1
@@ -224,13 +236,37 @@ def test_registered_grid_binds_actual_window_counts(change):
             population["windows"]["grid"]["checked_success"] -= 1
         elif change == "window_count":
             population["windows"]["warmup"]["scheduled"] += 1
+        elif change in {"resource_invalid", "unverified_reset"}:
+            body["cells"][0].update(
+                outcome="invalid",
+                reason="resource_evidence",
+                recovery={
+                    "replaced_with": "AB",
+                    "telemetry_sha256": "a" * 64,
+                    "identity_sha256": "b" * 64,
+                    "series": ["j2_outstanding"],
+                }
+                if change == "resource_invalid"
+                else None,
+            )
+        elif change == "incomplete":
+            body["cells"].pop()
 
     meta = gh.grid(1, change=population_rows)
     body, _ = barrier.read_bundle(gh.blobs[meta["id"]], "grid")
-    if change is None:
+    if change in {None, "resource_invalid"}:
         assert barrier.validate_grid(body, gh.campaign, 1, 101) == body
+        if change:
+            assert (
+                barrier.decide(
+                    dict.fromkeys(barrier.JOBS, body), dict.fromkeys(barrier.JOBS, "hash"), 26678
+                )["selected_rate"]
+                == "AB"
+            )
     else:
-        with pytest.raises(barrier.BarrierStop, match="population"):
+        with pytest.raises(
+            barrier.BarrierStop, match="population|invalid cell recovery|incomplete"
+        ):
             barrier.validate_grid(body, gh.campaign, 1, 101)
 
 
