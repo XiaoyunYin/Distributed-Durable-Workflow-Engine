@@ -805,6 +805,9 @@ def hosted_arguments(description, *, with_checker=False):
         parser.add_argument(name, type=Path)
     if with_checker:
         parser.add_argument("checker", type=Path)
+        parser.add_argument("--stage", choices=("calibration", "confirmation"), required=True)
+        parser.add_argument("--seal", type=Path)
+        parser.add_argument("--seal-digest")
     args = parser.parse_args()
     require(
         os.environ.get("GITHUB_ACTIONS") == "true"

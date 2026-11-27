@@ -14,7 +14,73 @@ import j3_admission_diagnostics as admission  # noqa: E402
 import j3_diagnostics as diagnostics  # noqa: E402
 import j3_episode as episode  # noqa: E402
 import j3_qualification as j3  # noqa: E402
+import j3_schedule as schedule  # noqa: E402
 import j3_slots as slots  # noqa: E402
+
+
+@pytest.mark.parametrize("stage", ["calibration", "confirmation"])
+def test_qualification_job_uses_only_its_registered_arms(tmp_path, monkeypatch, stage):
+    (tmp_path / "sender.sha256").write_text("sender", encoding="ascii")
+    (tmp_path / "run.json").write_text("{}", encoding="ascii")
+    args = SimpleNamespace(evidence=tmp_path, stage=stage, sender=Path("sender"))
+    driver = SimpleNamespace(reset=lambda: None, fresh_episode=lambda *_args: (None, None, None))
+    monkeypatch.setenv("J3_JOB_STARTED", "1")
+    monkeypatch.setenv("GITHUB_SHA", "head")
+    monkeypatch.setattr(j3, "runner_pressure", lambda *_: nullcontext())
+    monkeypatch.setattr(j3, "retain_postgres_log", lambda *_a, **_k: None)
+    monkeypatch.setattr(j3, "retain_monitor_logs", lambda *_a, **_k: None)
+    calls = []
+    sealed = {"matched_healthy": {"stop_s": 2460}, "primary": {"stop_s": 2460}}
+
+    def run_episode(
+        _driver, _pins, target, arm, _run, _setup, _observer, _binary, duration, bounds
+    ):
+        calls.append((target["namespace"], arm, duration))
+        assert target["campaign"] == "j3-r417-example"
+        if target["namespace"] in {f"j3-target-outage-{i}" for i in range(1, 4)}:
+            (driver.output / "outage.json").write_text("{}", encoding="ascii")
+        if target["namespace"] == "j3-target-full-volume":
+            assert bounds is sealed["primary"]
+            raise j3.EpisodeFailure("sealed pre-restore catch-up bound missed")
+        return 10 * j3.SECOND, 20 * j3.SECOND
+
+    def forecast(paths, measured):
+        assert len(paths) == 3 and measured.keys() == schedule.CALIBRATION_MINUTES.keys()
+        return {"status": "HALT", "reason": "forecast_over_cap"}
+
+    monkeypatch.setattr(j3, "run_episode", run_episode)
+    monkeypatch.setattr(j3, "restored_rate", lambda _: (j3.ARRIVAL_RATE + 1, {}))
+    monkeypatch.setattr(j3, "derive_from_outages", forecast)
+    if stage == "calibration":
+        result = j3.run_qualification(driver, args, {}, {}, "j3-r417-example")
+        assert result["status"] == "HALT"
+        assert calls == [
+            ("j3-target-foreign", "foreign", 1200),
+            ("j3-target-outage-1", "outage", 2220),
+            ("j3-target-outage-2", "outage", 2220),
+            ("j3-target-outage-3", "outage", 2220),
+            ("j3-target-scrape-loss", "scrape_loss", 720),
+        ]
+    else:
+        with pytest.raises(j3.EpisodeFailure, match="sealed pre-restore catch-up bound missed"):
+            j3.run_qualification(driver, args, {}, {}, "j3-r417-example", sealed)
+        verdict = json.loads((tmp_path / "verdict.json").read_bytes())
+        assert verdict["status"] == "FAIL"
+        assert calls == [
+            ("j3-target-matched-healthy", "matched_healthy", 2460),
+            ("j3-target-full-volume", "outage", 2460),
+        ]
+    assert not (tmp_path / "sealed-schedule.json").exists()
+    assert not (tmp_path / "schedule-seal.json").exists()
+
+
+def test_runner_inventory_records_cpu_model_and_online_cores(tmp_path, monkeypatch):
+    source = tmp_path / "cpuinfo"
+    source.write_text("model name : Host CPU\nmodel name : Host CPU\n", encoding="ascii")
+    monkeypatch.setattr(
+        j3.os, "sysconf", lambda key: 4 if key == "SC_NPROCESSORS_ONLN" else None, raising=False
+    )
+    assert j3.runner_cpu(source) == {"cpu_models": ["Host CPU"], "online_cores": 4}
 
 
 def test_full_volume_refuses_a_checker_that_differs_from_the_lock(tmp_path):

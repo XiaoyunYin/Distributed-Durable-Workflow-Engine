@@ -84,11 +84,14 @@ jobs:
           name: j3-exporter-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-exporter/
           if-no-files-found: warn
-  hosted:
+  calibration:
     if: github.event_name == 'workflow_dispatch' && inputs.mode != 'sql-benchmark'
-    name: ${{ inputs.mode == 'qualification' && 'Qualification' || 'Overlay pilot' }}
+    name: ${{ inputs.mode == 'qualification' && 'Calibration and seal' || 'Overlay pilot' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.mode == 'qualification' && 350 || 35 }}
+    outputs:
+      seal-id: ${{ steps.seal.outputs.artifact-id }}
+      seal-digest: ${{ steps.seal.outputs.artifact-digest }}
     env:
       GOMAXPROCS: '2'
       PYTHONDONTWRITEBYTECODE: '1'
@@ -114,53 +117,89 @@ jobs:
       - name: Restore locked OCI artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          evidence="$RUNNER_TEMP/j3-$J3_MODE"
-          mkdir -p "$evidence"
-          exec > >(tee "$evidence/restore.log") 2>&1
-          for lock in experiments/portfolio/load-envelope/images.lock.json experiments/portfolio/observability/exporter.lock.json; do
-            name=$(basename "$lock" .lock.json)
-            artifact=$(jq -er .artifact "$lock")
-            archive="$RUNNER_TEMP/j3-$name.zip"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
-            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
-            unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
-          done
-          exporter_layout="$RUNNER_TEMP/j3-exporter-layout"
-          exporter_lock=experiments/portfolio/observability/exporter.lock.json
-          sha256sum -c "$exporter_layout/source.sha256"
-          diff <(jq -er .build_head "$exporter_lock") "$exporter_layout/source.txt"
-          diff <(jq -er .binary_sha256 "$exporter_lock") "$exporter_layout/binary.sha256"
-          CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
-            -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
-          sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"
-          if [[ "$J3_MODE" == pilot ]]; then
-            go test -p 1 ./experiments/portfolio/observability/probe
-          else
-            prom=$(PYTHONPATH=scripts python3 -c 'from j3_overlay import PINS,PROM; print(PINS[PROM])')
-            python3 scripts/j3_rules.py "$evidence/promtool"
-            for args in 'check rules rules.yml' 'test rules tests.yml'; do
-              docker run --rm --entrypoint=/bin/promtool -v "$evidence/promtool:/rules:ro" \
-                -w /rules "$prom" $args
-            done
-          fi
+        run: bash scripts/j3_prepare_hosted.sh "$RUNNER_TEMP/j3-$J3_MODE" "$J3_MODE"
       - name: Prove private overlay and foreign dispatch isolation
         if: inputs.mode == 'pilot'
         run: |
           python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
             "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
-      - name: Qualify outage, controls and full-volume identity drain
+      - name: Run the calibration outages and seal the confirmation schedule
         if: inputs.mode == 'qualification'
         run: |
           python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-qualification" "$RUNNER_TEMP/j3-scratch" \
             "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
-            "$RUNNER_TEMP/j3-tooling/checker"
+            "$RUNNER_TEMP/j3-tooling/checker" --stage calibration
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.mode == 'qualification'
+        id: seal
+        with:
+          name: j3-schedule-seal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/j3-qualification/sealed-schedule.json
+            ${{ runner.temp }}/j3-qualification/schedule-seal.json
+          if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: j3-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j3-${{ inputs.mode == 'qualification' && 'calibration' || 'pilot' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-${{ inputs.mode }}/
+          if-no-files-found: warn
+  confirmation:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'
+    needs: calibration
+    name: Confirmation on a fresh runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Record job start
+        run: echo "J3_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - name: Download and verify the frozen calibration artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEAL_ID: ${{ needs.calibration.outputs.seal-id }}
+          SEAL_DIGEST: ${{ needs.calibration.outputs.seal-digest }}
+        run: |
+          set -euo pipefail
+          seal="$RUNNER_TEMP/j3-schedule-seal.zip"
+          mkdir -p "$RUNNER_TEMP/j3-confirmation"
+          exec > >(tee "$RUNNER_TEMP/j3-confirmation/seal-verification.log") 2>&1
+          [[ "$SEAL_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEAL_ID/zip" > "$seal"
+          PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), *sys.argv[2:]); print("Verified calibration artifact and its forecast")' \
+            "$seal" "$SEAL_DIGEST" "j3-r417-$GITHUB_RUN_ID" "$GITHUB_SHA"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Reproduce the locked J2 checker
+        run: |
+          set -euo pipefail
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-confirmation/checker-build.log"
+      - name: Restore locked OCI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j3_prepare_hosted.sh "$RUNNER_TEMP/j3-confirmation" qualification
+      - name: Run the sealed matched-healthy and full-volume confirmation
+        env:
+          SEAL_DIGEST: ${{ needs.calibration.outputs.seal-digest }}
+        run: |
+          python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-confirmation" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
+            "$RUNNER_TEMP/j3-tooling/checker" --stage confirmation \
+            --seal "$RUNNER_TEMP/j3-schedule-seal.zip" --seal-digest "$SEAL_DIGEST"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-confirmation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-confirmation/
           if-no-files-found: warn
   sql-benchmark:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'sql-benchmark'

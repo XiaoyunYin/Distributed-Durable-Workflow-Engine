@@ -23,8 +23,11 @@ Ready slots from Ready pods and their worker witness sessions. Stale Ready-slot
 observations and unavailable takeover or stale-rejection inputs appear as gaps.
 
 Select `qualification` when dispatching J3 observability on the qualification
-head. The job runs the healthy foreign fixture, three 300-second outages at A,
-and the baseline matched-healthy and scrape-loss controls needed for the forecast.
+head. Calibration runs the healthy foreign fixture, three 300-second outages
+with offers at A through 2,220 seconds, and the scrape-loss control. It seals
+the recovery tail under the [pre-measurement amendment](protocol.md#2026-11-27-pre-measurement-amendment).
+A fresh runner checks the seal artifact digest before running matched-healthy
+and full-volume confirmation with the sealed tail.
 Each episode starts with fresh database, broker, witness and telemetry state.
 The real partition-lease probe runs only in the unmeasured `pilot` mode.
 
@@ -87,12 +90,12 @@ The workflow checks the archive and build inputs against the lock. Each
 episode verifies the running exporter digest before arming.
 
 `scripts/j3_schedule.py OUTPUT OUTAGE1 OUTAGE2 OUTAGE3 --measurements FILE`
-uses actual PostgreSQL admission and terminal commit times. It records the rate
-population, each stop time, recovery time, shifted bounds and arrival volume.
-The forecast uses the greater of the reservation and measured baseline for each
-allowance, then charges Δ to both extended arms. The job seals the schedule
-before the full-volume stop, restore and identity drain. It saves each episode,
-forecast input, verdict and hash index in the attempt's Actions artifact.
+uses PostgreSQL admission and terminal commit times and each outage's sibling
+`calibration-recovery.json`. It records the rate populations, recovery
+endpoints, shifted bounds and arrival volume. Forecasts use the greater of
+reserved and measured allowances and charge Δ to both confirmation arms.
+Each job retains its episodes, forecast inputs, verdict and hash index in its
+own Actions artifact.
 
 The full-volume check uses the [locked J2 checker](../load-envelope/checker.lock.json).
 The job reproduces it with the [J2 builder](../../../scripts/j2_checker.py),

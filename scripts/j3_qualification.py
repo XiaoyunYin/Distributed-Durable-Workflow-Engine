@@ -5,11 +5,11 @@ import json
 import os
 import secrets
 import subprocess
-import sys
 import time
 from contextlib import ExitStack, suppress
 from http.client import HTTPException
 from math import ceil
+from pathlib import Path
 from statistics import median
 
 import dur053_k3 as kind
@@ -68,11 +68,23 @@ from j3_pilot import (
 )
 from j3_prometheus import epoch_ns
 from j3_replay import DEADLINE, DOMAIN, SECOND, replay, require
-from j3_schedule import ARRIVAL_RATE, FORECAST_CAP, restored_rate
+from j3_schedule import (
+    ARRIVAL_RATE,
+    BASE_STOP,
+    CALIBRATION_ARMS,
+    CONFIRMATION_ARMS,
+    FORECAST_CAP,
+    QUALIFICATION_CAP,
+    derive,
+    derive_from_outages,
+    measurement_forecast,
+    qualification_forecast,
+    recovery_evidence,
+    restored_rate,
+    verify_seal,
+)
 from j3_slots import OUTAGE_SLOT_BOUNDARIES, SCRAPE_SLOT_BOUNDARIES
 
-ROOT = J3.parents[2]
-BASE_STOP = 2220
 ALERT_SETUP_SECONDS = 30
 
 
@@ -569,6 +581,30 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                 evidence = outage_commits(
                     driver, origin, fault["down"], fault["restore"], fault["backlog"]
                 )
+                kind.save(
+                    driver.output / "actual-clears.json",
+                    [
+                        {
+                            **row,
+                            "seconds_from_origin": (row["at_ns"] - origin) / SECOND,
+                            "seconds_from_restore": (row["at_ns"] - fault["restore"]) / SECOND,
+                        }
+                        for row in transitions
+                        if not row["firing"]
+                    ],
+                )
+                if bounds is None:
+                    recovery = recovery_evidence(evidence, evaluations, transitions, stop)
+                    kind.save(driver.output / "calibration-recovery.json", recovery)
+                    require_behavior(
+                        recovery["terminal_endpoint"] is not None
+                        and recovery["age_endpoint"] is not None,
+                        "calibration recovery endpoint unobserved",
+                    )
+                    require_behavior(
+                        not recovery["oldest_refires_before_stop"],
+                        "OldestClaimable re-fired before calibration offers stopped",
+                    )
                 witness = verify_outage(
                     evidence,
                     evaluations,
@@ -606,21 +642,25 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                     collect_replay_inputs(driver, target, origin, end or time.time_ns())
 
 
-def run_qualification(driver, args, addresses, pins):
+def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
     root = args.evidence
+    stage = args.stage
     runs = {}
-    verdict = {"status": "INVALID", "episodes": runs}
+    verdict = {"status": "INVALID", "stage": stage, "campaign": campaign, "episodes": runs}
+    started = int(os.environ["J3_JOB_STARTED"])
+    first_origin = None
 
     def save_verdict():
         kind.save(root / "verdict.json", verdict)
 
     def episode(name, arm, duration, bounds=None, reset=True):
+        nonlocal first_origin
         out = root / name
         out.mkdir()
         driver.output = out
         (out / "sender.sha256").write_bytes((root / "sender.sha256").read_bytes())
         target = {
-            "campaign": f"j3-qualification-{os.environ['GITHUB_RUN_ID']}",
+            "campaign": campaign,
             "namespace": f"j3-target-{name}",
         }
         runs[name] = {"status": "RUNNING", "target": target}
@@ -665,83 +705,76 @@ def run_qualification(driver, args, addresses, pins):
             arm_seconds=ceil((end - origin) / SECOND),
             export_reset_seconds=ceil((time.time_ns() - end) / SECOND),
         )
+        if first_origin is None:
+            first_origin = origin
         save_verdict()
-        return origin
 
-    schedule = root / "schedule-proposal.json"
-    outages = [root / f"outage-{i}" / "outage.json" for i in (1, 2, 3)]
-    measured = root / "forecast-measurements.json"
-
-    def derive_schedule(seconds):
-        kind.save(measured, seconds)
-        calculation = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts/j3_schedule.py"),
-                str(schedule),
-                *map(str, outages),
-                "--measurements",
-                str(measured),
-            ],
-            check=False,
-        )
-        result = json.loads(schedule.read_bytes())
-        require(
-            calculation.returncode in {0, 1} and result["status"] != "INVALID",
-            "invalid schedule derivation",
-        )
+    def durations(final_evidence):
+        result = {
+            "bootstrap": ceil(first_origin / SECOND - started),
+            "final_evidence": final_evidence,
+        }
+        for index, (name, row) in enumerate(runs.items()):
+            result[name] = row["arm_seconds"]
+            result[f"{name}_closeout"] = row["export_reset_seconds"] + (
+                row["setup_seconds"] if index else 0
+            )
         return result
 
     try:
-        first = episode("foreign", "foreign", 1200)
-        for i, duration in enumerate((1440, 1440, BASE_STOP), 1):
-            episode(f"outage-{i}", "outage", duration)
-        rates = [restored_rate(json.loads(path.read_bytes()))[0] for path in outages]
-        if median(rates) <= ARRIVAL_RATE:
-            result = derive_schedule({})
-        else:
-            episode("matched-healthy", "matched_healthy", BASE_STOP)
-            episode("scrape-loss", "scrape_loss", 720)
-            started = time.monotonic()
+        if stage == "calibration":
+            outages = [root / f"outage-{i}" / "outage.json" for i in range(1, 4)]
+            for name, (arm, duration, _) in CALIBRATION_ARMS.items():
+                if arm == "scrape_loss":
+                    rates = [restored_rate(json.loads(path.read_bytes()))[0] for path in outages]
+                    if median(rates) <= ARRIVAL_RATE:
+                        result = derive(rates, [])
+                        kind.save(root / "schedule-proposal.json", result)
+                        verdict.update(status="HALT", reason=result["reason"])
+                        return verdict
+                episode(name, arm, duration)
+            t = time.monotonic()
             kind.save(root / "preseal-evidence-sha256.json", kind.artifact_hashes(root))
-            result = derive_schedule(
+            measured = durations(ceil(time.monotonic() - t))
+            kind.save(root / "forecast-measurements.json", measured)
+            result = derive_from_outages(outages, measured)
+            proposal = root / "schedule-proposal.json"
+            kind.save(proposal, result)
+            if result["status"] == "HALT":
+                verdict.update(status="HALT", reason=result["reason"])
+                return verdict
+            schedule = root / "sealed-schedule.json"
+            schedule.write_bytes(proposal.read_bytes())
+            inputs = [*outages, root / "forecast-measurements.json"]
+            inputs.extend(path.with_name("calibration-recovery.json") for path in outages)
+            kind.save(
+                root / "schedule-seal.json",
                 {
-                    "bootstrap": ceil(first / SECOND - int(os.environ["J3_JOB_STARTED"])),
-                    "primary": runs["outage-3"]["arm_seconds"],
-                    "matched_healthy": runs["matched-healthy"]["arm_seconds"],
-                    "foreign": runs["foreign"]["arm_seconds"],
-                    "scrape_loss": runs["scrape-loss"]["arm_seconds"],
-                    "primary_export_reset": max(
-                        runs[f"outage-{i}"]["export_reset_seconds"] for i in (1, 2, 3)
-                    ),
-                    "matched_healthy_export_reset": runs["matched-healthy"]["export_reset_seconds"],
-                    "foreign_export_reset": runs["foreign"]["export_reset_seconds"],
-                    "final_evidence": ceil(time.monotonic() - started)
-                    + runs["scrape-loss"]["export_reset_seconds"],
-                }
-            )
-        if result["status"] == "HALT":
-            verdict.update(status="HALT", reason=result["reason"], full_volume="UNPERFORMED")
-            return verdict
-        sealed = root / "sealed-schedule.json"
-        sealed.write_bytes(schedule.read_bytes())
-        kind.save(
-            root / "schedule-seal.json",
-            {
-                "sha256": hashlib.sha256(sealed.read_bytes()).hexdigest(),
-                "inputs": {
-                    str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-                    for p in [*outages, measured]
+                    "sha256": hashlib.sha256(schedule.read_bytes()).hexdigest(),
+                    "campaign": campaign,
+                    "head": os.environ["GITHUB_SHA"],
+                    "inputs": {
+                        str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in inputs
+                    },
+                    "sealed_ns": time.time_ns(),
                 },
-                "sealed_ns": time.time_ns(),
-            },
-        )
-        episode(
-            "full-volume", "outage", result["primary"]["stop_s"], result["primary"], reset=False
-        )
-        quiet = json.loads((root / "full-volume/identity-drain.json").read_bytes())
-        require(quiet["admitted"] == result["arrival_volume"], "sealed arrival volume differs")
-        verdict.update(status="PASS", full_volume="PASS")
+            )
+            verdict.update(status="PASS")
+        else:
+            episode("matched-healthy", "matched_healthy", sealed["matched_healthy"]["stop_s"])
+            episode(
+                "full-volume", "outage", sealed["primary"]["stop_s"], sealed["primary"], reset=False
+            )
+            quiet = json.loads((root / "full-volume/identity-drain.json").read_bytes())
+            require(quiet["admitted"] == sealed["arrival_volume"], "sealed arrival volume differs")
+            forecast = measurement_forecast(
+                sealed["delta_s"], sealed["calibration_measured_seconds"], durations(0)
+            )
+            kind.save(root / "measurement-forecast.json", forecast)
+            verdict.update(status="PASS", full_volume="PASS")
+            if forecast["forecast_seconds"] > FORECAST_CAP * 60:
+                verdict.update(status="HALT", reason="measurement_forecast_over_cap")
     except Exception as error:
         status = "INVALID"
         if isinstance(error, CheckerError):
@@ -758,23 +791,65 @@ def run_qualification(driver, args, addresses, pins):
                 row.update(status=verdict["status"], error=str(error))
         raise
     finally:
-        for name in (
-            "foreign",
-            "outage-1",
-            "outage-2",
-            "outage-3",
-            "matched-healthy",
-            "scrape-loss",
-            "full-volume",
-        ):
+        for name in CALIBRATION_ARMS if stage == "calibration" else CONFIRMATION_ARMS:
             runs.setdefault(name, {"status": "UNPERFORMED"})
         save_verdict()
     return verdict
 
 
+def runner_cpu(cpuinfo=Path("/proc/cpuinfo")):
+    models = sorted(
+        {
+            value.strip()
+            for line in cpuinfo.read_text(encoding="utf-8").splitlines()
+            for key, _, value in [line.partition(":")]
+            if key.strip() == "model name"
+        }
+    )
+    cores = os.sysconf("SC_NPROCESSORS_ONLN")
+    require(models and cores > 0, "missing hosted runner CPU inventory")
+    return {"cpu_models": models, "online_cores": cores}
+
+
 def main():
     args = hosted_arguments(__doc__, with_checker=True)
     require(os.environ["GITHUB_RUN_ATTEMPT"] == "1", "qualification requires attempt 1")
+    campaign = f"j3-r417-{os.environ['GITHUB_RUN_ID']}"
+    sealed = None
+    try:
+        if args.stage == "confirmation":
+            require(
+                args.seal and args.seal_digest, "confirmation requires the calibration artifact"
+            )
+            sealed, provenance = verify_seal(
+                args.seal, args.seal_digest, campaign, os.environ["GITHUB_SHA"]
+            )
+            kind.save(
+                args.evidence / "verified-schedule.json",
+                {
+                    "artifact_digest": args.seal_digest,
+                    "seal": provenance,
+                    "schedule": sealed,
+                },
+            )
+        else:
+            forecast = qualification_forecast(0)["calibration"]
+            require(
+                forecast["forecast_seconds"] <= QUALIFICATION_CAP * 60,
+                "calibration forecast over cap",
+            )
+            kind.save(args.evidence / "calibration-forecast.json", forecast)
+    except Exception as error:
+        kind.save(
+            args.evidence / "verdict.json",
+            {
+                "status": "INVALID",
+                "stage": args.stage,
+                "campaign": campaign,
+                "reason": str(error),
+            },
+        )
+        raise
     kind.CLUSTER, kind.LABEL = "j3-qualification", "j3.qualification=owned"
     driver = Qualification(args.evidence, args.scratch, args.checker)
     # Reserve the last 15 minutes for failure evidence, cleanup and upload.
@@ -784,6 +859,8 @@ def main():
         args.evidence / "run.json",
         {
             "scope": "harness qualification",
+            "stage": args.stage,
+            "campaign": campaign,
             "run": os.environ["GITHUB_RUN_ID"],
             "head": os.environ["GITHUB_SHA"],
             "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
@@ -791,13 +868,14 @@ def main():
             "checker": verify_binary(driver.checker),
             "images": {**driver.images, **pins},
             "kubernetes_namespace": APP,
+            "runner": runner_cpu(),
         },
     )
     verdict = {"status": "INVALID", "reason": "qualification bootstrap did not complete"}
     try:
         addresses = bootstrap(driver, args, pins)
         driver.enable_commit_timestamps()
-        verdict = run_qualification(driver, args, addresses, pins)
+        verdict = run_qualification(driver, args, addresses, pins, campaign, sealed)
     finally:
         path = args.evidence / "verdict.json"
         if path.exists():
