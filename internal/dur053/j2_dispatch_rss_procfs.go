@@ -1,3 +1,5 @@
+//go:build linux
+
 package dur053
 
 import "syscall"
