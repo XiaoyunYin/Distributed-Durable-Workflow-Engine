@@ -26,6 +26,7 @@ from j2_barrier import (
 from j2_barrier_rehearsal import client, emit, receipt, write_bundle
 from j2_checker import ROOT
 from j2_checker_report import IntegrityError, ResourceEvidenceError
+from j2_dispatch_manifest import FINAL_REHEARSAL, confirm_prerequisites, verify_package
 from j2_drain import DrainExpired
 from j2_harness import APP, DB, hosted_dispatch, run
 from j2_harness_evidence import seal
@@ -50,6 +51,7 @@ from j2_schedule import (
     ENGINEERING_WARMUP,
     HOLD,
     MEASURED,
+    MEASURED_CAMPAIGN,
     ORDERS,
     RATES,
     STEP,
@@ -146,6 +148,11 @@ def begin(root, job, campaign_id):
             == campaign.head,
             "checkout differs from dispatch head",
         )
+        package = (
+            verify_package(ROOT, campaign.pins)
+            if campaign_id in {MEASURED_CAMPAIGN, FINAL_REHEARSAL}
+            else None
+        )
         limits = allowances(campaign_id)
         api = client(campaign, final, time.monotonic() + 60)
 
@@ -163,6 +170,16 @@ def begin(root, job, campaign_id):
             check_history=True,
             wait_seconds=max(0, min(360, limits["bootstrap"] - elapsed)),
         )
+        if package is not None:
+            gate = client(campaign, final, time.monotonic() + 40)
+            write(
+                final / "pre-dispatch-package.json",
+                {
+                    "binding": campaign.binding(job, row["id"]),
+                    **package,
+                    "live_prerequisites": confirm_prerequisites(gate.api),
+                },
+            )
         require(time.monotonic() < started + limits["bootstrap"], "bootstrap allowance expired")
         require(shutil.disk_usage(root).free >= 5 << 30, "matrix disk headroom below forecast")
         write(final / "authorization.json", binding)

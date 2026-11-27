@@ -1,0 +1,497 @@
+{
+  "engineering_release_index": {
+    "browser_download_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/download/eng-inc3-j2-evidence/eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
+    "digest": "sha256:f4ce20637b16c87381183c3cae2f84ffaf012709237d1ee106424499bcedc780",
+    "id": 801558988,
+    "name": "eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
+    "size": 494409,
+    "tag": "eng-inc3-j2-evidence"
+  },
+  "runs": {
+    "46041889944": {
+      "artifacts": {
+        "j2-measure-replay-46041889944-1": {
+          "freeze": {
+            "bytes": 6348,
+            "sha256": "3394f3fdfbfa3bd95f52435334a38bc2a99f63f509ee0440a57d3aef397b8bc2"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221401442/zip",
+            "created_at": "2026-11-27T17:33:26Z",
+            "digest": "sha256:15c6431ace7cf12f3561aef48fc672901ed2b3188557a5dcf972e45d34539b7c",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:45Z",
+            "id": 15221401442,
+            "kind": "replay",
+            "name": "j2-measure-replay-46041889944-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMTQwMTQ0Mg==",
+            "size_in_bytes": 671248,
+            "updated_at": "2026-11-27T17:33:26Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221401442",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041889944,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46041889944-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221541265/zip",
+            "created_at": "2026-11-27T17:33:28Z",
+            "digest": "sha256:e80cba35ff5a350e46181ef7798c5f16a9b17e2220766331f9f2ee9f926d40df",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:45Z",
+            "id": 15221541265,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46041889944-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMTU0MTI2NQ==",
+            "size_in_bytes": 1058,
+            "updated_at": "2026-11-27T17:33:28Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221541265",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041889944,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "decision": {
+          "grid_sha256": [
+            "386c2c10bfa540dbb94936c5e7b1a7cfba9d6a20cea605987a8db121009cde5c",
+            "619ce76719e7028436ec3d57840c7342544bf5123e3e517d28587296f8ad17c3",
+            "ea11050a64d7038643e2656cb9c23bef082716a1ccb6fb7f40be25565c151bcc"
+          ],
+          "selected_rate": "AB"
+        },
+        "status": "verified"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 3,
+        "grid": 15
+      },
+      "head": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": false,
+      "status": "complete",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621087,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 6628044,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 395.50500673814383,
+        "minimum_free_bytes": 85970436096,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 56.82119680714379,
+          "checker": 285.056104256,
+          "download": 21.71986862499999,
+          "extract": 28.531677181000006,
+          "reduce": 2.008995068000047,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "actions",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 2
+      }
+    },
+    "46041910303": {
+      "artifacts": {
+        "j2-measure-replay-46041910303-1": {
+          "freeze": {
+            "bytes": 6348,
+            "sha256": "6e132bac1e4427ecb2b32be3692b7632a32b88e5b60f7b6519f56a7632a19049"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220408382/zip",
+            "created_at": "2026-11-27T17:39:47Z",
+            "digest": "sha256:28c6f949e5ab284b43663efcba51a1d00c740fa786c9d1f58a73f4e4dd1ccd28",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:55Z",
+            "id": 15220408382,
+            "kind": "replay",
+            "name": "j2-measure-replay-46041910303-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMDQwODM4Mg==",
+            "size_in_bytes": 629997,
+            "updated_at": "2026-11-27T17:39:47Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220408382",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041910303,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46041910303-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220059962/zip",
+            "created_at": "2026-11-27T17:39:51Z",
+            "digest": "sha256:8de058be2610dc46ded1409adb19c87d006194b84af1217448d2d80e40876db6",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:55Z",
+            "id": 15220059962,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46041910303-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMDA1OTk2Mg==",
+            "size_in_bytes": 1062,
+            "updated_at": "2026-11-27T17:39:51Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220059962",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041910303,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "reasons": [
+          "job-1 is missing a verified complete grid",
+          "job-1 grid or decision evidence failed replay"
+        ],
+        "status": "unverifiable"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 1,
+        "grid": 14
+      },
+      "head": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": false,
+      "status": "partial",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621085,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 6170034,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 201.962869645375,
+        "minimum_free_bytes": 89419583488,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 50.59946226137498,
+          "checker": 115.67971385000004,
+          "download": 18.430996643999947,
+          "extract": 15.569839555000044,
+          "reduce": 1.631757455999832,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "actions",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 4
+      }
+    },
+    "46048504084": {
+      "artifacts": {
+        "j2-measure-replay-46048504084-1": {
+          "freeze": {
+            "bytes": 6215,
+            "sha256": "c5c14e3767ce0d7ae7e136fc75868059981a208d985e7baf03c7e452ef02a6e9"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15223339276/zip",
+            "created_at": "2026-11-27T18:26:25Z",
+            "digest": "sha256:70e9141e1ea720dfa41f04674b7b1b88acba9fabff2c9673b90b6fca7252f8b8",
+            "expired": false,
+            "expires_at": "2027-02-25T18:18:46Z",
+            "id": 15223339276,
+            "kind": "replay",
+            "name": "j2-measure-replay-46048504084-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMzMzOTI3Ng==",
+            "size_in_bytes": 760889,
+            "updated_at": "2026-11-27T18:26:25Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15223339276",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+              "id": 46048504084,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46048504084-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15222979724/zip",
+            "created_at": "2026-11-27T18:26:27Z",
+            "digest": "sha256:397b0275dd6f3efc96251b535f60226960303c47e88309c73db677dff6623fea",
+            "expired": false,
+            "expires_at": "2027-02-25T18:18:46Z",
+            "id": 15222979724,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46048504084-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMjk3OTcyNA==",
+            "size_in_bytes": 1060,
+            "updated_at": "2026-11-27T18:26:27Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15222979724",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+              "id": 46048504084,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "decision": {
+          "grid_sha256": [
+            "386c2c10bfa540dbb94936c5e7b1a7cfba9d6a20cea605987a8db121009cde5c",
+            "619ce76719e7028436ec3d57840c7342544bf5123e3e517d28587296f8ad17c3",
+            "ea11050a64d7038643e2656cb9c23bef082716a1ccb6fb7f40be25565c151bcc"
+          ],
+          "selected_rate": "AB"
+        },
+        "status": "verified"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 3,
+        "grid": 15
+      },
+      "head": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": true,
+      "status": "complete",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621087,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 7260307,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 454.8789887172838,
+        "minimum_free_bytes": 85970554880,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 56.898275978283806,
+          "checker": 349.7901896579999,
+          "download": 10.616391688000135,
+          "extract": 34.26549897799964,
+          "reduce": 2.291816501999932,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "release",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 3
+      }
+    }
+  },
+  "source_campaign": "eng-inc2-real-grid",
+  "source_run": 46028317534,
+  "status": "PASS"
+}

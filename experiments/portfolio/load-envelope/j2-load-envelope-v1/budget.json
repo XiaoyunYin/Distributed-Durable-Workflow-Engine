@@ -1,0 +1,61 @@
+{
+  "fail_fast": false,
+  "live": {
+    "barrier_max_seconds": 2700,
+    "barrier_rule": "verified local grid publication plus 45 minutes, or sooner to preserve the full successor and closeout",
+    "basis": "../slice-2-harness.md#slice-3-per-job-re-forecast",
+    "forecast_margin_minutes": 58,
+    "forecast_minutes": {
+      "barrier": 45,
+      "bootstrap": 25,
+      "final_drain": 10,
+      "final_export_teardown_upload": 25,
+      "grid_arrivals": 60,
+      "grid_drains": 50,
+      "grid_exports_upload_reset_setup": 40,
+      "overload": 5,
+      "soak_hold": 30,
+      "soak_warmup": 2
+    },
+    "hard_cap_minutes": 350,
+    "minimum_matrix_free_bytes": 5368709120,
+    "runner_stage_limits_seconds": {
+      "bootstrap": 1500,
+      "cap": 21000,
+      "cell": 1800,
+      "closeout": 1500,
+      "episode": 3488
+    },
+    "serial_ceiling_seconds": 18188,
+    "total_forecast_minutes": 292
+  },
+  "matrix_parallelism": 3,
+  "paid_runner_budget_usd": 0,
+  "reporter": {
+    "durable_copy_tool": "scripts/j2_publish_evidence.py",
+    "hard_cap_minutes": 90,
+    "historical_verified_timing": "replay/verification.json",
+    "max_archive_bytes": 536870912,
+    "max_expanded_bytes": 3221225472,
+    "minimum_extra_free_bytes": 268435456,
+    "qualification_fixture_repetitions": 3,
+    "registered_release_tag": "j2-load-envelope-v1-evidence",
+    "required_upload_receipts": [
+      "sealed complete or partial report",
+      "downloaded digest verification and elapsed time"
+    ],
+    "retention_days": 90,
+    "stage_reservations_minutes": {
+      "bootstrap": 8,
+      "checker": 22,
+      "download": 18,
+      "extract": 8,
+      "reduce": 6,
+      "retry": 14,
+      "upload": 9
+    },
+    "total_reserved_minutes": 85
+  },
+  "runner": "ubuntu-24.04",
+  "status": "forecast; exact candidate rehearsal review pending"
+}

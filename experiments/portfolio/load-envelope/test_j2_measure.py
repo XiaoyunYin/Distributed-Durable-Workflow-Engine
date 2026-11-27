@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+import j2_dispatch_manifest as packet  # noqa: E402
 import j2_measure as measure  # noqa: E402
 import j2_measure_authorization as auth  # noqa: E402
 from j2_barrier import NO_RATE, BarrierStop, barrier_deadline, canonical, digest  # noqa: E402
@@ -31,7 +33,7 @@ from j2_measure_telemetry import (  # noqa: E402
     runner_inventory,
 )
 from j2_overlay import PROM, render  # noqa: E402
-from j2_qualification_evidence import write  # noqa: E402
+from j2_qualification_evidence import read, write  # noqa: E402
 from test_j2_schedule import arrival, encoded, stock_plan  # noqa: E402
 
 S = 10**9
@@ -41,6 +43,100 @@ CONTROLS = "b" * 64
 CONTEXT = dict(
     repository="owner/project", campaign=CAMPAIGN, run=91, attempt=1, head=HEAD, controls=CONTROLS
 )
+
+
+def test_frozen_dispatch_packet_matches_the_registered_schedule_and_prerequisites():
+    root = measure.ROOT
+    pins = {label: packet.text_sha(root / path) for label, path in packet.PIN_FILES.items()}
+    proof = packet.verify_package(root, pins)
+    assert len(proof["prerequisites"]) == 3
+    results = packet.schedule_contract()["continuous"]
+    assert results["AB"]["bound"] == 26678 and results["AB"]["scheduled"] == 26677
+
+
+@pytest.mark.parametrize("change", ["missing", "digest", "seed"])
+def test_frozen_dispatch_packet_refuses_missing_or_changed_evidence(tmp_path, monkeypatch, change):
+    root = measure.ROOT
+    destination = tmp_path / "packet"
+    shutil.copytree(root / packet.PACKET, destination)
+    monkeypatch.setattr(packet, "PACKET", destination)
+    pins = {label: packet.text_sha(root / path) for label, path in packet.PIN_FILES.items()}
+    manifest_path, seed_path = (
+        destination / name for name in ("manifest.json", "seed-vectors.json")
+    )
+    if change == "missing":
+        manifest_path.unlink()
+        error = "manifest is missing"
+    else:
+        seeds = read(seed_path)
+        seeds["vectors"]["j2-load-envelope-v1/job-1/A"] += 1
+        write(seed_path, seeds)
+        error = "evidence hash differs"
+        if change == "seed":
+            manifest = read(manifest_path)
+            manifest["evidence"]["seed-vectors.json"] = packet.text_sha(seed_path)
+            write(manifest_path, manifest)
+            error = "seed vectors differ"
+    with pytest.raises(ValueError, match=error):
+        packet.verify_package(root, pins)
+
+
+@pytest.mark.parametrize("problem", [None, "expired", "inaccessible"])
+def test_live_prerequisites_are_rechecked_before_bootstrap(problem):
+    records = {}
+    for name, (ident, checksum, run, head, _) in packet.prerequisite_archives().items():
+        records[ident] = dict(
+            id=ident,
+            name=name,
+            digest=f"sha256:{checksum}",
+            workflow_run={"id": run, "head_sha": head},
+            expired=problem == "expired",
+            expires_at="2099-01-01T00:00:00Z",
+        )
+
+    def get(url, name, *, authenticated, redirect=False):
+        assert authenticated
+        if redirect:
+            assert name == packet.QUALIFICATION_NAME
+            return "https://example.invalid/qualification.zip"
+        return canonical(records[int(url.rsplit("/", 1)[1])])
+
+    class Reply(io.BytesIO):
+        status = 206
+
+    def open_qualification(request, *, timeout):
+        assert request.get_header("Range") == "bytes=0-0" and timeout > 0
+        return Reply(b"" if problem == "inaccessible" else b"P")
+
+    api = SimpleNamespace(
+        root="https://example.invalid/actions",
+        request=get,
+        opener=SimpleNamespace(open=open_qualification),
+        budget=SimpleNamespace(remaining=lambda: 10),
+    )
+    if problem:
+        with pytest.raises(ValueError, match=problem):
+            packet.confirm_prerequisites(api)
+    else:
+        assert set(packet.confirm_prerequisites(api)) == set(packet.prerequisite_archives())
+
+
+@pytest.mark.parametrize("campaign", [packet.MEASURED_CAMPAIGN, packet.FINAL_REHEARSAL])
+def test_missing_packet_blocks_traffic_before_authorization(tmp_path, monkeypatch, campaign):
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setenv("GITHUB_RUN_ID", "91")
+    monkeypatch.setattr(measure, "ROOT", tmp_path)
+    monkeypatch.setattr(measure, "hosted_dispatch", lambda: None)
+    monkeypatch.setattr(measure, "context", lambda _: SimpleNamespace(head=HEAD, pins={}))
+    monkeypatch.setattr(measure.subprocess, "check_output", lambda *_, **__: HEAD)
+    monkeypatch.setattr(
+        measure, "authorization", lambda *_, **__: pytest.fail("read authorization")
+    )
+    result = tmp_path / "runner"
+    with pytest.raises(ValueError, match="manifest is missing"):
+        measure.begin(result, 1, campaign)
+    assert read(result / "final/authorization-stop.json")["disposition"] == "no_requests"
+    assert not (result / "job.json").exists()
 
 
 def entry(**fields):
