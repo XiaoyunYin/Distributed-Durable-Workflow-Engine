@@ -9,7 +9,6 @@ import time
 from contextlib import ExitStack, suppress
 from http.client import HTTPException
 from math import ceil
-from pathlib import Path
 from statistics import median
 
 import dur053_k3 as kind
@@ -68,6 +67,7 @@ from j3_pilot import (
 )
 from j3_prometheus import epoch_ns
 from j3_replay import DEADLINE, DOMAIN, SECOND, replay, require
+from j3_runner_gate import campaign_id, runner_cpu, verify_admission
 from j3_schedule import (
     ARRIVAL_RATE,
     BASE_STOP,
@@ -797,26 +797,12 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
     return verdict
 
 
-def runner_cpu(cpuinfo=Path("/proc/cpuinfo")):
-    models = sorted(
-        {
-            value.strip()
-            for line in cpuinfo.read_text(encoding="utf-8").splitlines()
-            for key, _, value in [line.partition(":")]
-            if key.strip() == "model name"
-        }
-    )
-    cores = os.sysconf("SC_NPROCESSORS_ONLN")
-    require(models and cores > 0, "missing hosted runner CPU inventory")
-    return {"cpu_models": models, "online_cores": cores}
-
-
 def main():
     args = hosted_arguments(__doc__, with_checker=True)
-    require(os.environ["GITHUB_RUN_ATTEMPT"] == "1", "qualification requires attempt 1")
-    campaign = f"j3-r417-{os.environ['GITHUB_RUN_ID']}"
+    campaign = campaign_id()
     sealed = None
     try:
+        admission = verify_admission(args.evidence, args.stage)
         if args.stage == "confirmation":
             require(
                 args.seal and args.seal_digest, "confirmation requires the calibration artifact"
@@ -864,6 +850,9 @@ def main():
             "run": os.environ["GITHUB_RUN_ID"],
             "head": os.environ["GITHUB_SHA"],
             "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+            "stage_attempt": admission["stage_attempt"],
+            "pre_arm_gate_rejections": admission["prior_rejections"],
+            "in_arm_pressure": "published_covariate_only",
             "runtime_profile": runtime["profile"],
             "checker": verify_binary(driver.checker),
             "images": {**driver.images, **pins},

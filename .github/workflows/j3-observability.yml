@@ -19,6 +19,7 @@ on:
           - pilot
           - qualification
           - sql-benchmark
+          - runner-baseline
         default: pilot
 
 permissions:
@@ -85,7 +86,7 @@ jobs:
           path: ${{ runner.temp }}/j3-exporter/
           if-no-files-found: warn
   calibration:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'sql-benchmark'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'qualification' || inputs.mode == 'pilot')
     name: ${{ inputs.mode == 'qualification' && 'Calibration and seal' || 'Overlay pilot' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.mode == 'qualification' && 350 || 35 }}
@@ -104,6 +105,21 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           filter: blob:none
+      - name: Observe the idle runner gate before bootstrap
+        if: inputs.mode == 'qualification'
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/j3_runner_gate.py calibration "$RUNNER_TEMP/j3-qualification/runner-gate"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && inputs.mode == 'qualification'
+        with:
+          name: j3-runner-gate-calibration-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.gate.outputs.decision }}
+          path: ${{ runner.temp }}/j3-qualification/runner-gate/
+          if-no-files-found: error
+      - name: Stop a calibration stage that was not armed
+        if: inputs.mode == 'qualification' && steps.gate.outputs.decision != 'admitted'
+        run: exit 1
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.4'
@@ -161,6 +177,20 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           filter: blob:none
+      - name: Observe the idle runner gate before bootstrap
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/j3_runner_gate.py confirmation "$RUNNER_TEMP/j3-confirmation/runner-gate"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-runner-gate-confirmation-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.gate.outputs.decision }}
+          path: ${{ runner.temp }}/j3-confirmation/runner-gate/
+          if-no-files-found: error
+      - name: Stop a confirmation stage that was not armed
+        if: steps.gate.outputs.decision != 'admitted'
+        run: exit 1
       - name: Download and verify the frozen calibration artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,7 +204,7 @@ jobs:
           [[ "$SEAL_ID" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEAL_ID/zip" > "$seal"
           PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), *sys.argv[2:]); print("Verified calibration artifact and its forecast")' \
-            "$seal" "$SEAL_DIGEST" "j3-r417-$GITHUB_RUN_ID" "$GITHUB_SHA"
+            "$seal" "$SEAL_DIGEST" "j3-r419-$GITHUB_RUN_ID" "$GITHUB_SHA"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.4'
@@ -201,6 +231,52 @@ jobs:
           name: j3-confirmation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-confirmation/
           if-no-files-found: warn
+  runner-baseline:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-baseline'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - name: Record the 120-second idle runner baseline
+        env:
+          BASELINE_INDEX: ${{ matrix.index }}
+        run: python3 scripts/j3_runner_gate.py baseline "$RUNNER_TEMP/j3-baseline" --index "$BASELINE_INDEX"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-baseline-row-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.index }}
+          path: ${{ runner.temp }}/j3-baseline/
+          if-no-files-found: error
+  runner-baseline-report:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-baseline'
+    needs: runner-baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: j3-baseline-row-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/j3-baseline-inputs
+      - name: Compute the candidate runner gate lock for review
+        run: |
+          python3 scripts/j3_runner_gate.py report "$RUNNER_TEMP/j3-baseline-report" \
+            --source "$RUNNER_TEMP/j3-baseline-inputs"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j3-runner-gate-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-baseline-report/
+          if-no-files-found: error
   sql-benchmark:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'sql-benchmark'
     runs-on: ubuntu-24.04
