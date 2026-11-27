@@ -68,6 +68,7 @@ from j3_pilot import (
 from j3_prometheus import epoch_ns
 from j3_replay import DEADLINE, DOMAIN, SECOND, replay, require
 from j3_schedule import ARRIVAL_RATE, FORECAST_CAP, restored_rate
+from j3_slots import OUTAGE_SLOT_BOUNDARIES, SCRAPE_SLOT_BOUNDARIES
 
 ROOT = J3.parents[2]
 BASE_STOP = 2220
@@ -325,26 +326,27 @@ def verify_scrape(evaluations, transitions, origin, cut, restored):
     )
 
 
+def check_slot_witness(sample, initial_workers):
+    if sample["phase"] == "healthy":
+        require(
+            set(sample["witness"]) == initial_workers and len(sample["slots"]) == 4,
+            "missing healthy worker slot witness",
+        )
+    elif sample["phase"] == "restored":
+        require(
+            len(sample["slots"]) == 4 and not initial_workers.intersection(sample["witness"]),
+            "missing restored worker slot witness",
+        )
+
+
 def load_and_observe(driver, arm, origin, stop, observe_end, sender, sampler, fixture):
     initial_workers = set(sampler.latest["witness"])
-    restore_workers_after = origin + 960 * SECOND
+    down_at, restore_at, ready_by = OUTAGE_SLOT_BOUNDARIES
 
     def check():
         sampler.check()
         sender.check_running()
-        latest = sampler.latest
-        if latest["sample_ns"] < origin:
-            return
-        if arm != "outage" or latest["sample_ns"] < origin + 600 * SECOND:
-            require(
-                set(latest["witness"]) == initial_workers and len(latest["slots"]) == 4,
-                "missing healthy worker slot witness",
-            )
-        elif latest["sample_ns"] >= restore_workers_after:
-            require(
-                len(latest["slots"]) == 4 and not initial_workers.intersection(latest["witness"]),
-                "missing restored worker slot witness",
-            )
+        check_slot_witness(sampler.latest, initial_workers)
 
     fault = {}
     with sender.run():
@@ -362,7 +364,7 @@ def load_and_observe(driver, arm, origin, stop, observe_end, sender, sampler, fi
             max(0, (origin - time.time_ns()) / SECOND),
         )
         if arm == "outage":
-            fault["down"] = scale(driver, 0, origin + 600 * SECOND, check)
+            fault["down"] = scale(driver, 0, origin + down_at * SECOND, check)
             wait_at(origin + 660 * SECOND, check)
             require(
                 sampler.latest and not sampler.latest["pods"], "worker pods survived past 660 s"
@@ -370,13 +372,14 @@ def load_and_observe(driver, arm, origin, stop, observe_end, sender, sampler, fi
             require(bool(prom("j3_claimable_attempts > 0")), "missing live outage demand")
             wait_at(origin + 899 * SECOND, check)
             fault["backlog"] = backlog(driver)
-            fault["restore"] = scale(driver, 2, origin + 900 * SECOND, check)
-            wait_at(origin + 960 * SECOND, check)
+            fault["restore"] = scale(driver, 2, origin + restore_at * SECOND, check)
+            wait_at(origin + ready_by * SECOND, check)
             require(len(sampler.latest["slots"]) == 4, "restored Ready slots missing by 960 s")
         elif arm == "scrape_loss":
+            cut_at, reopen_at = SCRAPE_SLOT_BOUNDARIES
             route = tuple(driver.pod(NS, role)["status"]["podIP"] for role in (PROM, EXPORTER))
-            fault["cut"] = scrape_access(driver, route, False, origin + 600 * SECOND, check)
-            fault["reopen"] = scrape_access(driver, route, True, origin + 660 * SECOND, check)
+            fault["cut"] = scrape_access(driver, route, False, origin + cut_at * SECOND, check)
+            fault["reopen"] = scrape_access(driver, route, True, origin + reopen_at * SECOND, check)
         elif arm == "foreign":
             seed_foreign(driver, fixture, check, origin + 900 * SECOND)
 

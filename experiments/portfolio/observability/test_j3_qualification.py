@@ -14,6 +14,109 @@ import j3_admission_diagnostics as admission  # noqa: E402
 import j3_diagnostics as diagnostics  # noqa: E402
 import j3_episode as episode  # noqa: E402
 import j3_qualification as j3  # noqa: E402
+import j3_slots as slots  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("arm", "started_ms", "sampled_ms", "finished_ms", "phase", "error"),
+    [
+        ("outage", 599_880, 599_900, 600_300, "transition", None),
+        ("outage", 599_900, 600_100, 600_300, "transition", None),
+        ("outage", 599_800, 599_900, 600_000, "transition", None),
+        ("outage", 599_500, 599_600, 599_999, "healthy", "missing healthy worker slot witness"),
+        ("outage", 600_000, 600_100, 600_300, "outage", None),
+        ("outage", 899_900, 899_950, 900_300, "transition", None),
+        ("outage", 959_900, 959_950, 960_300, "transition", None),
+        ("outage", 960_000, 960_100, 960_300, "restored", "missing restored worker slot witness"),
+        ("scrape_loss", 599_900, 599_950, 600_300, "transition", None),
+        (
+            "scrape_loss",
+            599_500,
+            599_600,
+            599_999,
+            "healthy",
+            "missing healthy worker slot witness",
+        ),
+        (
+            "scrape_loss",
+            630_000,
+            630_100,
+            630_300,
+            "healthy",
+            "missing healthy worker slot witness",
+        ),
+        ("scrape_loss", 659_900, 659_950, 660_300, "transition", None),
+        (
+            "scrape_loss",
+            660_000,
+            660_100,
+            660_300,
+            "healthy",
+            "missing healthy worker slot witness",
+        ),
+    ],
+)
+def test_slot_checks_use_the_full_read_interval(
+    tmp_path, monkeypatch, arm, started_ms, sampled_ms, finished_ms, phase, error
+):
+    origin = 100 * j3.SECOND
+    started, sampled, finished = (
+        origin + offset * 1_000_000 for offset in (started_ms, sampled_ms, finished_ms)
+    )
+    now = started
+    clock = SimpleNamespace(time_ns=lambda: now, monotonic_ns=lambda: now)
+    monkeypatch.setattr(episode, "time", clock)
+    monkeypatch.setattr(slots, "time", clock)
+    monkeypatch.setattr(episode, "process_signature", lambda *_: {})
+    worker = {
+        "metadata": {"name": "worker-a", "uid": "worker-uid", "labels": {"app": "worker"}},
+        "status": {
+            "phase": "Running",
+            "podIP": "10.0.0.1",
+            "conditions": [{"type": "Ready", "status": "True"}],
+        },
+    }
+    observer = {"metadata": {"name": "observer", "labels": {"app": "observer"}}}
+    receiver = {"metadata": {"name": "receiver", "labels": {"app": episode.RECEIVER}}}
+
+    def pods():
+        nonlocal now
+        now = sampled
+        return [worker, observer], [receiver]
+
+    refusal = "[Errno 111] Connection refused"
+
+    def kubectl(*args, **_kwargs):
+        nonlocal now
+        if args[3] == "observer":
+            now = finished
+            return SimpleNamespace(stdout=json.dumps({"worker-uid": {"error": refusal}}))
+        assert args[3] == "receiver"
+        # Publishing is downstream of the reads and must not extend their interval.
+        now += j3.SECOND
+
+    driver = SimpleNamespace(output=tmp_path, k=kubectl)
+    sampler = episode.Sampler(driver, [], arm)
+    sampler.origin, sampler.processes = origin, {}
+    monkeypatch.setattr(sampler, "pods", pods)
+    monkeypatch.setattr(sampler, "check_live_rules", lambda _: None)
+    sampler.sample()
+
+    record = json.loads((tmp_path / "ready-slots.jsonl").read_bytes())
+    assert record == sampler.latest
+    assert (record["read_started_ns"], record["sample_ns"], record["read_finished_ns"]) == (
+        started,
+        sampled,
+        finished,
+    )
+    assert record["phase"] == phase
+    assert record["pods"][0]["ready"] and not record["pods"][0]["terminating"]
+    assert record["errors"] == {"worker-uid": refusal} and record["slots"] == []
+    if error:
+        with pytest.raises(ValueError, match=error):
+            j3.check_slot_witness(sampler.latest, {"worker-uid"})
+    else:
+        j3.check_slot_witness(sampler.latest, {"worker-uid"})
 
 
 def test_arming_waits_for_two_valid_evaluations_and_both_alert_views(tmp_path, monkeypatch):

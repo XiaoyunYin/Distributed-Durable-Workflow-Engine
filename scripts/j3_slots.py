@@ -5,7 +5,10 @@ import subprocess
 import time
 from ipaddress import ip_address
 
-from j3_replay import require
+from j3_replay import SECOND, require
+
+OUTAGE_SLOT_BOUNDARIES = (600, 900, 960)
+SCRAPE_SLOT_BOUNDARIES = (600, 660)
 
 WORKER_WITNESS = """import http.client,json,sys
 from concurrent.futures import ThreadPoolExecutor
@@ -78,13 +81,48 @@ def ready_slots(pods, witnesses):
     return sorted(slots)
 
 
+def slot_sample_phase(arm, origin, started, finished):
+    if origin is None or started < origin:
+        return "setup"
+    start, end = started - origin, finished - origin
+    if arm == "outage":
+        boundaries = OUTAGE_SLOT_BOUNDARIES
+    elif arm == "scrape_loss":
+        boundaries = SCRAPE_SLOT_BOUNDARIES
+    else:
+        boundaries = ()
+    if any(start < bound * SECOND <= end for bound in boundaries):
+        return "transition"
+    if arm == "outage":
+        down, restore, ready = OUTAGE_SLOT_BOUNDARIES
+        if end < down * SECOND:
+            return "healthy"
+        if start >= ready * SECOND:
+            return "restored"
+        return "outage" if start < restore * SECOND else "restoring"
+    # A scrape fault does not take any worker slots away.
+    return "healthy"
+
+
 def sample_ready_slots(
-    driver, app, receiver_namespace, receiver, pods, *, observer_pod, receiver_pod=None
+    driver,
+    app,
+    receiver_namespace,
+    receiver,
+    pods,
+    *,
+    observer_pod,
+    receiver_pod=None,
+    read_started_ns=None,
+    arm=None,
+    origin=None,
 ):
+    """Read worker witnesses, retaining the qualification's pod-read start when supplied."""
     sampled = time.time_ns()
     statuses = [worker_status(pod) for pod in pods]
     record = {
         "sample_ns": sampled,
+        "read_started_ns": sampled if read_started_ns is None else read_started_ns,
         "pods": statuses,
         "witness": {},
         "slots": [],
@@ -144,6 +182,7 @@ def sample_ready_slots(
                 record["witness"][uid] = witness
         record["slots"].sort()
         require(len(record["slots"]) == len(set(record["slots"])) <= 4, "duplicate slots or surge")
+        record["read_finished_ns"] = time.time_ns()
         metric = {"ready_slots": len(record["slots"]), "ready_slots_sample_ns": sampled}
         code = (
             "import os,pathlib; p=pathlib.Path('/evidence/metrics.tmp'); "
@@ -165,6 +204,12 @@ def sample_ready_slots(
                 timeout=5,
             )
     finally:
+        if "read_finished_ns" not in record:
+            record["read_finished_ns"] = time.time_ns()
+        if arm is not None:
+            record["phase"] = slot_sample_phase(
+                arm, origin, record["read_started_ns"], record["read_finished_ns"]
+            )
         with (driver.output / "ready-slots.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record) + "\n")
     return record

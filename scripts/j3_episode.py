@@ -607,6 +607,7 @@ class Sampler:
         ]
 
     def sample(self):
+        read_started_ns = time.time_ns()
         app, telemetry = self.pods()
         processes = process_signature(app, self.roles) | process_signature(telemetry, self.pins)
         append(self.driver.output / "processes.jsonl", {"at_ns": time.time_ns(), "pods": processes})
@@ -621,7 +622,16 @@ class Sampler:
             if p["metadata"]["labels"].get("app") == RECEIVER
         ]
         sample = sample_ready_slots(
-            self.driver, APP, NS, RECEIVER, workers, observer_pod=observer, receiver_pod=receiver
+            self.driver,
+            APP,
+            NS,
+            RECEIVER,
+            workers,
+            observer_pod=observer,
+            receiver_pod=receiver,
+            read_started_ns=read_started_ns,
+            arm=self.arm,
+            origin=self.origin,
         )
         require(
             self.latest is None
