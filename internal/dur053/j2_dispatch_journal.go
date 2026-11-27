@@ -38,12 +38,15 @@ func (w *j2BoundedWriter) Write(data []byte) (int, error) {
 }
 
 type j2Flush struct {
-	Event        string `json:"event"`
-	Batch        int    `json:"batch"`
-	LockAcquired *int64 `json:"lock_acquired_ns"`
-	SyncEntry    *int64 `json:"sync_entry_ns"`
-	SyncReturn   *int64 `json:"sync_return_ns"`
-	DirReturn    *int64 `json:"directory_sync_return_ns,omitempty"`
+	Event          string `json:"event"`
+	Batch          int    `json:"batch"`
+	LockAcquired   *int64 `json:"lock_acquired_ns"`
+	SyncEntry      *int64 `json:"sync_entry_ns"`
+	SyncReturn     *int64 `json:"sync_return_ns"`
+	DirReturn      *int64 `json:"directory_sync_return_ns,omitempty"`
+	PrecommitStart *int64 `json:"precommit_start_ns,omitempty"`
+	PrecommitBytes int    `json:"precommit_bytes,omitempty"`
+	PeakRSSKiB     int64  `json:"peak_rss_kib,omitempty"`
 }
 
 type j2Outcome struct {
@@ -67,6 +70,7 @@ type j2Outcome struct {
 func commitJ2Plan(file j2SyncWriter, syncDir func() error, plan invariants.Arrivals, slots []j2Slot,
 	scheduleHash string, start time.Time, clock Clock,
 ) (j2Flush, error) {
+	begin := clock.Now()
 	buffer := bufio.NewWriterSize(file, 64<<10)
 	limit := &j2BoundedWriter{writer: buffer, left: j2PrecommitBytes}
 	digest := sha256.New()
@@ -101,6 +105,9 @@ func commitJ2Plan(file j2SyncWriter, syncDir func() error, plan invariants.Arriv
 		return j2Flush{}, err
 	}
 	flush.DirReturn = offsetNS(start, clock.Now())
+	flush.PrecommitStart = offsetNS(start, begin)
+	flush.PrecommitBytes = j2PrecommitBytes - limit.left
+	flush.PeakRSSKiB = precommitPeakRSS()
 	return flush, nil
 }
 

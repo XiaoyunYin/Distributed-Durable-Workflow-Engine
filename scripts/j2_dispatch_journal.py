@@ -140,7 +140,18 @@ def replay_dispatch(raw, schedule, slots, schedule_sha256):
         and plan["arm"] == "short"
         and all(plan[k] == schedule[k] for k in ("namespace", "run_id", "seed"))
         and plan["rate"] == float(schedule["rate"])
-        and plan["concurrency"] == schedule["cap"] == 16
+        and plan["concurrency"] == schedule["cap"]
+        and (
+            schedule["cap"] == 16
+            or (
+                schedule["cap"] == 1
+                and schedule["cell"] == "capped-sender"
+                and schedule["campaign"].startswith("eng-controls-")
+                and schedule["run_id"] == f"j2-{schedule['campaign']}-capped-sender"
+                and schedule["rate"] == "1"
+                and "periods" not in schedule
+            )
+        )
         and 0 < count <= 26678
         and len(plan["rows"]) == count,
         "J2 dispatch plan or schedule binding differs",
@@ -167,6 +178,13 @@ def replay_dispatch(raw, schedule, slots, schedule_sha256):
         if kind == "flush":
             require(next_batch == 0 or batch_rows > 0, "empty outcome flush")
             check_flush(row, next_batch, prepared=prepared if next_batch == 0 else None)
+            if next_batch == 0 and "precommit_bytes" in row:
+                require(
+                    row["precommit_bytes"] == sum(map(len, lines[: seal_at + 1]))
+                    and type(row["precommit_start_ns"]) is int
+                    and row["precommit_start_ns"] <= intents[0]["prepared_ns"],
+                    "precommit resource evidence differs from the sealed prefix",
+                )
             flushes[next_batch] = row
             next_batch += 1
             batch_rows = 0

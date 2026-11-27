@@ -6,7 +6,13 @@ from urllib.request import Request
 from j2_barrier import PIN_FILES, canonical, decode, digest, expiry
 from j2_measure_authorization import control_identity, git_head, git_output
 from j2_qualification_evidence import DRAIN_SECONDS, read, require
-from j2_replay_storage import QUALIFICATION_NAME, prerequisite_archives, verify_prerequisite
+from j2_replay_storage import (
+    QUALIFICATION_NAME,
+    prerequisite_archives,
+    run_metadata,
+    supplemental_source,
+    verify_prerequisite,
+)
 from j2_schedule import (
     CAP,
     HOLD,
@@ -142,6 +148,7 @@ def verify_package(root, pins):
         "frozen J2 seed vectors differ",
     )
     controls = read(directory / "controls/verification.json")
+    supplemental = supplemental_source(root=root)
     require(
         controls["controls_sha256"] == digest(canonical(control_identity(root))),
         "frozen J2 controls applicability differs from the checkout",
@@ -167,20 +174,32 @@ def verify_package(root, pins):
         require(record["status"] == "PASS", f"frozen J2 {group} verification did not pass")
         for name, entry in record["archives"].items():
             source = entry["source"]
-            verify_prerequisite(name, source)
+            verify_prerequisite(name, source, supplemental)
             checked[name] = {"id": source["id"], "digest": source["digest"]}
     require(
-        set(checked) == set(prerequisite_archives()) and checked == manifest["prerequisites"],
+        set(checked) == set(prerequisite_archives(supplemental))
+        and checked == manifest["prerequisites"],
         "frozen J2 prerequisite inventory differs",
     )
-    return {"manifest_sha256": text_sha(manifest_path), "evidence": files, "prerequisites": checked}
+    return {
+        "manifest_sha256": text_sha(manifest_path),
+        "evidence": files,
+        "prerequisites": checked,
+        **({"supplemental_controls": supplemental} if supplemental else {}),
+    }
 
 
-def confirm_prerequisites(api):
+def confirm_prerequisites(api, supplemental=None):
     records = {}
-    for name, (ident, *_) in prerequisite_archives().items():
+    if supplemental is not None:
+        run = run_metadata(api, supplemental["run"])
+        require(
+            run["head_sha"] == supplemental["head"] and run["conclusion"] == "success",
+            "supplemental controls run did not pass at the frozen head",
+        )
+    for name, (ident, *_) in prerequisite_archives(supplemental).items():
         meta = decode(api.request(f"{api.root}/artifacts/{ident}", name, authenticated=True))
-        verify_prerequisite(name, meta)
+        verify_prerequisite(name, meta, supplemental)
         require(
             meta["expired"] is False and expiry(meta["expires_at"]), f"expired prerequisite {name}"
         )

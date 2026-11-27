@@ -38,6 +38,7 @@ from j2_measure_authorization import (
     authorization_branch,
     cell_traffic,
     engineering,
+    r422_enabled,
     recheck,
     traffic_disposition,
 )
@@ -45,6 +46,7 @@ from j2_measure_telemetry import coverage_gaps, fresh_telemetry, runner_inventor
 from j2_offline import SECOND
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
 from j2_schedule import (
+    DISPATCH_JOURNAL,
     ENGINEERING_GRID,
     ENGINEERING_HOLD,
     ENGINEERING_STEP,
@@ -60,7 +62,7 @@ from j2_schedule import (
     registered_schedule,
     stock_schedule,
 )
-from j2_schedule_rehearsal import LEAD_SECONDS, run_continuous, run_stock
+from j2_schedule_rehearsal import PRECOMMIT_LEAD_SECONDS, run_precommitted
 from j2_step_rehearsal import POPULATION_LIMIT, DrainHarness, exercise_drain
 from j2_verify_overlay import start_profile
 
@@ -100,13 +102,13 @@ def allowances(campaign):
     return {
         "bootstrap": 1500,
         "cell": arrival + DRAIN_SECONDS + extras,
-        "episode": continuous + LEAD_SECONDS + DRAIN_SECONDS + extras + 180,
+        "episode": continuous + PRECOMMIT_LEAD_SECONDS + DRAIN_SECONDS + extras + 180,
         "closeout": final,
         "cap": cap * 60,
     }
 
 
-def schedule_for(campaign, job, cell, rate, origin):
+def schedule_for(campaign, job, cell, rate, origin, *, precommit=False):
     common = (
         campaign.campaign,
         f"job-{job}",
@@ -129,6 +131,8 @@ def schedule_for(campaign, job, cell, rate, origin):
     schedule.update(
         campaign_clock=True, scope=campaign.scope, worker_sleep_ms=DrainHarness.worker_sleep_ms
     )
+    if precommit:
+        schedule["dispatch_journal"] = DISPATCH_JOURNAL
     return schedule
 
 
@@ -148,9 +152,16 @@ def begin(root, job, campaign_id):
             == campaign.head,
             "checkout differs from dispatch head",
         )
+        final_candidate = (
+            f"eng-r422-final-{campaign.head[:8]}" if r422_enabled(ROOT) else FINAL_REHEARSAL
+        )
+        require(
+            not campaign_id.startswith("eng-r422-final-") or campaign_id == final_candidate,
+            "R422 final rehearsal ID must name the checkout head",
+        )
         package = (
             verify_package(ROOT, campaign.pins)
-            if campaign_id in {MEASURED_CAMPAIGN, FINAL_REHEARSAL}
+            if campaign_id in {MEASURED_CAMPAIGN, final_candidate}
             else None
         )
         limits = allowances(campaign_id)
@@ -177,7 +188,9 @@ def begin(root, job, campaign_id):
                 {
                     "binding": campaign.binding(job, row["id"]),
                     **package,
-                    "live_prerequisites": confirm_prerequisites(gate.api),
+                    "live_prerequisites": confirm_prerequisites(
+                        gate.api, package.get("supplemental_controls")
+                    ),
                 },
             )
         require(time.monotonic() < started + limits["bootstrap"], "bootstrap allowance expired")
@@ -259,7 +272,7 @@ def cell_record(summary, scrape):
     }, gaps
 
 
-def serve(root, layouts, exporter_layout, stock, continuous, checker):
+def serve(root, layouts, exporter_layout, sender, checker):
     hosted_dispatch()
     state = read(root / "job.json")
     campaign = context(state["campaign"])
@@ -278,10 +291,7 @@ def serve(root, layouts, exporter_layout, stock, continuous, checker):
     driver.env.pop("GITHUB_TOKEN", None)
     driver.live_reservation = limits["cap"] + 900
     driver.deadline = state["bootstrap_end"]
-    binaries = {
-        False: (stock, final / "stock-build.json"),
-        True: (continuous, final / "continuous-build.json"),
-    }
+    binaries = {True: (sender, final / "dispatch-build.json")}
     labels = (*ORDERS[job - 1], "soak")
 
     def scenario(driver, images, exporter_images):
@@ -313,12 +323,17 @@ def serve(root, layouts, exporter_layout, stock, continuous, checker):
                     driver.output = driver.evidence / cell
                 output = driver.output
                 with driver.stage(f"install-{cell}"):
-                    install_episode(driver, cell, previous, binaries)
+                    install_episode(driver, cell, previous, binaries, precommit=True)
 
                 def build_schedule(cell=cell, rate=rate):
                     recheck(binding, campaign.campaign)
                     return schedule_for(
-                        campaign, job, cell, rate, time.time_ns() + LEAD_SECONDS * SECOND
+                        campaign,
+                        job,
+                        cell,
+                        rate,
+                        time.time_ns() + PRECOMMIT_LEAD_SECONDS * SECOND,
+                        precommit=True,
                     )
 
                 def release(driver, schedule, *, partial):
@@ -337,11 +352,12 @@ def serve(root, layouts, exporter_layout, stock, continuous, checker):
                             "unix_ns": time.time_ns(),
                         },
                     )
-                    if schedule["cell"] == "soak":
-                        return run_continuous(
-                            driver, schedule, partial=partial, peer_stop=peer_stop
-                        )
-                    return run_stock(driver, schedule, partial=partial)
+                    return run_precommitted(
+                        driver,
+                        schedule,
+                        partial=partial,
+                        peer_stop=peer_stop if schedule["cell"] == "soak" else None,
+                    )
 
                 with driver.stage(cell):
                     try:

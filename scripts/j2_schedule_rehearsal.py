@@ -97,7 +97,18 @@ done
 """
 
 
-def install_sender(driver, binary, manifest, *, continuous=False):
+PRECOMMIT_LEAD_SECONDS = 30
+POD_SCHEDULE = "/evidence/j2-dispatch-schedule.json"
+INSTALL_SCHEDULE = """
+import hashlib, sys
+from pathlib import Path
+raw = sys.stdin.buffer.read()
+Path(sys.argv[1]).write_bytes(raw)
+print(hashlib.sha256(raw).hexdigest())
+"""
+
+
+def install_sender(driver, binary, manifest, *, continuous=False, precommit=False):
     package = J2_PACKAGE if continuous else PACKAGE
     path = CONTINUOUS if continuous else STOCK
     pin = read(manifest)
@@ -107,6 +118,16 @@ def install_sender(driver, binary, manifest, *, continuous=False):
         and pin["source"] == os.environ["GITHUB_SHA"]
         and pin["binary"] == file_record(binary),
         "sender build identity or hash mismatch",
+    )
+    require(
+        not precommit
+        or (
+            continuous
+            and pin.get("dispatch_journal") == "precommit-v1"
+            and pin.get("source_archive")
+            and pin.get("source_files")
+        ),
+        "sender build does not identify precommit mode and its inputs",
     )
     result = driver.k(
         "-n",
@@ -128,7 +149,12 @@ def install_sender(driver, binary, manifest, *, continuous=False):
     help_result = driver.k(*args, path, "-help", timeout=15)
     help_text = help_result.stdout + help_result.stderr
     (driver.output / "sender-help.txt").write_text(help_text, encoding="utf-8")
-    if continuous:
+    if precommit:
+        require(
+            all(flag in help_text for flag in ("-schedule", "-dispatch-journal", "precommit-v1")),
+            "installed J2 sender is missing precommit mode",
+        )
+    elif continuous:
         require(
             all(
                 flag in help_text
@@ -155,7 +181,34 @@ def install_sender(driver, binary, manifest, *, continuous=False):
             "source": pin["source"],
             "path": path,
             "sha256": result.stdout.strip(),
+            **(
+                {
+                    "package": package,
+                    "dispatch_journal": pin["dispatch_journal"],
+                    "build": file_record(manifest),
+                    "source_archive": pin["source_archive"],
+                }
+                if precommit
+                else {}
+            ),
         },
+    )
+
+
+def verify_precommit_install(root, manifest, head):
+    installed, build = read(root / "sender-install.json"), read(manifest)
+    schedule = read(root / "sender-schedule-install.json")
+    require(
+        installed["build"] == file_record(manifest)
+        and installed["sha256"] == build["binary"]["sha256"]
+        and installed["source"] == build["source"] == head
+        and installed["package"] == build["package"] == J2_PACKAGE
+        and installed["dispatch_journal"] == build["dispatch_journal"] == "precommit-v1"
+        and installed["source_archive"] == build["source_archive"]
+        and bool(build["source_files"])
+        and schedule["path"] == POD_SCHEDULE
+        and schedule["sha256"] == file_record(root / "schedule.json")["sha256"],
+        "precommit install does not bind the candidate build or schedule",
     )
 
 
@@ -353,12 +406,57 @@ def run_continuous(driver, schedule, *, partial, peer_stop=None):
     )
 
 
-def execute_sender(driver, schedule, args, loadgen, journal, *, partial, peer_stop=None):
+def run_precommitted(driver, schedule, *, partial, peer_stop=None, url="http://api:8080"):
+    path = driver.output / "schedule.json"
+    write(path, schedule)
+    digest = file_record(path)["sha256"]
+    result = driver.k(
+        "-n",
+        APP,
+        "exec",
+        "-i",
+        driver.observer,
+        "--",
+        "python",
+        "-c",
+        INSTALL_SCHEDULE,
+        POD_SCHEDULE,
+        data=path.read_bytes().decode("utf-8"),
+        timeout=10,
+    )
+    require(result.stdout.strip() == digest, "observer schedule digest mismatch")
+    write(driver.output / "sender-schedule-install.json", {"path": POD_SCHEDULE, "sha256": digest})
+    return execute_sender(
+        driver,
+        schedule,
+        ["-n", APP, "exec", driver.observer, "--"],
+        [
+            CONTINUOUS,
+            "-dispatch-journal=precommit-v1",
+            "-schedule",
+            POD_SCHEDULE,
+            "-url",
+            url,
+            "-token-file",
+            "/identity/token",
+            "-output",
+            STEP_JOURNAL,
+        ],
+        STEP_JOURNAL,
+        partial=partial,
+        peer_stop=peer_stop,
+        lead=PRECOMMIT_LEAD_SECONDS,
+    )
+
+
+def execute_sender(
+    driver, schedule, args, loadgen, journal, *, partial, peer_stop=None, lead=LEAD_SECONDS
+):
     try:
         if partial:
             return driver.interrupted_load(args, loadgen)
         duration = (schedule["stop_ns"] - schedule["origin_ns"]) // SECOND
-        timeout = duration + LEAD_SECONDS + 30
+        timeout = duration + lead + 30
         if peer_stop is None:
             return driver.k(*args, *loadgen, allowed=True, timeout=timeout)
         with ThreadPoolExecutor(max_workers=1) as pool:

@@ -166,7 +166,37 @@ def quiet_evidence(root, final, expected, sender, checker_read, state):
     }
 
 
-def read_episode(root, campaign, namespace):
+def legacy_phase_projection(raw, schedule, expected, sender):
+    """Project a reconciled healthy episode into the historical phase reducer."""
+    plan = json.loads(raw.split(b"\n", 1)[0])["plan"]
+    events = [{"event": "plan", "plan": plan}]
+    for row in sender["sender_samples"]:
+        key = row["key"]
+        arrival = {
+            "event": "arrival",
+            "key": key,
+            "id": key,
+            "workflow": key,
+            "request_hash": expected[key]["request_hash"],
+            "scheduled": timestamp(expected[key]["scheduled_ns"]),
+            "sent": timestamp(schedule["origin_ns"] + row["dispatch_intent_ns"]),
+            "attempts": 1,
+            "error": "",
+        }
+        events.extend(
+            (
+                {**arrival, "outcome": "uncertain", "status": 0},
+                {**arrival, "outcome": row["outcome"], "status": row["status"]},
+            )
+        )
+    events.append({"event": "closed"})
+    historical = {key: value for key, value in schedule.items() if key != "dispatch_journal"}
+    return expected_arrivals(
+        b"".join(json.dumps(event).encode() + b"\n" for event in events), historical
+    )
+
+
+def read_episode(root, campaign, namespace, *, phase_parity=False):
     schedule = read(root / "schedule.json")
     expected_schedule = control_schedule(root.name, campaign, namespace, schedule["origin_ns"])
     if schedule.get("dispatch_journal") == DISPATCH_JOURNAL:
@@ -229,18 +259,39 @@ def read_episode(root, campaign, namespace):
     sent = sent_keys(sender)
     accepted = set(sender["acknowledged"])
     require(
-        read(root / "sender-exit.json")["exec_exit"] == 0
+        read(root / "sender-exit.json")["exec_exit"]
+        == (1 if root.name == CAPPED and sender.get("schema") == DISPATCH_JOURNAL else 0)
         and sender["closed"]
         and not sender["torn_suffix"]
         and not (
             sender["outside_slot"]
             or sender["remaining_intents"]
             or sender["unresolved"]
-            or sender.get("timing_exceptions")
+            or [
+                row
+                for row in sender.get("timing_exceptions", ())
+                if root.name != CAPPED or row["reason"] != "capacity-missed"
+            ]
         )
         and sent == accepted == set(admitted),
         "control sends, acknowledgments and checked admissions do not reconcile",
     )
+    if phase_parity:
+        require(
+            root.name == HEALTHY
+            and sender["schema"] == DISPATCH_JOURNAL
+            and sender["all_accepted_verdict"] == "PASS"
+            and len(admitted) == schedule["count"],
+            "phase parity requires a fully delivered precommit healthy episode",
+        )
+        legacy_expected, legacy_sender = legacy_phase_projection(raw, schedule, expected, sender)
+        legacy_checked = checked_results(
+            report, legacy_expected, legacy_sender, witness, polls, width, final["upper_unix_ns"]
+        )
+        require(
+            legacy_expected == expected and legacy_checked == checked,
+            "legacy and precommit winning-attempt phase joins differ",
+        )
     attempts = Counter(
         row["workflow_id"]
         for row in report["trace"]["Snapshot"]["engine.transition_history"]["rows"]
@@ -267,6 +318,7 @@ def read_episode(root, campaign, namespace):
         "journal": journal,
         "rows": rows,
         "quiet": quiet,
+        **({"phase_join_parity": "PASS"} if phase_parity else {}),
         "report": report,
         "cut": cut,
         "state": state,
@@ -334,6 +386,8 @@ def gate_control(root, episode):
 
 def capped_control(episode, proxy):
     sender, plan, journal = (episode[k] for k in ("sender", "plan", "journal"))
+    precommit = sender.get("schema") == DISPATCH_JOURNAL
+    verdict_field = "all_accepted_verdict" if precommit else "stock_verdict"
     shedding = sum(row["status"] == 429 for row in journal)
     finished = {row["key"]: row for row in journal}
     misses = {
@@ -341,13 +395,16 @@ def capped_control(episode, proxy):
         for key, row in finished.items()
         if row["error"] == "capacity-missed"
         and row["outcome"] == "unsent"
-        and row["sent"] is None
-        and row["attempts"] == 0
+        and (
+            row["transport_entry_ns"] is None and row["request_written_ns"] is None
+            if precommit
+            else row["sent"] is None and row["attempts"] == 0
+        )
     }
     require(
         episode["schedule"]["cap"] == 1
         and sender["max_in_flight_from_journal"] == 1
-        and sender["stock_verdict"] == "FAIL"
+        and sender[verdict_field] == "FAIL"
         and misses == set(sender["explicitly_unsent"])
         and not shedding
         and set(sender["durable_admissions"]) == episode["rows"].keys()
@@ -385,7 +442,12 @@ def capped_control(episode, proxy):
         require(
             row["request_sha256"] == episode["expected"][key]["request_hash"]
             and finished[key]["outcome"] == "accepted"
-            and utc_ns(finished[key]["sent"]) <= row["entered_unix_ns"]
+            and (
+                episode["schedule"]["origin_ns"] + finished[key]["transport_entry_ns"]
+                if precommit
+                else utc_ns(finished[key]["sent"])
+            )
+            <= row["entered_unix_ns"]
             and row["upstream_status"] == row["downstream_status"] == finished[key]["status"]
             and 200 <= row["upstream_status"] < 300
             and json.loads(reply)["workflow"]["workflow_id"] == key
@@ -399,7 +461,7 @@ def capped_control(episode, proxy):
         )
     return {
         "status": "sender_invalid",
-        "stock_verdict": "FAIL",
+        verdict_field: "FAIL",
         "capacity_missed": sorted(misses),
         "deadlines_elapsed_during_hold": sorted(elapsed_deadlines & held),
         "durable_admissions": sender["durable_admissions"],

@@ -66,6 +66,34 @@ func TestJ2DispatchCutoffs(t *testing.T) {
 	}
 }
 
+func TestJ2SingleLeaseIsRestrictedToSupplementalProxy(t *testing.T) {
+	s := j2DispatchSchedule{
+		Journal: j2DispatchSchema, Campaign: "eng-controls-12-1", Cell: "capped-sender",
+		RunID: "j2-eng-controls-12-1-capped-sender", Namespace: "j2-harness",
+		Cap: 1, Rate: "1", Timeout: "10s", Origin: int64(time.Second),
+		WarmupEnd: int64(time.Second), Stop: 4 * int64(time.Second), Count: 3,
+	}
+	cfg := testConfig()
+	cfg.URL = "http://127.0.0.1:18080"
+	_, plan, slots, err := s.plan(cfg)
+	if err != nil || plan.Concurrency != 1 || len(slots) != 3 {
+		t.Fatalf("isolated cap schedule: %v %+v", err, plan)
+	}
+	for _, mutate := range []func(*j2DispatchSchedule, *Config){
+		func(s *j2DispatchSchedule, _ *Config) { s.Cell = "A" },
+		func(s *j2DispatchSchedule, _ *Config) { s.Campaign = "j2-load-envelope-v1" },
+		func(s *j2DispatchSchedule, _ *Config) { s.RunID = "eng-other" },
+		func(s *j2DispatchSchedule, _ *Config) { s.Rate = "4" },
+		func(_ *j2DispatchSchedule, c *Config) { c.URL = "http://api:8080" },
+	} {
+		schedule, config := s, cfg
+		mutate(&schedule, &config)
+		if _, _, _, err := schedule.plan(config); err == nil {
+			t.Fatalf("unexpected cap accepted: %+v %s", schedule, config.URL)
+		}
+	}
+}
+
 func TestJ2PrecommitFencesDispatch(t *testing.T) {
 	for _, scenario := range []string{"slow-ready", "slow-overrun", "sync-error", "directory-error", "short-write"} {
 		t.Run(scenario, func(t *testing.T) {

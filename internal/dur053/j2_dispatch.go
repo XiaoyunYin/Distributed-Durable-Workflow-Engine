@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,8 @@ const (
 
 type j2DispatchSchedule struct {
 	Journal   string `json:"dispatch_journal"`
+	Campaign  string `json:"campaign"`
+	Cell      string `json:"cell"`
 	Namespace string `json:"namespace"`
 	RunID     string `json:"run_id"`
 	Seed      int64  `json:"seed"`
@@ -48,7 +51,10 @@ type j2DispatchSchedule struct {
 
 func (s j2DispatchSchedule) plan(c Config) (Config, invariants.Arrivals, []j2Slot, error) {
 	bad := errors.New("invalid bound J2 dispatch schedule")
-	if s.Journal != j2DispatchSchema || s.Cap != j2Cap || s.Timeout != j2RequestTimeout.String() ||
+	control := s.Cap == 1 && s.Cell == "capped-sender" && strings.HasPrefix(s.Campaign, "eng-controls-") &&
+		s.RunID == "j2-"+s.Campaign+"-capped-sender" && s.Rate == "1" && len(s.Periods) == 0 &&
+		c.URL == "http://127.0.0.1:18080"
+	if s.Journal != j2DispatchSchema || (s.Cap != j2Cap && !control) || s.Timeout != j2RequestTimeout.String() ||
 		s.Count <= 0 || s.Count > j2DispatchMax || s.Origin <= 0 || s.WarmupEnd < s.Origin ||
 		s.Stop <= s.WarmupEnd || s.Stop-s.Origin > int64(maxJ2Duration) {
 		return c, invariants.Arrivals{}, nil, bad
@@ -82,7 +88,7 @@ func (s j2DispatchSchedule) plan(c Config) (Config, invariants.Arrivals, []j2Slo
 		return c, invariants.Arrivals{}, nil, bad
 	}
 	c.Namespace, c.RunID, c.Seed = s.Namespace, s.RunID, s.Seed
-	c.Arm, c.Concurrency, c.Timeout = "short", j2Cap, j2RequestTimeout
+	c.Arm, c.Concurrency, c.Timeout = "short", s.Cap, j2RequestTimeout
 	// Check the computed count before allocating the plan, including an invalid
 	// schedule that advertises a smaller population than its rate would offer.
 	total := 0.0
@@ -194,7 +200,7 @@ func dispatchJ2(ctx context.Context, result J2DispatchResult, plan invariants.Ar
 			reason = "early-wake"
 		} else if !intent.Before(cutoff) {
 			reason = "missed-deadline"
-		} else if active == j2Cap {
+		} else if active == plan.Concurrency {
 			reason = "capacity-missed"
 		}
 		if reason != "" {

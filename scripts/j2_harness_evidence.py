@@ -48,7 +48,9 @@ def seal(directory):
     )
 
 
-def verify_upload(archive, metadata, artifact_id, artifact_digest, *, mode="harness-reset"):
+def verify_upload(
+    archive, metadata, artifact_id, artifact_digest, *, mode="harness-reset", job=None
+):
     require(
         mode
         in {
@@ -57,10 +59,18 @@ def verify_upload(archive, metadata, artifact_id, artifact_digest, *, mode="harn
             "harness-sender",
             "harness-step",
             "controls",
+            "controls-r422",
             "measure-replay",
+            "r422-full-clock",
+            "r422-full-clock-replay",
         },
         "unexpected J2 artifact mode",
     )
+    require(
+        (job in (1, 2, 3) if mode == "r422-full-clock" else job is None),
+        "J2 artifact job does not match mode",
+    )
+    suffix = f"-job-{job}" if job is not None else ""
     digest = file_record(archive)["sha256"]
     require(
         metadata["id"] == int(artifact_id)
@@ -69,7 +79,7 @@ def verify_upload(archive, metadata, artifact_id, artifact_digest, *, mode="harn
         and str(metadata["workflow_run"]["id"]) == os.environ["GITHUB_RUN_ID"]
         and metadata["workflow_run"]["head_sha"] == os.environ["GITHUB_SHA"]
         and metadata["name"]
-        == (f"j2-{mode}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}")
+        == (f"j2-{mode}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}{suffix}")
         and metadata["digest"] == f"sha256:{digest}"
         and digest == artifact_digest,
         "Actions evidence artifact identity, expiry or digest mismatch",
@@ -114,6 +124,7 @@ def main():
     verify.add_argument("artifact_id")
     verify.add_argument("artifact_digest")
     verify.add_argument("--mode", default="harness-reset")
+    verify.add_argument("--job", type=int)
     args = parser.parse_args()
     if args.command == "seal":
         seal(args.directory)
@@ -124,6 +135,7 @@ def main():
             args.artifact_id,
             args.artifact_digest,
             mode=args.mode,
+            job=args.job,
         )
 
 

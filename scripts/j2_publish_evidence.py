@@ -25,6 +25,7 @@ from j2_replay_storage import (
     release_tag_ok,
     run_metadata,
     source_campaign,
+    supplemental_source,
     verify_report_source,
 )
 
@@ -170,7 +171,8 @@ def publish(repository, campaign_id, run, tag, output, prior_report):
     campaign = source_campaign(repository, run, campaign_id, source["head_sha"])
     barrier = Barrier(campaign, api)
     jobs = api.jobs(campaign, allow_failed=True)
-    records = metadata_source(barrier, prior_report=prior_report)
+    supplemental = supplemental_source(head=campaign.head)
+    records = metadata_source(barrier, prior_report=prior_report, supplemental=supplemental)
     output.mkdir(parents=True, exist_ok=True)
     release_source = {"repository": repository, "tag": tag, "campaign": campaign_id}
     for meta in records.values():
@@ -180,7 +182,7 @@ def publish(repository, campaign_id, run, tag, output, prior_report):
             barrier.retry(lambda meta=meta, path=path: pull_archive(barrier, meta, path))
             inventory = release_member_record(path, meta, api.budget.remaining)
             if meta["kind"] in {"replay", "replay-receipt"}:
-                verify_report_source(path, meta, campaign, records)
+                verify_report_source(path, meta, campaign, records, supplemental=supplemental)
             published = publish_archive(repository, tag, release_id, path, existing, api.budget)
             downloaded = directory / "verified.zip"
             pull_archive(
@@ -207,6 +209,7 @@ def publish(repository, campaign_id, run, tag, output, prior_report):
         "release_id": release_id,
         "jobs": {str(job): item for job, item in jobs.items()},
         "artifacts": records,
+        **({"supplemental_controls": supplemental} if supplemental else {}),
     }
     suffix = f"replay-r{prior_report}--" if prior_report else ""
     name = f"{campaign_id}--r{run}--a{campaign.attempt}--{suffix}index.json"

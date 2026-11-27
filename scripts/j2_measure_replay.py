@@ -33,6 +33,8 @@ from j2_harness_evidence import seal
 from j2_integrated_evidence import registered_boundary
 from j2_integrated_report import (
     CONTROL_ARTIFACTS,
+    CONTROL_HEAD,
+    CONTROL_RUN,
     checker_replay,
     extract,
     verify_episode_reduction,
@@ -52,6 +54,8 @@ from j2_replay_storage import (
     run_metadata,
     source_campaign,
     source_names,
+    supplemental_source,
+    supplemental_verdict,
     verify_prerequisite,
     verify_report_source,
 )
@@ -162,8 +166,9 @@ class ReplayBudget:
 
 
 class ReplayInputs:
-    def __init__(self, gate, metadata, budget, *, release=None):
+    def __init__(self, gate, metadata, budget, *, release=None, supplemental=None):
         self.gate, self.metadata, self.budget, self.release = gate, metadata, budget, release
+        self.supplemental = supplemental
         self.index = {}
 
     @contextmanager
@@ -203,7 +208,11 @@ class ReplayInputs:
                     if not item.is_dir()
                 }
                 expanded = sum(sizes.values())
-                scratch = sizes.get("snapshot.json", 0) + sizes.get("live-checker.json", 0)
+                scratch = sum(
+                    size
+                    for member, size in sizes.items()
+                    if Path(member).name in {"snapshot.json", "live-checker.json"}
+                )
                 record["expanded_bytes"] = expanded
                 self.budget.disk_for(expanded + scratch, zip_bytes=path.stat().st_size)
                 inventory = release_member_record(path, meta, left)
@@ -228,7 +237,7 @@ class ReplayInputs:
             finally:
                 if evidence is not None:
                     scratch = sum(
-                        p.stat().st_size for p in evidence.glob("recomputed-*") if p.is_file()
+                        p.stat().st_size for p in evidence.rglob("recomputed-*") if p.is_file()
                     )
                     if (evidence / "archived-offline-checker.json").is_file():
                         scratch += (evidence / "offline-checker.json").stat().st_size
@@ -263,8 +272,30 @@ def verify_checkpoint(
     )
     schedule = read(root / "schedule.json")
     expected_schedule = schedule_for(campaign, job, cell, rate, schedule["origin_ns"])
+    if release_proof is not None and "build" in release_proof:
+        require(
+            schedule.get("dispatch_journal") == DISPATCH_JOURNAL,
+            "candidate checkpoint did not use precommit dispatch",
+        )
     if schedule.get("dispatch_journal") == DISPATCH_JOURNAL:
         expected_schedule["dispatch_journal"] = DISPATCH_JOURNAL
+        install = read(root / "sender-install.json")
+        require(
+            install["source"] == campaign.head
+            and install["package"] == "./cmd/j2-sender"
+            and install["dispatch_journal"] == "precommit-v1"
+            and read(root / "sender-schedule-install.json")["sha256"]
+            == file_record(root / "schedule.json")["sha256"]
+            and (
+                release_proof is None
+                or (
+                    install["build"] == release_proof["build"]
+                    and install["sha256"] == release_proof["binary"]
+                    and install["source_archive"] == release_proof["source_archive"]
+                )
+            ),
+            "checkpoint sender installation does not bind the candidate build or schedule",
+        )
     require(
         schedule == expected_schedule,
         "verified schedule differs from the source clock",
@@ -275,7 +306,10 @@ def verify_checkpoint(
         and released["telemetry"] == file_record(root / "pre-traffic-telemetry.json")
         and (
             release_proof is None
-            or all(released[key] == value for key, value in release_proof.items())
+            or all(
+                released[key] == release_proof[key]
+                for key in ("authorized_ref", "controls", "inventory")
+            )
         ),
         "sender release does not bind its pre-traffic evidence",
     )
@@ -370,6 +404,20 @@ def replay_job(inputs, campaign, jobs, job, checker, *, control_hashes, omit=Non
             status, cleanup = read(root / "status.json"), read(root / "cleanup.json")
             authorization = read(root / "authorization.json")
             controls = read(root / "controls-applicability.json")
+            if inputs.supplemental is not None:
+                require(
+                    controls.get("supplemental_controls") == inputs.supplemental,
+                    "live supplemental controls source differs from the packet",
+                )
+                expected_sources = set(CONTROL_ARTIFACTS) | {
+                    row["name"] for row in inputs.supplemental["artifacts"].values()
+                }
+                require(
+                    set(controls["artifacts"]) == expected_sources,
+                    "live controls artifact inventory differs",
+                )
+                for source_name, meta in controls["artifacts"].items():
+                    verify_prerequisite(source_name, meta, inputs.supplemental)
             require(
                 authorization == final["authorization"]
                 and controls["head"] == campaign.head
@@ -393,6 +441,19 @@ def replay_job(inputs, campaign, jobs, job, checker, *, control_hashes, omit=Non
                 "controls": file_record(root / "controls-applicability.json"),
                 "inventory": file_record(root / "runner-inventory.json"),
             }
+            if inputs.supplemental is not None:
+                build = read(root / "dispatch-build.json")
+                require(
+                    build["source"] == campaign.head
+                    and build["package"] == "./cmd/j2-sender"
+                    and build["dispatch_journal"] == "precommit-v1",
+                    "candidate build manifest differs",
+                )
+                release_proof.update(
+                    build=file_record(root / "dispatch-build.json"),
+                    binary=build["binary"]["sha256"],
+                    source_archive=build["source_archive"],
+                )
             peer = root / "peer-failure.json"
             result["final"] = {
                 "status": status,
@@ -645,7 +706,7 @@ def archived_prerequisites(inputs, checker, repeats):
         require(
             all(
                 control_source[key] == inputs.metadata[original][key]
-                for key in ("id", "name", "digest", "workflow_run")
+                for key in ("id", "name", "digest", "size_in_bytes", "workflow_run")
             ),
             "control verification receipt does not bind its source",
         )
@@ -655,12 +716,36 @@ def archived_prerequisites(inputs, checker, repeats):
         tempfile.TemporaryDirectory(dir=inputs.budget.output.parent) as temp,
     ):
         report = Path(temp) / "controls.json"
-        replay_archive(path, report)
+        replay_archive(
+            path, report, source={"run": CONTROL_RUN, "attempt": 1, "head": CONTROL_HEAD}
+        )
         require(
             canonical(read(report)) == canonical(decode(expected)),
             "controls replay differs from archived receipt",
         )
-    return {"qualification": verified, "controls": "PASS"}
+    if inputs.supplemental is not None:
+        original, receipt = (
+            inputs.supplemental["artifacts"][role]["name"] for role in ("bundle", "receipt")
+        )
+        components = control_identity(head=inputs.gate.campaign.head)
+        with inputs.archive(receipt) as (path, _, _):
+            expected = supplemental_verdict(path, original, inputs.metadata, components)
+        with (
+            inputs.archive(original) as (path, _, _),
+            inputs.budget.stage("reduce"),
+            tempfile.TemporaryDirectory(dir=inputs.budget.output.parent) as temp,
+        ):
+            report = Path(temp) / "supplemental.json"
+            replay_archive(path, report, supplemental=True, source=inputs.supplemental)
+            require(
+                canonical(read(report)) == canonical(expected),
+                "supplemental independent replay differs from archived receipt",
+            )
+    return {
+        "qualification": verified,
+        "controls": "PASS",
+        **({"supplemental_controls": inputs.supplemental} if inputs.supplemental else {}),
+    }
 
 
 def verify_dispatch(inputs, campaign, jobs, authorization):
@@ -718,6 +803,11 @@ def source_inputs(args, budget):
             args.release_index_sha256,
         )
         campaign = source_campaign(repository, run, args.campaign_id, index["head"])
+        supplemental = supplemental_source(head=campaign.head)
+        require(
+            index.get("supplemental_controls") == supplemental,
+            "release index does not bind the supplemental source from the source head",
+        )
         gate = client(campaign, args.output, budget.cutoff)
         jobs = {int(job): row for job, row in index["jobs"].items()}
         metadata = index["artifacts"]
@@ -734,15 +824,19 @@ def source_inputs(args, budget):
                     and meta["name"] == name,
                     "release index has a foreign source archive",
                 )
-        for name in prerequisite_archives():
+        for name in prerequisite_archives(supplemental):
             meta = metadata[name]
-            prereq_run, kind = verify_prerequisite(name, meta)
+            prereq_run, kind = verify_prerequisite(name, meta, supplemental)
             require(
                 (meta["source_run"], meta["source_attempt"], meta["job"], meta["kind"])
                 == (prereq_run, 1, "shared", kind),
                 "release index has a foreign prerequisite archive",
             )
-        return ReplayInputs(gate, metadata, budget, release=index), campaign, jobs
+        return (
+            ReplayInputs(gate, metadata, budget, release=index, supplemental=supplemental),
+            campaign,
+            jobs,
+        )
     provisional = Campaign(repository, run, 1, "", args.campaign_id, {}, 26678, "")
     gate = client(provisional, args.output, budget.cutoff)
     info = budget.retry(lambda: run_metadata(gate.api, run))
@@ -750,8 +844,9 @@ def source_inputs(args, budget):
     campaign = source_campaign(repository, run, args.campaign_id, info["head_sha"])
     gate = Barrier(campaign, gate.api)
     jobs = budget.retry(lambda: gate.api.jobs(campaign, allow_failed=True))
-    metadata = metadata_source(gate)
-    return ReplayInputs(gate, metadata, budget), campaign, jobs
+    supplemental = supplemental_source(head=campaign.head)
+    metadata = metadata_source(gate, supplemental=supplemental)
+    return ReplayInputs(gate, metadata, budget, supplemental=supplemental), campaign, jobs
 
 
 def run_report(args, budget):
@@ -813,7 +908,9 @@ def run_report(args, budget):
             for name, meta in inputs.metadata.items():
                 if meta["kind"] in {"replay", "replay-receipt"}:
                     with inputs.archive(name) as (path, _, _):
-                        verify_report_source(path, meta, campaign, inputs.metadata)
+                        verify_report_source(
+                            path, meta, campaign, inputs.metadata, supplemental=inputs.supplemental
+                        )
         from j2_attribution_fixture import fixture_report
 
         if engineering(campaign.campaign):

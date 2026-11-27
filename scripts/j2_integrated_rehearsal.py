@@ -193,19 +193,19 @@ def checkpoint(driver, job, label, identity, rate):
     return file_record(root / "freeze.json")["sha256"]
 
 
-def install_episode(driver, cell, previous, binaries):
+def install_episode(driver, cell, previous, binaries, *, precommit=False):
     if previous is None:
         check_network(driver, APP)
         for namespace in (NS, OTHER):
             driver.k("-n", namespace, "delete", "pod", "unrelated", "--wait=true")
-    stepped = cell == "soak"
+    stepped = cell == "soak" or precommit
     driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
     driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
     driver.pod_journal = STEP_JOURNAL if stepped else JOURNAL
     driver.journal_name = "sender-journal.jsonl"
     driver.install_checker()
     binary, manifest = binaries[stepped]
-    install_sender(driver, binary, manifest, continuous=stepped)
+    install_sender(driver, binary, manifest, continuous=stepped, precommit=precommit)
 
 
 def exercise(driver, job, cell, rate, addresses, exporter, previous, binaries):

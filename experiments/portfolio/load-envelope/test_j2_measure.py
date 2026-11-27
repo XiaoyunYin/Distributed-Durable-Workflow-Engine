@@ -55,7 +55,7 @@ def frozen_dispatch_checkout(tmp_path, monkeypatch):
     paths = {
         *packet.PIN_FILES.values(),
         *packet.TOOLING_FILES,
-        *auth.CONTROLS_PATHS,
+        *auth.LEGACY_CONTROLS_PATHS,
         (packet.PACKET / "manifest.json").as_posix(),
         *((packet.PACKET / name).as_posix() for name in packet.EVIDENCE_FILES),
     }
@@ -78,6 +78,62 @@ def test_frozen_dispatch_packet_matches_the_registered_schedule_and_prerequisite
     assert len(proof["prerequisites"]) == 3
     results = packet.schedule_contract()["continuous"]
     assert results["AB"]["bound"] == 26678 and results["AB"]["scheduled"] == 26677
+
+
+def test_r422_packet_binds_both_control_archives(frozen_dispatch_checkout, monkeypatch):
+    root = frozen_dispatch_checkout
+    marker = root / auth.R422_MARKER
+    marker.touch()
+    monkeypatch.setattr(auth, "CONTROLS_PATHS", auth.LEGACY_CONTROLS_PATHS + (auth.R422_MARKER,))
+    pins = {label: packet.text_sha(root / path) for label, path in packet.PIN_FILES.items()}
+    directory = root / packet.PACKET
+    control_path = directory / "controls" / "verification.json"
+    manifest_path = directory / "manifest.json"
+    controls, manifest = read(control_path), read(manifest_path)
+    controls["controls_sha256"] = digest(canonical(auth.control_identity(root)))
+    with pytest.raises(ValueError, match="supplemental J2 controls source"):
+        packet.verify_package(root, pins)
+
+    run = 1234
+    source = {
+        "schema": "j2.r422-controls.v1",
+        "run": run,
+        "attempt": 1,
+        "head": HEAD,
+        "artifacts": {},
+    }
+    for role, suffix, artifact, checksum in (
+        ("bundle", "", 4321, "a" * 64),
+        ("receipt", "-receipt", 4322, "b" * 64),
+    ):
+        name = f"j2-controls-r422{suffix}-{run}-1"
+        source["artifacts"][role] = {"id": artifact, "name": name, "bytes": 678, "sha256": checksum}
+        entry = {"id": artifact, "digest": f"sha256:{checksum}"}
+        controls["archives"][name] = {
+            "source": {
+                **entry,
+                "name": name,
+                "size_in_bytes": 678,
+                "source_attempt": 1,
+                "workflow_run": {"id": run, "head_sha": HEAD},
+            },
+        }
+        manifest["prerequisites"][name] = entry
+    controls["supplemental_controls"] = source
+
+    def reseal():
+        write(control_path, controls)
+        manifest["evidence"]["controls/verification.json"] = packet.text_sha(control_path)
+        write(manifest_path, manifest)
+
+    reseal()
+    proof = packet.verify_package(root, pins)
+    assert proof["supplemental_controls"] == source
+    assert len(proof["prerequisites"]) == 5
+    controls["archives"][source["artifacts"]["receipt"]["name"]]["source"]["size_in_bytes"] += 1
+    reseal()
+    with pytest.raises(ValueError, match="bytes or attempt differ"):
+        packet.verify_package(root, pins)
 
 
 @pytest.mark.parametrize("change", ["missing", "digest", "seed"])
@@ -149,11 +205,17 @@ def test_live_prerequisites_are_rechecked_before_bootstrap(problem):
         assert set(packet.confirm_prerequisites(api)) == set(packet.prerequisite_archives())
 
 
-@pytest.mark.parametrize("campaign", [packet.MEASURED_CAMPAIGN, packet.FINAL_REHEARSAL])
+@pytest.mark.parametrize(
+    "campaign", [packet.MEASURED_CAMPAIGN, packet.FINAL_REHEARSAL, f"eng-r422-final-{HEAD[:8]}"]
+)
 def test_missing_packet_blocks_traffic_before_authorization(tmp_path, monkeypatch, campaign):
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     monkeypatch.setenv("GITHUB_RUN_ID", "91")
     monkeypatch.setattr(measure, "ROOT", tmp_path)
+    if campaign.startswith("eng-r422-final-"):
+        marker = tmp_path / auth.R422_MARKER
+        marker.parent.mkdir()
+        marker.touch()
     monkeypatch.setattr(measure, "hosted_dispatch", lambda: None)
     monkeypatch.setattr(measure, "context", lambda _: SimpleNamespace(head=HEAD, pins={}))
     monkeypatch.setattr(measure.subprocess, "check_output", lambda *_, **__: HEAD)
@@ -297,6 +359,9 @@ def authorization_checkout(tmp_path, monkeypatch):
         if command == "rev-parse":
             assert args == ("--verify", "HEAD")
             return (HEAD + "\n").encode()
+        if command == "ls-tree":
+            assert args == (HEAD, "--", auth.R422_MARKER)
+            return b"tracked marker"
         assert command == "show" and args[0].startswith(HEAD + ":")
         return contents[args[0].split(":", 1)[1]]
 

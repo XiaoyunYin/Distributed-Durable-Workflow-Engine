@@ -24,6 +24,7 @@ from j2_checker import ROOT
 from j2_harness_evidence import safe_name
 from j2_integrated_report import (
     CONTROL_ARTIFACTS,
+    CONTROL_BYTES,
     CONTROL_HEAD,
     CONTROL_RUN,
     QUALIFICATION_ARTIFACT,
@@ -33,8 +34,8 @@ from j2_integrated_report import (
     ZIP_BOUND,
     download,
 )
-from j2_measure_authorization import engineering, git_head
-from j2_qualification_evidence import file_record, require
+from j2_measure_authorization import engineering, git_head, git_output, r422_enabled
+from j2_qualification_evidence import file_record, read, require
 from j2_schedule import MEASURED_CAMPAIGN, RATES
 
 QUALIFICATION_RUN = 45893066798
@@ -42,6 +43,82 @@ QUALIFICATION_NAME = f"j2-volume-26678-{QUALIFICATION_RUN}-1"
 INDEX_SCHEMA = "j2.release-evidence.v1"
 MAX_INDEX_BYTES = 8 << 20
 RELEASE_PART_BYTES = 64 << 20
+CONTROLS_RECORD = (
+    f"experiments/portfolio/load-envelope/{MEASURED_CAMPAIGN}/controls/verification.json"
+)
+
+
+def supplemental_source(*, root=ROOT, head=None):
+    if not r422_enabled(root, head=head):
+        return None
+    controls = (
+        read(root / CONTROLS_RECORD)
+        if head is None
+        else decode(git_output(root, "show", f"{head}:{CONTROLS_RECORD}"))
+    )
+    return validate_supplemental(controls.get("supplemental_controls"))
+
+
+def validate_supplemental(value):
+    from j2_controls import SUPPLEMENTAL_SCHEMA
+
+    require(
+        isinstance(value, dict)
+        and set(value) == {"schema", "run", "attempt", "head", "artifacts"}
+        and value["schema"] == SUPPLEMENTAL_SCHEMA
+        and git_head(value["head"])
+        and type(value["run"]) is int
+        and value["run"] > 0
+        and value["run"] != CONTROL_RUN
+        and type(value["attempt"]) is int
+        and value["attempt"] == 1
+        and isinstance(value["artifacts"], dict)
+        and set(value["artifacts"]) == {"bundle", "receipt"},
+        "missing or invalid frozen supplemental J2 controls source",
+    )
+    for role, entry in value["artifacts"].items():
+        suffix = "-receipt" if role == "receipt" else ""
+        require(
+            isinstance(entry, dict)
+            and set(entry) == {"id", "name", "bytes", "sha256"}
+            and entry["name"] == f"j2-controls-r422{suffix}-{value['run']}-1"
+            and type(entry["id"]) is int
+            and entry["id"] > 0
+            and type(entry["bytes"]) is int
+            and 0 < entry["bytes"] <= ZIP_BOUND
+            and isinstance(entry["sha256"], str)
+            and sha256(entry["sha256"]),
+            "invalid frozen supplemental control artifact",
+        )
+    require(
+        len({row["id"] for row in value["artifacts"].values()}) == 2
+        and len({row["sha256"] for row in value["artifacts"].values()}) == 2,
+        "duplicate supplemental control artifact",
+    )
+    return value
+
+
+def supplemental_verdict(path, original, metadata, components):
+    from j2_controls import SUPPLEMENTAL_SCHEMA, campaign
+
+    with zipfile.ZipFile(path) as receipt:
+        source = decode(receipt.read("artifact.json"))
+        result = decode(receipt.read("offline-replay.json"))
+    require(
+        all(
+            source[key] == metadata[original][key]
+            for key in ("id", "name", "digest", "size_in_bytes", "workflow_run")
+        )
+        and result.get("schema") == SUPPLEMENTAL_SCHEMA
+        and result.get("campaign") == campaign(source["workflow_run"]["id"], 1)
+        and result.get("covered_components") == components
+        and result["healthy_low_load"]["status"] == "PASS"
+        and result["healthy_low_load"]["phase_join_parity"] == "PASS"
+        and result["withheld_terminal"]["status"] == "PASS"
+        and result["capped_sender"]["status"] == "sender_invalid",
+        "supplemental receipt does not bind its artifact, exact components or verdicts",
+    )
+    return result
 
 
 def source_campaign(repository, run, campaign_id, head, attempt=1):
@@ -99,8 +176,8 @@ def source_names(campaign):
     return names
 
 
-def prerequisite_archives():
-    return {
+def prerequisite_archives(supplemental=None):
+    records = {
         QUALIFICATION_NAME: (
             QUALIFICATION_ARTIFACT,
             QUALIFICATION_HASH,
@@ -119,22 +196,48 @@ def prerequisite_archives():
             for name, (artifact, sha) in CONTROL_ARTIFACTS.items()
         },
     }
+    if supplemental is not None:
+        for role, entry in supplemental["artifacts"].items():
+            records[entry["name"]] = (
+                entry["id"],
+                entry["sha256"],
+                supplemental["run"],
+                supplemental["head"],
+                "controls-r422" if role == "bundle" else "controls-r422-receipt",
+            )
+    return records
 
 
-def verify_prerequisite(name, meta):
-    artifact, checksum, run, head, kind = prerequisite_archives()[name]
+def verify_prerequisite(name, meta, supplemental=None):
+    archives = prerequisite_archives(supplemental)
+    require(name in archives, f"foreign prerequisite archive: {name}")
+    artifact, checksum, run, head, kind = archives[name]
+    workflow = meta.get("workflow_run")
     require(
         meta["id"] == artifact
         and meta["name"] == name
         and meta["digest"] == f"sha256:{checksum}"
-        and meta["workflow_run"]["id"] == run
-        and meta["workflow_run"]["head_sha"] == head,
+        and isinstance(workflow, dict)
+        and workflow.get("id") == run
+        and workflow.get("head_sha") == head,
         f"{kind} archived source differs",
     )
+    if kind in {"controls-r422", "controls-r422-receipt"}:
+        role = "bundle" if kind == "controls-r422" else "receipt"
+        require(
+            meta.get("size_in_bytes") == supplemental["artifacts"][role]["bytes"]
+            and meta.get("source_attempt", 1) == supplemental["attempt"],
+            "supplemental control ZIP bytes or attempt differ",
+        )
+    elif supplemental is not None and name in CONTROL_BYTES:
+        require(
+            meta.get("size_in_bytes") == CONTROL_BYTES[name] and meta.get("source_attempt", 1) == 1,
+            "historical control ZIP bytes or attempt differ",
+        )
     return run, kind
 
 
-def metadata_source(barrier, *, prior_report=None):
+def metadata_source(barrier, *, prior_report=None, supplemental=None):
     api, campaign = barrier.api, barrier.campaign
     names = source_names(campaign)
     items = barrier.retry(lambda: api.artifacts(campaign, set(names)))
@@ -142,7 +245,13 @@ def metadata_source(barrier, *, prior_report=None):
     for name, meta in items.items():
         job, kind = names[name]
         meta.update(source_run=campaign.run, source_attempt=campaign.attempt, job=job, kind=kind)
-    for name, (artifact, _, _, _, _) in prerequisite_archives().items():
+    if supplemental is not None:
+        info = barrier.retry(lambda: run_metadata(api, supplemental["run"]))
+        require(
+            info["head_sha"] == supplemental["head"] and info["conclusion"] == "success",
+            "supplemental control run differs or did not pass",
+        )
+    for name, (artifact, _, _, _, _) in prerequisite_archives(supplemental).items():
         meta = barrier.retry(
             lambda artifact=artifact: decode(
                 api.request(
@@ -152,7 +261,7 @@ def metadata_source(barrier, *, prior_report=None):
                 )
             )
         )
-        run, kind = verify_prerequisite(name, meta)
+        run, kind = verify_prerequisite(name, meta, supplemental)
         meta.update(source_run=run, source_attempt=1, job="shared", kind=kind)
         items[name] = meta
     if prior_report is not None:
@@ -307,6 +416,7 @@ def archive_members(path, kind, remaining=lambda: 60):
                 in {
                     "dispatch",
                     "controls-receipt",
+                    "controls-r422-receipt",
                     "replay-receipt",
                     "final-partial",
                     "authorization-stop",
@@ -386,7 +496,7 @@ def release_member_record(path, meta, remaining):
     return inventory
 
 
-def verify_report_source(path, meta, campaign, records):
+def verify_report_source(path, meta, campaign, records, *, supplemental=None):
     run = meta["source_run"]
     with zipfile.ZipFile(path) as bundle:
         if meta["kind"] == "replay":
@@ -397,6 +507,11 @@ def verify_report_source(path, meta, campaign, records):
                 and report["report_head"] == meta["workflow_run"]["head_sha"],
                 "published report has a different source campaign or report head",
             )
+            if supplemental is not None:
+                require(
+                    report.get("prerequisites", {}).get("supplemental_controls") == supplemental,
+                    "published replay refers to different supplemental controls",
+                )
         elif meta["kind"] == "replay-receipt":
             receipt = decode(bundle.read("artifact.json"))
             timing = decode(bundle.read("upload-timing.json"))

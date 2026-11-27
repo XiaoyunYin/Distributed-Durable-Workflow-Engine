@@ -56,10 +56,17 @@ CONTROL_ARTIFACTS = {
         "69f12ef1defb05bc884a97e3b9da4fde0d14849c9119f9b11eed2c900489a1c5",
     ),
 }
+CONTROL_BYTES = dict(zip(CONTROL_ARTIFACTS, (11615074, 62021), strict=True))
 
 
 def control_applicability(root, campaign):
     from j2_controls import replay_archive
+    from j2_replay_storage import (
+        run_metadata,
+        supplemental_source,
+        supplemental_verdict,
+        verify_prerequisite,
+    )
 
     approved = read(root / "authorization.json")["ledger"]["dispatches"][-1]
     paths = control_identity()
@@ -69,7 +76,8 @@ def control_applicability(root, campaign):
         "approved control path applicability has drifted",
     )
     historical = Campaign(campaign.repository, CONTROL_RUN, 1, CONTROL_HEAD, "", {}, 0, "")
-    barrier = client(historical, root, time.monotonic() + 150)
+    supplemental = supplemental_source()
+    barrier = client(historical, root, time.monotonic() + (250 if supplemental else 150))
     metadata = barrier.retry(lambda: barrier.api.artifacts(historical, set(CONTROL_ARTIFACTS)))
     require(set(metadata) == set(CONTROL_ARTIFACTS), "accepted control artifacts unavailable")
     with tempfile.TemporaryDirectory(dir=root.parent) as tmp:
@@ -81,6 +89,8 @@ def control_applicability(root, campaign):
                 item["id"] == artifact_id and item["digest"] == "sha256:" + hash_value,
                 "historical control artifact binding differs",
             )
+            if supplemental is not None:
+                verify_prerequisite(name, item, supplemental)
             archive = directory / f"{index}.zip"
             barrier.retry(partial(download, barrier.api, item, archive))
             archives.append(archive)
@@ -94,12 +104,64 @@ def control_applicability(root, campaign):
             and source["workflow_run"]["head_sha"] == CONTROL_HEAD,
             "control receipt does not bind the archived inputs",
         )
+        if supplemental is not None:
+            require(
+                all(
+                    source[key] == original[key]
+                    for key in ("name", "size_in_bytes", "workflow_run")
+                ),
+                "historical control receipt size or source identity differs",
+            )
         replay = directory / "replay.json"
-        replay_archive(archives[0], replay)
+        replay_archive(
+            archives[0], replay, source={"run": CONTROL_RUN, "attempt": 1, "head": CONTROL_HEAD}
+        )
         observed = read(replay)
+        if supplemental is not None:
+            bundle, receipt = (
+                supplemental["artifacts"][role]["name"] for role in ("bundle", "receipt")
+            )
+            info = barrier.retry(lambda: run_metadata(barrier.api, supplemental["run"]))
+            require(
+                info["head_sha"] == supplemental["head"] and info["conclusion"] == "success",
+                "supplemental control run differs or did not pass",
+            )
+            fresh = Campaign(
+                campaign.repository, supplemental["run"], 1, supplemental["head"], "", {}, 0, ""
+            )
+            inputs = barrier.retry(lambda: barrier.api.artifacts(fresh, {bundle, receipt}))
+            require(set(inputs) == {bundle, receipt}, "supplemental controls unavailable")
+            for name in (bundle, receipt):
+                verify_prerequisite(name, inputs[name], supplemental)
+                barrier.retry(partial(download, barrier.api, inputs[name], directory / name))
+            fresh_result = supplemental_verdict(directory / receipt, bundle, inputs, paths)
+            replay_archive(directory / bundle, replay, supplemental=True, source=supplemental)
+            require(
+                canonical(read(replay)) == canonical(fresh_result),
+                "supplemental controls replay differs from archived receipt",
+            )
+            metadata.update(inputs)
     require(
         canonical(observed) == canonical(historical_replay), "controls replay at this head differs"
     )
+    coverage = {
+        "execution_delay": "winning-attempt and latency join",
+        "withheld_terminal": "durable identity and checked drain",
+        "healthy_low_load": "stock K4 delivery, bins and quiet drain",
+        "capped_sender": "stock K4 misses and invalid delivery",
+    }
+    if supplemental is not None:
+        coverage.update(
+            healthy_low_load="precommit request writes, bins and quiet drain",
+            withheld_terminal="fresh precommit control durable identity and checked drain",
+            capped_sender="precommit refusals and invalid delivery",
+        )
+        observed.update(
+            {
+                key: fresh_result[key]
+                for key in ("healthy_low_load", "capped_sender", "withheld_terminal")
+            }
+        )
     write(
         root / "controls-applicability.json",
         {
@@ -108,12 +170,8 @@ def control_applicability(root, campaign):
             "controls_sha256": approved_digest,
             "reviewer_approved_component_hashes": paths,
             "artifacts": metadata,
-            "coverage": {
-                "execution_delay": "winning-attempt and latency join",
-                "withheld_terminal": "durable identity and checked drain",
-                "healthy_low_load": "stock K4 delivery, bins and quiet drain",
-                "capped_sender": "stock K4 misses and invalid delivery",
-            },
+            "coverage": coverage,
+            **({"supplemental_controls": supplemental} if supplemental else {}),
             "verdicts": {
                 key: observed[key]
                 for key in (

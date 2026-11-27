@@ -34,7 +34,7 @@ from j2_schedule import DISPATCH_JOURNAL, MEASURED_CAMPAIGN, sender_report
 
 AUTH_SCHEMA = "j2.campaign-authorization.v1"
 AUTH_PATH = "authorization.json"
-CONTROLS_PATHS = (
+LEGACY_CONTROLS_PATHS = (
     "cmd/dur053-loadgen/main.go",
     "cmd/j2-sender/main.go",
     "internal/dur053/j2.go",
@@ -60,15 +60,42 @@ CONTROLS_PATHS = (
     "experiments/portfolio/load-envelope/exporter.lock.json",
     "deploy/k8s/tools.lock.json",
 )
+R422_MARKER = "scripts/j2_r422_lane.py"
+CONTROLS_PATHS = LEGACY_CONTROLS_PATHS + (
+    ".github/workflows/j2-load-envelope.yml",
+    "internal/dur053/j2_dispatch.go",
+    "internal/dur053/j2_dispatch_transport.go",
+    "internal/dur053/j2_dispatch_journal.go",
+    "internal/dur053/j2_dispatch_rss_linux.go",
+    "internal/dur053/j2_dispatch_rss_other.go",
+    "scripts/j2_control_proxy.py",
+    "scripts/j2_dispatch_journal.py",
+    "scripts/j2_dispatch_manifest.py",
+    "scripts/j2_harness_evidence.py",
+    "scripts/j2_integrated_diagnostics.py",
+    "scripts/j2_integrated_rehearsal.py",
+    "scripts/j2_integrated_report.py",
+    "scripts/j2_measure_authorization.py",
+    "scripts/j2_measure_replay.py",
+    "scripts/j2_publish_evidence.py",
+    R422_MARKER,
+    "scripts/j2_replay_storage.py",
+)
 
 
 def git_output(root, *args):
     return subprocess.check_output(["git", *args], cwd=root, timeout=20)
 
 
+def r422_enabled(root=ROOT, *, head=None):
+    if head is None:
+        return (root / R422_MARKER).is_file()
+    return bool(git_output(root, "ls-tree", head, "--", R422_MARKER))
+
+
 def control_identity(root=ROOT, *, head=None):
     paths = {}
-    for name in CONTROLS_PATHS:
+    for name in CONTROLS_PATHS if r422_enabled(root, head=head) else LEGACY_CONTROLS_PATHS:
         raw = (
             (root / name).read_bytes()
             if head is None
