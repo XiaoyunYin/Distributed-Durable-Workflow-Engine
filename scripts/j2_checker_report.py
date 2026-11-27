@@ -1,5 +1,6 @@
 """Index checker JSON without materializing the full Trace or changing its bytes."""
 
+import hashlib
 import json
 import mmap
 import re
@@ -68,7 +69,7 @@ def object_spans(data, start, visitors=None):
     raise ValueError("incomplete checker JSON object")
 
 
-def indexed_report(path: Path, *, snapshot=None, join_trace=False):
+def indexed_report(path: Path, *, snapshot=None, join_trace=False, verify_tables=False):
     """Return verdict fields and table inventory, with an optional replay projection."""
     tables = {}
     trace = {}
@@ -86,6 +87,11 @@ def indexed_report(path: Path, *, snapshot=None, join_trace=False):
                     "sha256": load(fields["sha256"]),
                     "bytes": last - first,
                 }
+                if verify_tables:
+                    with memoryview(data)[first:last] as rows:
+                        digest = hashlib.sha256(rows).hexdigest()
+                    if digest != tables[name]["sha256"]:
+                        raise ValueError(f"snapshot table hash differs: {name}")
                 if join_trace and name in JOIN_TABLES:
                     rows = load((first, last))
                     if name == "engine.outbox":

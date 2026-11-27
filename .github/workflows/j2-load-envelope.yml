@@ -26,6 +26,7 @@ on:
           - harness-reset
           - harness-schedule
           - harness-sender
+          - harness-step
         default: overlay
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
@@ -92,10 +93,10 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && !github.event.repository.private
       && (inputs.mode == 'harness-reset' || inputs.mode == 'harness-schedule'
-          || inputs.mode == 'harness-sender')
+          || inputs.mode == 'harness-sender' || inputs.mode == 'harness-step')
     name: J2 unmeasured ${{ inputs.mode }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.mode == 'harness-step' && 110 || 60 }}
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       J2_HARNESS_MODE: ${{ inputs.mode }}
@@ -103,6 +104,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: ${{ inputs.mode == 'harness-step' && '0' || '1' }}
       - name: Restore the retained images
         timeout-minutes: 5
         shell: bash
@@ -132,6 +134,19 @@ jobs:
           python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$RUNNER_TEMP/j2-sender/continuous" \
             "$evidence/sender-build.json" --package ./cmd/j2-sender \
             2>&1 | tee "$evidence/sender-build.log"
+      - name: Build the two pinned senders and reproduce the locked checker
+        if: inputs.mode == 'harness-step'
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-harness-evidence"
+          binaries="$RUNNER_TEMP/j2-sender"
+          {
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/stock" "$evidence/stock-build.json"
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/continuous" \
+              "$evidence/continuous-build.json" --package ./cmd/j2-sender
+            python3 scripts/j2_checker.py "$binaries/checker"
+          } 2>&1 | tee "$evidence/step-build.log"
       - name: Rehearse fresh state and an interrupted submission
         if: inputs.mode == 'harness-reset'
         timeout-minutes: 42
@@ -154,6 +169,15 @@ jobs:
             "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
             "$RUNNER_TEMP/j2-exporter-layouts" "$RUNNER_TEMP/j2-sender/continuous" \
             --continuous
+      - name: Rehearse the full-clock step and both quiet drains
+        if: inputs.mode == 'harness-step'
+        timeout-minutes: 85
+        run: |
+          binaries="$RUNNER_TEMP/j2-sender"
+          python3 scripts/j2_step_rehearsal.py "$RUNNER_TEMP/j2-harness-evidence" \
+            "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts" "$binaries/stock" \
+            "$binaries/continuous" "$binaries/checker"
       - name: Seal harness evidence
         id: seal
         if: always()
@@ -179,7 +203,7 @@ jobs:
       - name: Verify the published ZIP and record expiry
         id: verify-archive
         if: always() && steps.upload.outcome == 'success'
-        timeout-minutes: 3
+        timeout-minutes: ${{ inputs.mode == 'harness-step' && 8 || 3 }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -196,6 +220,9 @@ jobs:
           python3 scripts/j2_harness_evidence.py verify-upload \
             "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" \
             --mode "$J2_HARNESS_MODE"
+          if [[ "$J2_HARNESS_MODE" == harness-step ]]; then
+            python3 scripts/j2_drain.py "$archive" "$receipt/offline-replay.json"
+          fi
           {
             printf 'Verified J2 %s evidence [%s](%s)\n\n' "$J2_HARNESS_MODE" "$ARTIFACT_ID" "$ARTIFACT_URL"
             jq -r '"SHA-256 \(.digest) · expires \(.expires_at)"' "$receipt/artifact.json"
@@ -205,7 +232,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: j2-${{ inputs.mode }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/j2-harness-receipt/artifact.json
+          path: ${{ runner.temp }}/j2-harness-receipt/
           if-no-files-found: error
           retention-days: 90
 

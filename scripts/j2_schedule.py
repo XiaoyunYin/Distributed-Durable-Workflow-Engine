@@ -56,11 +56,12 @@ def stock_schedule(campaign, job, cell, run_id, namespace, origin_ns, rate, warm
     }
 
 
-def continuous_schedule(campaign, job, cell, run_id, namespace, origin_ns, hold, step):
+def continuous_schedule(campaign, job, cell, run_id, namespace, origin_ns, hold, step, *, warmup=0):
     hold_rate, hold_seconds = hold
     step_rate, step_seconds = step
+    require(0 <= warmup < hold_seconds, "warm-up must end inside the hold")
     schedule = stock_schedule(
-        campaign, job, cell, run_id, namespace, origin_ns, hold_rate, 0, hold_seconds
+        campaign, job, cell, run_id, namespace, origin_ns, hold_rate, warmup, hold_seconds - warmup
     )
     hold_count = schedule["count"]
     step_count = math.ceil(step_seconds * float(step_rate))

@@ -100,7 +100,9 @@ SELECT json_build_object(
 """
 
 
-class Qualification(J2Driver):
+class ObserverEvidence(J2Driver):
+    app = APP
+
     def __init__(self, output, scratch, checker):
         super().__init__(output, scratch)
         self.live_reservation = 300 * 60
@@ -157,7 +159,7 @@ class Qualification(J2Driver):
             "--context",
             f"kind-{kind.CLUSTER}",
             "-n",
-            APP,
+            self.app,
             "exec",
             *(["-i"] if stdin else []),
             pod or self.observer,
@@ -222,7 +224,7 @@ class Qualification(J2Driver):
     def pods(self):
         return [
             pod
-            for namespace in (APP, NS)
+            for namespace in (self.app, NS)
             for pod in json.loads(
                 self.k(
                     "-n", namespace, "get", "pods", "-o", "json", record=False, timeout=10
@@ -330,6 +332,78 @@ class Qualification(J2Driver):
             trigger=trigger,
         )
 
+    def witness_inventories(self):
+        ips = [p["status"]["podIP"] for p in self.workers]
+        return json.loads(
+            self.command(
+                self.exec_args(
+                    "python",
+                    "-c",
+                    "import json,sys,urllib.request; "
+                    "print(json.dumps([json.load(urllib.request.urlopen("
+                    '"http://"+ip+":8081/witness",timeout=3)) for ip in sys.argv[1:]]))',
+                    *ips,
+                ),
+                record=False,
+                timeout=10,
+            ).stdout
+        )
+
+    def witness(self, inventories, *, upload=True):
+        root = self.output / "witness-raw"
+        for inv in inventories:
+            require_capacity(
+                inv["written"] >= inv["attempted"],
+                "truncation",
+                f"witness writer dropped events: {inv['pod_name']}",
+            )
+            pod = inv["pod_name"]
+            require(Path(inv["file"]).name == inv["file"], "unexpected witness filename")
+            files = json.loads(
+                self.command(
+                    self.exec_args(
+                        "python",
+                        "-c",
+                        "from pathlib import Path; import json,sys; print(json.dumps(sorted("
+                        "p.name for p in (Path('/witness') / sys.argv[1]).glob('*.jsonl'))))",
+                        pod,
+                        pod=pod,
+                    ),
+                    record=False,
+                    timeout=10,
+                ).stdout
+            )
+            single_witness_session(files, inv)
+            self.copy_from_pod(
+                pod, f"/witness/{pod}/{inv['file']}", f"witness-raw/{pod}/{inv['file']}"
+            )
+        path = self.output / "witness.json"
+        write(
+            path,
+            export_witness(root, inventories, sorted(p["metadata"]["uid"] for p in self.workers)),
+        )
+        if not upload:
+            return
+        with path.open("rb") as stream:
+            code = (
+                "import shutil,sys; "
+                "shutil.copyfileobj(sys.stdin.buffer, open('/evidence/witness.json','wb'))"
+            )
+            status = self.run_stage(
+                "witness-to-observer",
+                self.exec_args("python", "-c", code, stdin=True),
+                120,
+                stdin=stream,
+            )
+        require(status == 0, "could not transfer witness to the observer")
+
+    def clock(self):
+        return json.loads(
+            self.command(self.checker_args("-clock-probe"), record=False, timeout=20).stdout
+        )
+
+
+class Qualification(ObserverEvidence):
     def check_profile(self, pods):
         replicas = Counter(
             p["metadata"].get("labels", {}).get("app")
@@ -402,69 +476,6 @@ class Qualification(J2Driver):
                 },
             },
         )
-
-    def witness_inventories(self):
-        ips = [p["status"]["podIP"] for p in self.workers]
-        return json.loads(
-            self.command(
-                self.exec_args(
-                    "python",
-                    "-c",
-                    "import json,sys,urllib.request; "
-                    "print(json.dumps([json.load(urllib.request.urlopen("
-                    '"http://"+ip+":8081/witness",timeout=3)) for ip in sys.argv[1:]]))',
-                    *ips,
-                ),
-                record=False,
-                timeout=10,
-            ).stdout
-        )
-
-    def witness(self, inventories):
-        root = self.output / "witness-raw"
-        for inv in inventories:
-            require_capacity(
-                inv["written"] >= inv["attempted"],
-                "truncation",
-                f"witness writer dropped events: {inv['pod_name']}",
-            )
-            pod = inv["pod_name"]
-            require(Path(inv["file"]).name == inv["file"], "unexpected witness filename")
-            files = json.loads(
-                self.command(
-                    self.exec_args(
-                        "python",
-                        "-c",
-                        "from pathlib import Path; import json,sys; print(json.dumps(sorted("
-                        "p.name for p in (Path('/witness') / sys.argv[1]).glob('*.jsonl'))))",
-                        pod,
-                        pod=pod,
-                    ),
-                    record=False,
-                    timeout=10,
-                ).stdout
-            )
-            single_witness_session(files, inv)
-            self.copy_from_pod(
-                pod, f"/witness/{pod}/{inv['file']}", f"witness-raw/{pod}/{inv['file']}"
-            )
-        path = self.output / "witness.json"
-        write(
-            path,
-            export_witness(root, inventories, sorted(p["metadata"]["uid"] for p in self.workers)),
-        )
-        with path.open("rb") as stream:
-            code = (
-                "import shutil,sys; "
-                "shutil.copyfileobj(sys.stdin.buffer, open('/evidence/witness.json','wb'))"
-            )
-            status = self.run_stage(
-                "witness-to-observer",
-                self.exec_args("python", "-c", code, stdin=True),
-                120,
-                stdin=stream,
-            )
-        require(status == 0, "could not transfer witness to the observer")
 
     def quiet(self, count):
         last = None
@@ -575,11 +586,6 @@ class Qualification(J2Driver):
             failure = read(self.output / stdout)
             raise CapacityFailure(failure["capacity_criterion"], failure["error"])
         require(status == state["ExitCode"] == 0 and not state["OOMKilled"], f"{name} failed")
-
-    def clock(self):
-        return json.loads(
-            self.command(self.checker_args("-clock-probe"), record=False, timeout=20).stdout
-        )
 
 
 def runner_cgroup(proc=Path("/proc/self"), root=Path("/")):

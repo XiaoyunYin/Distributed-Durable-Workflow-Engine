@@ -49,6 +49,12 @@ def apply_app(driver, endpoints, namespace=APP_NS, database=DB, unrelated=OTHER)
     _, objects = driver.render("kind", endpoints)
     objects = json.loads(json.dumps(objects).replace("dur053-kind", namespace))
     for o in objects:
+        if o["kind"] == "Deployment" and o["metadata"]["name"] == "worker":
+            sleep_ms = getattr(driver, "worker_sleep_ms", None)
+            if sleep_ms is not None:
+                (worker,) = o["spec"]["template"]["spec"]["containers"]
+                (delay,) = (e for e in worker["env"] if e["name"] == "DUR048_ACTIVITY_DELAY_MS")
+                delay["value"] = str(sleep_ms)
         if o["kind"] == "ScaledObject":
             o["metadata"].setdefault("annotations", {}).update(
                 {

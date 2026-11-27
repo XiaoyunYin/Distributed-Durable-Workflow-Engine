@@ -325,6 +325,8 @@ def verify_container_specs(pods, docs):
 
 
 class Harness(J2Driver):
+    worker_sleep_ms = 100
+
     def __init__(self, output, scratch):
         super().__init__(output, scratch)
         self.evidence = output
@@ -530,7 +532,7 @@ class Harness(J2Driver):
             require(
                 env["WORKER_SLOTS"] == "2"
                 and env["WORKER_DRAIN_SECONDS"] == "30"
-                and env["DUR048_ACTIVITY_DELAY_MS"] == "100"
+                and env["DUR048_ACTIVITY_DELAY_MS"] == str(self.worker_sleep_ms)
                 and worker["spec"]["terminationGracePeriodSeconds"] == 40,
                 "worker profile drift",
             )
@@ -922,7 +924,7 @@ def run(
         "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
         "head": os.environ["GITHUB_SHA"],
     }
-    expected_stop = False
+    completed = False
     try:
         require(
             driver.command(["git", "rev-parse", "HEAD"]).stdout.strip() == status["head"],
@@ -948,19 +950,26 @@ def run(
             },
         )
         scenario(driver, layouts, exporter_layout)
+        completed = True
     except InjectedStop as stop:
-        expected_stop = True
+        completed = True
         status.update(stop={"classification": "engineering_injected_stop", "run_id": str(stop)})
     except Exception as error:
         stage = driver.failed_stage or "setup"
         classification = (
             "integrity_stop" if stage == "bootstrap" or stage.startswith("fresh-") else "invalid"
         )
-        status.update(stop={"classification": classification, "stage": stage, "reason": str(error)})
+        status.update(
+            stop={
+                "classification": getattr(error, "classification", classification),
+                "stage": stage,
+                "reason": str(error),
+            }
+        )
     finally:
         cleaned = closeout(driver)
         status["cleanup_verified"] = cleaned
-        if expected_stop and cleaned:
+        if completed and cleaned:
             status["status"] = "PASS"
         write(driver.evidence / "status.json", status)
     return 0 if status["status"] == "PASS" else 1
