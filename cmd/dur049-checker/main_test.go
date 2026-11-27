@@ -16,7 +16,7 @@ func TestFenceCheckUsesRecoveredTransitionBoundary(t *testing.T) {
 		{WorkflowID: "wf", Revision: 6, ActorKind: "scheduler", SchedulerEpoch: &laterEpoch},
 	}}
 
-	_, fence := check(trace, 1, 3, recoveryEpoch, 0)
+	_, fence := checkFence(trace, invariants.Check(trace), 1, 3, recoveryEpoch, 0)
 	if fence == nil {
 		t.Fatal("expected fence report")
 	}
@@ -35,7 +35,7 @@ func TestFenceCheckRejectsMissingOrNonIncreasingRecoveryBoundary(t *testing.T) {
 		{name: "recovery before pre-fault", preFaultRevision: 3, recoveryRevision: 3},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			verdict, _ := check(invariants.Trace{}, tc.preFaultRevision, tc.recoveryRevision, 8, 0)
+			verdict, _ := checkFence(invariants.Trace{}, invariants.Verdict{}, tc.preFaultRevision, tc.recoveryRevision, 8, 0)
 			for _, violation := range verdict.Violations {
 				if strings.Contains(violation, "later recovery revision") {
 					return
@@ -51,7 +51,7 @@ func TestFenceCheckRejectsPostBoundarySupersededEpoch(t *testing.T) {
 	trace := invariants.Trace{History: []invariants.HistoryRecord{
 		{WorkflowID: "wf", Revision: 5, ActorKind: "scheduler", SchedulerEpoch: &oldEpoch},
 	}}
-	verdict, fence := check(trace, 4, 4, recoveryEpoch, 0)
+	verdict, fence := checkFence(trace, invariants.Check(trace), 4, 4, recoveryEpoch, 0)
 	const expected = "1 post-recovery history records carry an epoch older than the recovery owner"
 	if fence == nil || fence.SupersededCount != 1 || !containsViolation(verdict.Violations, expected) {
 		t.Fatalf("fence check accepted a post-boundary history row; fence=%+v violations=%v", fence, verdict.Violations)
@@ -63,7 +63,7 @@ func TestFenceCheckRejectsAcceptedStaleAttemptResult(t *testing.T) {
 		WorkflowID: "wf", NodeID: "activity", AttemptNumber: 1,
 		State: "TIMED_OUT", IsCurrent: false, ResultRecorded: true,
 	}}}
-	verdict, fence := check(trace, 1, 2, 8, 1)
+	verdict, fence := checkFence(trace, invariants.Check(trace), 1, 2, 8, 1)
 	const expected = "stale attempt has a recorded result after the stale-result rejection probe"
 	if fence == nil || !fence.StaleAttemptFound || !fence.StaleResultRecorded || !containsViolation(verdict.Violations, expected) {
 		t.Fatalf("fence check accepted a recorded stale attempt result; fence=%+v violations=%v", fence, verdict.Violations)

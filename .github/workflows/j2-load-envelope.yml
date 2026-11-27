@@ -19,8 +19,13 @@ on:
         type: choice
         options:
           - overlay
+          - checker-prequalification
           - qualification
         default: overlay
+      compare_gomemlimit:
+        description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,6 +45,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-go@v5
         if: github.event_name == 'pull_request'
         with:
@@ -75,6 +82,56 @@ jobs:
           name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-overlay-evidence/
           if-no-files-found: warn
+
+  checker-prequalification:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'checker-prequalification'
+    name: J2 checker pre-qualification (${{ matrix.population }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        population: [21002, 26678]
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+      POPULATION: ${{ matrix.population }}
+      COMPARE_GOMEMLIMIT: ${{ inputs.compare_gomemlimit }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Verify the checker lock and build the migrator
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/j2-prequalification"
+          build_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            build_args+=(--comparison-source "$GITHUB_SHA")
+          fi
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-tooling/checker" "${build_args[@]}" 2>&1 | tee "$RUNNER_TEMP/j2-prequalification/checker-build.log"
+          go build -p 1 -mod=readonly -buildvcs=false -o "$RUNNER_TEMP/j2-tooling/migrate" ./cmd/dur053-migrate
+      - name: Measure both cgroups and profile Python on the runner
+        run: |
+          trial_args=()
+          if [[ "$COMPARE_GOMEMLIMIT" == true ]]; then
+            trial_args+=(--compare-gomemlimit)
+          fi
+          python3 scripts/j2_prequalify_checker.py "$POPULATION" "$RUNNER_TEMP/j2-prequalification" \
+            "$RUNNER_TEMP/j2-prequalification-scratch" "$RUNNER_TEMP/j2-tooling/checker" "$RUNNER_TEMP/j2-tooling/migrate" "${trial_args[@]}"
+      - name: Retain pre-qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-checker-prequalification-${{ matrix.population }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-prequalification/
+          if-no-files-found: error
+          compression-level: 1
 
   qualification:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'

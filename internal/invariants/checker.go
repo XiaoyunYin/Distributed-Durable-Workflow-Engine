@@ -347,8 +347,14 @@ func checkTransport(trace Trace, violations *[]string) {
 	for _, submission := range trace.Submissions {
 		workflowIDs[submission.WorkflowID] = struct{}{}
 	}
-	events := make(map[string]OutboxRecord)
+	type obligation struct {
+		workflow string
+		revision int64
+	}
+	obligations := make(map[obligation]struct{}, len(trace.Outbox))
+	events := make(map[string]OutboxRecord, len(trace.Outbox))
 	for _, event := range trace.Outbox {
+		obligations[obligation{event.WorkflowID, event.AggregateRevision}] = struct{}{}
 		if event.EventID == "" || event.WorkflowID == "" || event.AggregateRevision <= 0 ||
 			event.EventType == "" || event.Topic == "" || !event.PayloadValid {
 			*violations = append(*violations, "outbox event identity or payload is incomplete")
@@ -375,14 +381,7 @@ func checkTransport(trace Trace, violations *[]string) {
 		if !requiresOutbox(history.Reason) {
 			continue
 		}
-		found := false
-		for _, event := range trace.Outbox {
-			if event.WorkflowID == history.WorkflowID && event.AggregateRevision == history.Revision {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if _, found := obligations[obligation{history.WorkflowID, history.Revision}]; !found {
 			*violations = append(*violations, fmt.Sprintf("history revision lacks an outbox obligation: %s/%d", history.WorkflowID, history.Revision))
 		}
 	}
