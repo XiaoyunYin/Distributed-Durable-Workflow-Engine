@@ -22,6 +22,7 @@ from j2_schedule import MEASURED, ORDERS, RATES, WARMUP
 JOBS = (1, 2, 3)
 BARRIER_SECONDS = 45 * 60
 JOB_MINUTES = 75
+INTEGRATED_SCOPE = "synthetic integrated rehearsal grid"
 # Two polling peers and one withholding peer share the repository token quota.
 # Two list calls per poller and one per withholding peer cost about 450 over 45 min.
 POLL_SECONDS = 30
@@ -129,8 +130,13 @@ def soak_population(rate):
     return population(rate, WARMUP) + population(rate, 1800) + population("C", 300)
 
 
-def job_name(job):
-    return f"J2 barrier job-{job}"
+def job_name(job, scope=None):
+    kind = "rehearsal" if scope == INTEGRATED_SCOPE else "barrier"
+    return f"J2 {kind} job-{job}"
+
+
+def checkpoint_name(run, attempt, job, cell):
+    return f"j2-rehearsal-{run}-{attempt}-job-{job}-{cell}"
 
 
 @dataclass(frozen=True)
@@ -273,14 +279,14 @@ class ActionsAPI:
 
     def jobs(self, campaign, *, allow_failed=False):
         jobs = {}
-        names = {job_name(job): job for job in JOBS}
+        names = {job_name(job, campaign.scope): job for job in JOBS}
         for row in self.pages(f"runs/{campaign.run}/attempts/{campaign.attempt}/jobs", "jobs"):
             name = row.get("name")
             require(isinstance(name, str), "invalid job name")
             job = names.get(name)
             if job is None:
                 continue
-            require(job not in jobs, f"duplicate job name {job_name(job)}")
+            require(job not in jobs, f"duplicate job name {name}")
             require(
                 positive(row.get("id"))
                 and row.get("run_id") == campaign.run
@@ -505,9 +511,15 @@ class Barrier:
         jobs = self.api.jobs(self.campaign)
         grid_names = {job: self.campaign.name("grid", job) for job in JOBS}
         evidence_names = {job: self.campaign.name("grid-evidence", job) for job in JOBS}
-        artifacts = self.api.artifacts(
-            self.campaign, set(grid_names.values()) | set(evidence_names.values())
-        )
+        names = set(grid_names.values()) | set(evidence_names.values())
+        integrated = self.campaign.scope == INTEGRATED_SCOPE
+        if integrated:
+            names.update(
+                checkpoint_name(self.campaign.run, self.campaign.attempt, job, cell)
+                for job in JOBS
+                for cell in RATES
+            )
+        artifacts = self.api.artifacts(self.campaign, names)
         grids, hashes = {}, {}
         for job, name in grid_names.items():
             if job not in jobs or name not in artifacts:
@@ -525,10 +537,11 @@ class Barrier:
                 f"job {job} grid evidence artifact drift",
             )
             index, index_hash = self.bundle("evidence", metadata)
+            keys = {"binding", "cells", "checkpoints"} if integrated else {"binding", "cells"}
             require(
                 index_hash == evidence["index_sha256"]
                 and isinstance(index, dict)
-                and index.keys() == {"binding", "cells"}
+                and index.keys() == keys
                 and self.campaign.matches(index["binding"], job, jobs[job]["id"])
                 and index["cells"]
                 == {
@@ -541,6 +554,8 @@ class Barrier:
                 ),
                 f"job {job} grid evidence index mismatch",
             )
+            if integrated:
+                self.checkpoints(job, index["checkpoints"], artifacts)
         missing = [
             job
             for job in JOBS
@@ -553,6 +568,26 @@ class Barrier:
         decision = decide(grids, hashes, self.campaign.volume)
         self.api.budget.remaining()
         return decision, jobs
+
+    def checkpoints(self, job, checkpoints, artifacts):
+        schema(checkpoints, " ".join(RATES), "grid checkpoints")
+        for cell, saved in checkpoints.items():
+            schema(saved, "name id sha256 index_sha256", "grid checkpoint")
+            name = checkpoint_name(self.campaign.run, self.campaign.attempt, job, cell)
+            require(
+                saved["name"] == name
+                and positive(saved["id"])
+                and sha256(saved["sha256"])
+                and sha256(saved["index_sha256"]),
+                f"invalid checkpoint reference for job {job} {cell}",
+            )
+            if name not in artifacts:
+                raise RetryLater(f"waiting for grid checkpoint {name}")
+            metadata = artifacts[name]
+            require(
+                metadata["id"] == saved["id"] and metadata["digest"] == "sha256:" + saved["sha256"],
+                f"grid checkpoint artifact drift for job {job} {cell}",
+            )
 
     def decisions(self, expected, jobs, *, only=JOBS, receipt=None):
         names = {job: self.campaign.name("decision", job) for job in only}

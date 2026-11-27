@@ -13,6 +13,7 @@ from pathlib import Path
 from j2_barrier import (
     BARRIER_SECONDS,
     COUNTS,
+    INTEGRATED_SCOPE,
     JOB_MINUTES,
     JOBS,
     NO_RATE,
@@ -62,15 +63,16 @@ def context(round_name):
     head = os.environ["GITHUB_SHA"]
     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     require(head == actual, "barrier checkout differs from dispatch head")
+    integrated = "J2_INTEGRATED_ROOT" in os.environ
     return Campaign(
         repository=os.environ["GITHUB_REPOSITORY"],
         run=int(os.environ["GITHUB_RUN_ID"]),
         attempt=int(os.environ["GITHUB_RUN_ATTEMPT"]),
         head=head,
-        campaign=f"eng-{round_name}",
+        campaign=f"eng-integrated-{round_name}" if integrated else f"eng-{round_name}",
         pins={name: digest((ROOT / path).read_bytes()) for name, path in PIN_FILES.items()},
         volume=26678,
-        scope="synthetic engineering grid",
+        scope=INTEGRATED_SCOPE if integrated else "synthetic engineering grid",
     )
 
 
@@ -135,28 +137,45 @@ def client(campaign, root, end):
 
 def prepare(root, round_name, job, campaign):
     root.mkdir(parents=True, exist_ok=False)
-    job_deadline = time.monotonic() + JOB_MINUTES * 60
-    barrier = client(campaign, root, job_deadline)
-
-    def own_job():
-        row = barrier.api.jobs(campaign, allow_failed=True).get(job)
-        if row is None or row["status"] != "in_progress":
-            raise RetryLater("waiting for own live job ID")
-        return row
-
-    job_row = barrier.retry(own_job)
-    binding = campaign.binding(job, job_row["id"])
-    started_at = datetime.fromisoformat(job_row["started_at"]).timestamp()
-    job_deadline = time.monotonic() + JOB_MINUTES * 60 - max(0, time.time() - started_at)
     cells = fixture_cells(round_name, job)
-    index = {"binding": binding, "cells": cells}
+    if campaign.scope == INTEGRATED_SCOPE:
+        attempt = Path(os.environ["J2_INTEGRATED_ROOT"])
+        local = read(attempt / "job.json")
+        require(local["job"] == job and local["head"] == campaign.head, "matrix binding drift")
+        timing = read(attempt / "barrier.json")
+        binding = campaign.binding(job, local["job_id"])
+        job_deadline, started, deadline = local["deadline"], timing["ready"], timing["deadline"]
+        index = {
+            "binding": binding,
+            "cells": cells,
+            "checkpoints": {
+                rate: read(attempt / "receipts" / f"{rate}.json") for rate in ORDERS[job - 1]
+            },
+        }
+    else:
+        job_deadline = time.monotonic() + JOB_MINUTES * 60
+        barrier = client(campaign, root, job_deadline)
+
+        def own_job():
+            row = barrier.api.jobs(campaign, allow_failed=True).get(job)
+            if row is None or row["status"] != "in_progress":
+                raise RetryLater("waiting for own live job ID")
+            return row
+
+        job_row = barrier.retry(own_job)
+        binding = campaign.binding(job, job_row["id"])
+        started_at = datetime.fromisoformat(job_row["started_at"]).timestamp()
+        job_deadline = time.monotonic() + JOB_MINUTES * 60 - max(0, time.time() - started_at)
+        index = {"binding": binding, "cells": cells}
     index_hash = write_bundle(root / "grid-evidence", "evidence", index)
-    started = time.monotonic()
+    if campaign.scope != INTEGRATED_SCOPE:
+        started = time.monotonic()
+        deadline = started + BARRIER_SECONDS
     state = {
         "binding": binding,
         "index_hash": index_hash,
         "started": started,
-        "deadline": started + BARRIER_SECONDS,
+        "deadline": deadline,
         "job_deadline": job_deadline,
     }
     emit(
@@ -166,7 +185,7 @@ def prepare(root, round_name, job, campaign):
         }
     )
     try:
-        state["deadline"] = barrier_deadline(started, job_deadline)
+        state["deadline"] = min(deadline, barrier_deadline(started, job_deadline))
     except BarrierStop as error:
         outcome(root, state, error.reason, str(error))
         return

@@ -298,7 +298,7 @@ def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped, execut
     with ThreadPoolExecutor(max_workers=2) as pool:
         sender = pool.submit(execute, driver, schedule, partial=False)
         if stepped:
-            step_mono = stop_mono - STEP * SECOND
+            step_mono = stop_mono - (schedule["stop_ns"] - schedule["hold_end_ns"])
             carry = pool.submit(carry_probe, driver, schedule, step_mono, cancelled)
         try:
             while time.monotonic_ns() < stop_mono:
@@ -425,7 +425,7 @@ def exercise(driver, name, *, stepped, hold_rate):
         raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
 
-def exercise_drain(driver, build_schedule, *, stepped=False, execute=None):
+def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visibility_delay=0):
     output = driver.output
     polls = Polls(output)
     work_deadline = driver.deadline
@@ -475,6 +475,8 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None):
 
             def observe():
                 check_monitor(errors)
+                if visibility_delay and time.monotonic_ns() < stop_mono + visibility_delay * SECOND:
+                    raise TimeoutError("engineering fixture delays the qualifying quiet read")
                 return observation(driver, polls)
 
             def check(state):

@@ -6,6 +6,7 @@ on:
       - '.github/workflows/j2-load-envelope.yml'
       - '.github/workflows/j2-volume-qualification.yml'
       - '.github/actions/j2-barrier-round/**'
+      - '.github/actions/j2-integrated-cell/**'
       - 'experiments/portfolio/load-envelope/**'
       - 'scripts/j2_*'
       - 'cmd/j2-sender/**'
@@ -29,6 +30,7 @@ on:
           - harness-sender
           - harness-step
           - controls
+          - rehearsal
           - barrier-success
           - barrier-peer-failure
           - barrier-missing-peer
@@ -442,6 +444,229 @@ jobs:
           name: j2-controls-receipt-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-controls-receipt/
           if-no-files-found: error
+          retention-days: 90
+
+  rehearsal:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'rehearsal'
+    name: J2 rehearsal job-${{ matrix.job }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        job: [1, 2, 3]
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      J2_JOB: ${{ matrix.job }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind the forecast to the actual Actions job
+        id: begin
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          export J2_INTEGRATED_ROOT="$RUNNER_TEMP/j2-integrated"
+          python3 scripts/j2_integrated_rehearsal.py begin "$J2_INTEGRATED_ROOT" "$J2_JOB"
+          printf 'J2_INTEGRATED_ROOT=%s\n' "$J2_INTEGRATED_ROOT" >> "$GITHUB_ENV"
+      - name: Restore the retained images
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j2_restore_images.sh 2>&1 | tee "$J2_INTEGRATED_ROOT/final/image-restore.log"
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the two verified senders and locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          binaries="$RUNNER_TEMP/j2-integrated-tooling"
+          evidence="$J2_INTEGRATED_ROOT/final"
+          {
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/stock" "$evidence/stock-build.json"
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/continuous" \
+              "$evidence/continuous-build.json" --package ./cmd/j2-sender
+            python3 scripts/j2_checker.py "$binaries/checker"
+          } 2>&1 | tee "$evidence/build.log"
+      - name: Bootstrap an owned runner profile
+        id: driver
+        timeout-minutes: 25
+        shell: bash
+        env:
+          GITHUB_TOKEN: ''
+        run: |
+          binaries="$RUNNER_TEMP/j2-integrated-tooling"
+          python3 -u scripts/j2_integrated_rehearsal.py serve "$J2_INTEGRATED_ROOT" \
+            "$RUNNER_TEMP/j2-images-layouts" "$RUNNER_TEMP/j2-exporter-layouts" \
+            "$binaries/stock" "$binaries/continuous" "$binaries/checker" \
+            > "$J2_INTEGRATED_ROOT/driver.log" 2>&1 </dev/null &
+          echo "$!" > "$J2_INTEGRATED_ROOT/driver.pid"
+          python3 scripts/j2_integrated_rehearsal.py ready "$J2_INTEGRATED_ROOT"
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '1'
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '2'
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '3'
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '4'
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '5'
+      - name: Anchor the common 45-minute barrier after the fifth upload
+        shell: bash
+        run: python3 scripts/j2_integrated_rehearsal.py barrier "$J2_INTEGRATED_ROOT" "$J2_JOB"
+      - uses: ./.github/actions/j2-barrier-round
+        with:
+          job: ${{ matrix.job }}
+          scenario: integrity
+      - uses: ./.github/actions/j2-barrier-round
+        with:
+          job: ${{ matrix.job }}
+          scenario: no-eligible
+      - uses: ./.github/actions/j2-barrier-round
+        with:
+          job: ${{ matrix.job }}
+          scenario: eligible
+      - name: Follow the local decision into a fresh continuous episode
+        id: soak
+        timeout-minutes: 17
+        shell: bash
+        run: python3 scripts/j2_integrated_rehearsal.py soak "$J2_INTEGRATED_ROOT" "$J2_JOB"
+      - name: Publish the checked continuous episode
+        id: soak-upload
+        if: steps.soak.outputs.sealed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.soak.outputs.checkpoint }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/driver/soak/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+          overwrite: false
+      - name: Bind the continuous episode to its upload receipt
+        if: steps.soak-upload.outcome == 'success'
+        shell: bash
+        env:
+          CHECKPOINT_ID: ${{ steps.soak-upload.outputs.artifact-id }}
+          CHECKPOINT_DIGEST: ${{ steps.soak-upload.outputs.artifact-digest }}
+        run: python3 scripts/j2_integrated_rehearsal.py receipt "$J2_INTEGRATED_ROOT" "$J2_JOB" soak
+      - name: Verify teardown and seal the attempt checkpoint index
+        id: finish
+        if: always() && steps.begin.outcome == 'success'
+        timeout-minutes: 10
+        shell: bash
+        run: python3 scripts/j2_integrated_rehearsal.py finish "$J2_INTEGRATED_ROOT"
+      - name: Retain the final checkpoint index and teardown
+        id: final-upload
+        if: always() && steps.begin.outcome == 'success' && steps.finish.outputs.sealed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.begin.outputs.final_name }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/final/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - name: Retain available failure or unsealed evidence
+        if: always() && steps.begin.outcome == 'success' && (failure() || steps.final-upload.outcome != 'success')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.begin.outputs.final_name }}-partial
+          path: |
+            ${{ env.J2_INTEGRATED_ROOT }}/final/
+            ${{ env.J2_INTEGRATED_ROOT }}/driver/
+            ${{ env.J2_INTEGRATED_ROOT }}/driver.log
+          if-no-files-found: warn
+          compression-level: 1
+          retention-days: 90
+          overwrite: false
+
+  rehearsal-replay:
+    needs: rehearsal
+    if: always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'rehearsal'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Anchor the replay allowance
+        shell: bash
+        run: printf 'J2_REPLAY_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the locked checker and fixture migrator
+        id: build
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/j2-rehearsal-report"
+          binaries="$RUNNER_TEMP/j2-replay-tooling"
+          python3 scripts/j2_checker.py "$binaries/checker"
+          go build -p 1 -mod=readonly -buildvcs=false -o "$binaries/migrate" ./cmd/dur053-migrate
+      - name: Independently replay the three attempts and retained qualification
+        timeout-minutes: 57
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          export J2_INTEGRATED_ROOT="$RUNNER_TEMP/j2-integrated"
+          python3 scripts/j2_integrated_report.py "$RUNNER_TEMP/j2-rehearsal-report" "$RUNNER_TEMP/j2-replay-tooling/checker"
+      - name: Check the full 26,678-identity volume allowance
+        if: always() && steps.build.outcome == 'success'
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          elapsed="$(($(date +%s) - J2_REPLAY_START))"
+          if (( elapsed + 1200 + 180 > 5400 )); then
+            printf '%s\n' 'Full-volume check and report upload exceed the remaining replay budget.'
+            exit 1
+          fi
+          binaries="$RUNNER_TEMP/j2-replay-tooling"
+          python3 scripts/j2_prequalify_checker.py 26678 "$RUNNER_TEMP/j2-rehearsal-report/volume" \
+            "$RUNNER_TEMP/j2-rehearsal-volume-scratch" "$binaries/checker" "$binaries/migrate"
+      - name: Verify the volume fixture teardown
+        if: always() && steps.build.outcome == 'success'
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          containers="$(docker ps -a --format '{{.Names}}')"
+          networks="$(docker network ls --format '{{.Name}}')"
+          if grep -xE 'j2-prequal-(db|live|offline)' <<< "$containers" ||
+             grep -x 'j2-checker-prequalification' <<< "$networks"; then
+            printf '{"status":"FAIL"}\n' > "$RUNNER_TEMP/j2-rehearsal-report/volume-teardown.json"
+            exit 1
+          fi
+          printf '{"status":"PASS"}\n' > "$RUNNER_TEMP/j2-rehearsal-report/volume-teardown.json"
+      - name: Retain the independent report and full-volume check
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-rehearsal-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-rehearsal-report/
+          if-no-files-found: warn
+          compression-level: 1
           retention-days: 90
 
   checker-prequalification:
