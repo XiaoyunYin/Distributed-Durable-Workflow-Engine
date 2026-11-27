@@ -7,6 +7,8 @@ on:
       - '.github/workflows/j2-volume-qualification.yml'
       - 'experiments/portfolio/load-envelope/**'
       - 'scripts/j2_*'
+      - 'cmd/j2-sender/**'
+      - 'internal/dur053/**'
       - 'mutations/j2-manifest.json'
       - 'deploy/k8s/connection-budget.json'
       - 'deploy/k8s/tools.lock.json'
@@ -23,6 +25,7 @@ on:
           - qualification
           - harness-reset
           - harness-schedule
+          - harness-sender
         default: overlay
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
@@ -88,7 +91,8 @@ jobs:
   harness-reset:
     if: >-
       github.event_name == 'workflow_dispatch' && !github.event.repository.private
-      && (inputs.mode == 'harness-reset' || inputs.mode == 'harness-schedule')
+      && (inputs.mode == 'harness-reset' || inputs.mode == 'harness-schedule'
+          || inputs.mode == 'harness-sender')
     name: J2 unmeasured ${{ inputs.mode }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -108,7 +112,7 @@ jobs:
           mkdir "$RUNNER_TEMP/j2-harness-evidence"
           bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-harness-evidence/image-restore.log"
       - uses: actions/setup-go@v5
-        if: inputs.mode == 'harness-schedule'
+        if: inputs.mode != 'harness-reset'
         with:
           go-version: '1.27.4'
       - name: Build and record the stock K4 sender
@@ -119,6 +123,15 @@ jobs:
           evidence="$RUNNER_TEMP/j2-harness-evidence"
           python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$RUNNER_TEMP/j2-sender/stock-loadgen" \
             "$evidence/sender-build.json" 2>&1 | tee "$evidence/sender-build.log"
+      - name: Build and record the two-period J2 sender
+        if: inputs.mode == 'harness-sender'
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-harness-evidence"
+          python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$RUNNER_TEMP/j2-sender/continuous" \
+            "$evidence/sender-build.json" --package ./cmd/j2-sender \
+            2>&1 | tee "$evidence/sender-build.log"
       - name: Rehearse fresh state and an interrupted submission
         if: inputs.mode == 'harness-reset'
         timeout-minutes: 42
@@ -133,6 +146,14 @@ jobs:
           python3 scripts/j2_schedule_rehearsal.py "$RUNNER_TEMP/j2-harness-evidence" \
             "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
             "$RUNNER_TEMP/j2-exporter-layouts" "$RUNNER_TEMP/j2-sender/stock-loadgen"
+      - name: Rehearse the two-period J2 sender and interruption
+        if: inputs.mode == 'harness-sender'
+        timeout-minutes: 42
+        run: |
+          python3 scripts/j2_schedule_rehearsal.py "$RUNNER_TEMP/j2-harness-evidence" \
+            "$RUNNER_TEMP/j2-harness-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts" "$RUNNER_TEMP/j2-sender/continuous" \
+            --continuous
       - name: Seal harness evidence
         id: seal
         if: always()

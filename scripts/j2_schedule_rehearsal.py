@@ -1,4 +1,4 @@
-"""Hosted, unmeasured 2a rehearsal of the stock K4 schedule and journal."""
+"""Hosted, unmeasured J2 sender schedule and interruption rehearsals."""
 
 import argparse
 import base64
@@ -12,7 +12,7 @@ from contextlib import contextmanager, suppress
 from pathlib import Path, PurePosixPath
 
 import dur053_k3 as kind
-from j2_build_sender import PACKAGE
+from j2_build_sender import BUILD_SCHEMAS, J2_PACKAGE, PACKAGE
 from j2_harness import (
     APP,
     INTERRUPTED_COUNT,
@@ -26,12 +26,22 @@ from j2_harness import (
 )
 from j2_offline import SECOND
 from j2_qualification_evidence import file_record, read, require, write
-from j2_schedule import ENGINEERING, MEASURED, WARMUP, k4_report, stock_schedule, timestamp
+from j2_schedule import (
+    ENGINEERING,
+    MEASURED,
+    WARMUP,
+    continuous_schedule,
+    k4_report,
+    stock_schedule,
+    timestamp,
+)
 from j3_resources import cgroup_paths
 
 STOCK = "/tmp/j2-stock-loadgen"
+CONTINUOUS = "/tmp/j2-continuous-sender"
 STOP = "/evidence/j2-stock-stop"
 JOURNAL = "/evidence/j2-stock-arrivals.jsonl"
+STEP_JOURNAL = "/evidence/j2-step-arrivals.jsonl"
 LEAD_SECONDS = 8
 RESOURCE_FILES = ("cpu.stat", "io.stat", "cpu.pressure", "io.pressure")
 SCHEDULE_POD_IMPORTS = (*POD_IMPORTS, "base64", "hashlib", "os")
@@ -72,14 +82,16 @@ done
 """
 
 
-def install_sender(driver, binary, manifest):
+def install_sender(driver, binary, manifest, *, continuous=False):
+    package = J2_PACKAGE if continuous else PACKAGE
+    path = CONTINUOUS if continuous else STOCK
     pin = read(manifest)
     require(
-        pin["schema"] == "j2.stock-k4-build.v1"
-        and pin["package"] == PACKAGE
+        pin["schema"] == BUILD_SCHEMAS[package]
+        and pin["package"] == package
         and pin["source"] == os.environ["GITHUB_SHA"]
         and pin["binary"] == file_record(binary),
-        "stock K4 sender build identity or hash mismatch",
+        "sender build identity or hash mismatch",
     )
     result = driver.k(
         "-n",
@@ -91,27 +103,42 @@ def install_sender(driver, binary, manifest):
         "python",
         "-c",
         INSTALL,
-        STOCK,
+        path,
         pin["binary"]["sha256"],
         data=base64.b64encode(binary.read_bytes()).decode("ascii"),
         timeout=60,
     )
     require(result.stdout.strip() == pin["binary"]["sha256"], "observer sender digest mismatch")
     args = ["-n", APP, "exec", driver.observer, "--"]
-    help_result = driver.k(*args, STOCK, "-help", timeout=15)
+    help_result = driver.k(*args, path, "-help", timeout=15)
     help_text = help_result.stdout + help_result.stderr
     (driver.output / "sender-help.txt").write_text(help_text, encoding="utf-8")
-    require(
-        re.search(r"(?m)^\s+-k4[ \t]*$", help_text) is not None
-        and all(flag in help_text for flag in ("-k4-start", "-k4-stop")),
-        "installed stock sender is missing K4 mode",
-    )
+    if continuous:
+        require(
+            all(
+                flag in help_text
+                for flag in (
+                    "-start",
+                    "-hold-rate",
+                    "-hold-duration",
+                    "-step-rate",
+                    "-step-duration",
+                )
+            ),
+            "installed J2 sender is missing its two-period flags",
+        )
+    else:
+        require(
+            re.search(r"(?m)^\s+-k4[ \t]*$", help_text) is not None
+            and all(flag in help_text for flag in ("-k4-start", "-k4-stop")),
+            "installed stock sender is missing K4 mode",
+        )
     write(
         driver.output / "sender-install.json",
         {
             "observer": driver.observer,
             "source": pin["source"],
-            "path": STOCK,
+            "path": path,
             "sha256": result.stdout.strip(),
         },
     )
@@ -259,32 +286,73 @@ def run_stock(driver, schedule, *, partial):
         timeout=5,
     )
     require(time.time_ns() < schedule["origin_ns"], "stock stop file missed sender origin")
+    return execute_sender(driver, schedule, args, loadgen, JOURNAL, partial=partial)
+
+
+def run_continuous(driver, schedule, *, partial):
+    hold, step = schedule["periods"]
+    args = ["-n", APP, "exec", driver.observer, "--"]
+    loadgen = [
+        CONTINUOUS,
+        "-start",
+        timestamp(schedule["origin_ns"]),
+        "-namespace",
+        APP,
+        "-url",
+        "http://api:8080",
+        "-token-file",
+        "/identity/token",
+        "-run-id",
+        schedule["run_id"],
+        "-seed",
+        str(schedule["seed"]),
+        "-hold-rate",
+        hold["rate"],
+        "-hold-duration",
+        f"{hold['seconds']}s",
+        "-step-rate",
+        step["rate"],
+        "-step-duration",
+        f"{step['seconds']}s",
+        "-output",
+        STEP_JOURNAL,
+    ]
+    write(driver.output / "schedule.json", schedule)
+    return execute_sender(driver, schedule, args, loadgen, STEP_JOURNAL, partial=partial)
+
+
+def execute_sender(driver, schedule, args, loadgen, journal, *, partial):
     try:
         if partial:
             return driver.interrupted_load(args, loadgen)
         duration = (schedule["stop_ns"] - schedule["origin_ns"]) // SECOND
         return driver.k(*args, *loadgen, allowed=True, timeout=duration + LEAD_SECONDS + 30)
     finally:
-        readback = driver.k(*args, "cat", JOURNAL, allowed=True, timeout=15)
+        readback = driver.k(*args, "cat", journal, allowed=True, timeout=15)
         (driver.output / driver.journal_name).write_bytes(readback.stdout.encode("utf-8"))
         write(driver.output / "journal-read.json", {"exit": readback.returncode})
 
 
-def exercise_stock(driver, name, *, partial):
+def exercise_sender(driver, name, *, partial, continuous=False):
     campaign = f"eng-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
-    schedule = stock_schedule(
+    common = (
         campaign,
         "job-1",
         name,
         f"j2-{campaign}-{name}",
         APP,
         time.time_ns() + LEAD_SECONDS * SECOND,
-        "1",
-        0 if partial else WARMUP,
-        INTERRUPTED_COUNT if partial else MEASURED,
     )
+    if continuous:
+        schedule = continuous_schedule(*common, ("1", 20 if partial else 8), ("4", 3))
+        execute = run_continuous
+    else:
+        schedule = stock_schedule(
+            *common, "1", 0 if partial else WARMUP, INTERRUPTED_COUNT if partial else MEASURED
+        )
+        execute = run_stock
     launched_at = time.time_ns()
-    result = run_stock(driver, schedule, partial=partial)
+    result = execute(driver, schedule, partial=partial)
     returned_at = time.time_ns()
     (driver.output / "sender-events.jsonl").write_text(result.stdout, encoding="utf-8")
     write(
@@ -308,13 +376,20 @@ def exercise_stock(driver, name, *, partial):
         and not report["outside_slot"]
         and report["max_in_flight_from_journal"] <= schedule["cap"]
         and not report["missing_acknowledged"],
-        "stock sender, journal or durable admission evidence failed",
+        "sender, journal or durable admission evidence failed",
     )
     if not partial:
         require(
             report["stock_verdict"] == "PASS" and not report["unresolved"],
-            "grid-shaped engineering stock sender did not complete",
+            "engineering sender did not complete",
         )
+        if continuous:
+            expected = {
+                "offered": schedule["count"],
+                "accepted": len(report["acknowledged"]),
+                "status": report["stock_verdict"],
+            }
+            require(json.loads(result.stdout) == expected, "J2 and stock journal verdict differ")
         return
     events = [json.loads(line) for line in result.stdout.splitlines()]
     write(driver.output / "admissions-after-stop.json", durable)
@@ -329,25 +404,29 @@ def exercise_stock(driver, name, *, partial):
         and not report["closed"]
         and report["stock_verdict"] == "FAIL"
         and report["unresolved"],
-        "stock K4 interruption did not retain a reconciled partial journal",
+        "interruption did not retain a reconciled partial journal",
     )
     return schedule["run_id"]
 
 
-def rehearse(driver, layouts, exporter_layout, binary):
+def rehearse(driver, layouts, exporter_layout, binary, *, continuous=False):
     with driver.stage("bootstrap"):
         addresses, exporter = start_profile(driver, layouts, exporter_layout)
-    driver.pod_journal, driver.journal_name = JOURNAL, "sender-journal.jsonl"
+    driver.pod_journal = STEP_JOURNAL if continuous else JOURNAL
+    driver.journal_name = "sender-journal.jsonl"
     driver.pod_imports = SCHEDULE_POD_IMPORTS
     previous = None
-    for name in ("grid-timing", "stock-interrupt"):
+    names = ("step-timing", "step-interrupt") if continuous else ("grid-timing", "stock-interrupt")
+    for i, name in enumerate(names):
         with driver.stage(f"fresh-{name}"):
             previous = driver.fresh_episode(name, addresses, exporter, previous)
         with driver.stage(f"install-{name}"):
             driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
-            install_sender(driver, binary, driver.evidence / "sender-build.json")
-        with driver.stage(f"stock-{name}"), observer_resources(driver):
-            run_id = exercise_stock(driver, name, partial=name == "stock-interrupt")
+            install_sender(
+                driver, binary, driver.evidence / "sender-build.json", continuous=continuous
+            )
+        with driver.stage(f"sender-{name}"), observer_resources(driver):
+            run_id = exercise_sender(driver, name, partial=i == 1, continuous=continuous)
     raise InjectedStop(run_id)
 
 
@@ -355,6 +434,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("evidence", "scratch", "layouts", "exporter_layout", "sender"):
         parser.add_argument(name, type=Path)
+    parser.add_argument("--continuous", action="store_true")
     args = parser.parse_args()
     hosted_dispatch()
     args.evidence.mkdir(parents=True, exist_ok=True)
@@ -364,8 +444,10 @@ def main():
         Harness(args.evidence, args.scratch),
         args.layouts,
         args.exporter_layout,
-        scenario=lambda driver, layouts, exporter: rehearse(driver, layouts, exporter, args.sender),
-        scope=f"unmeasured J2 schedule 2a ({ENGINEERING})",
+        scenario=lambda driver, layouts, exporter: rehearse(
+            driver, layouts, exporter, args.sender, continuous=args.continuous
+        ),
+        scope=f"unmeasured J2 schedule {'2b1' if args.continuous else '2a'} ({ENGINEERING})",
     )
 
 

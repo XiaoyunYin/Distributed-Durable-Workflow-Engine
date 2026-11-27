@@ -56,6 +56,44 @@ def stock_schedule(campaign, job, cell, run_id, namespace, origin_ns, rate, warm
     }
 
 
+def continuous_schedule(campaign, job, cell, run_id, namespace, origin_ns, hold, step):
+    hold_rate, hold_seconds = hold
+    step_rate, step_seconds = step
+    schedule = stock_schedule(
+        campaign, job, cell, run_id, namespace, origin_ns, hold_rate, 0, hold_seconds
+    )
+    hold_count = schedule["count"]
+    step_count = math.ceil(step_seconds * float(step_rate))
+    schedule.update(
+        count=hold_count + step_count,
+        hold_end_ns=schedule["stop_ns"],
+        stop_ns=schedule["stop_ns"] + step_seconds * SECOND,
+        periods=[
+            {"rate": hold_rate, "seconds": hold_seconds, "count": hold_count},
+            {"rate": step_rate, "seconds": step_seconds, "count": step_count},
+        ],
+    )
+    return schedule
+
+
+def schedule_slots(schedule):
+    start = schedule["origin_ns"]
+    stop = schedule["stop_ns"]
+    periods = schedule.get("periods") or [
+        {"rate": schedule["rate"], "count": schedule["count"], "seconds": (stop - start) / SECOND}
+    ]
+    for period in periods:
+        rate = float(period["rate"])
+        end = start + int(period["seconds"] * SECOND)
+        for i in range(period["count"]):
+            at = start + int(float(i) * SECOND / rate)
+            cutoff = min(end, start + int(float(i + 1) * SECOND / rate))
+            require(at < cutoff, "scheduled arrival outside its period")
+            yield at, cutoff
+        start = end
+    require(start == stop, "periods do not reach scheduled stop")
+
+
 def admission_states(planned, finished, durable):
     """Preserve ambiguous sends, including NOT_SENT in a surviving pre-send plan."""
     ids = set(durable)
@@ -96,21 +134,21 @@ def k4_report(raw, schedule, durable):
         "stock K4 plan differs from requested schedule",
     )
     origin, stop = schedule["origin_ns"], schedule["stop_ns"]
-    rate = float(schedule["rate"])
     planned = {}
-    for sequence, row in enumerate(plan["rows"]):
-        offset = int(float(sequence) * SECOND / rate)
-        at = origin + offset
+    continuous = "periods" in schedule
+    for sequence, (row, (at, cutoff)) in enumerate(
+        zip(plan["rows"], schedule_slots(schedule), strict=True)
+    ):
         key = f"dur053-{schedule['run_id']}-{schedule['seed']}-{sequence:06d}"
         require(
             row["sequence"] == sequence
             and row["key"] == row["workflow_id"] == key
-            and row["scheduled_ns"] == offset
+            and row["scheduled_ns"] == at - origin
             and utc_ns(row["scheduled_at"]) == at
             and at < stop,
             f"K4 scheduled row differs: {key}",
         )
-        planned[key] = (at, min(stop, origin + int(float(sequence + 1) * SECOND / rate)))
+        planned[key] = (at, cutoff)
     active = {}
     finished = {}
     sender_samples = []
@@ -140,13 +178,18 @@ def k4_report(raw, schedule, durable):
         outcome = event["outcome"]
         lateness = None if sent is None else sent - at
         if sent is None:
+            cutoff_after_intent = (
+                continuous and key in active and event["error"] == "cutoff-after-intent"
+            )
             require(
-                key not in active
+                (key not in active or cutoff_after_intent)
                 and outcome == "unsent"
                 and event["attempts"] == 0
                 and event["status"] == 0,
                 f"invalid unsent K4 arrival: {key}",
             )
+            if cutoff_after_intent:
+                active.pop(key)
             finished[key] = event
             phase = "unsent"
         elif key in active:

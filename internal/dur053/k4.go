@@ -6,11 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"durable-agent-execution-engine/internal/invariants"
@@ -73,9 +75,16 @@ func RunK4(ctx context.Context, c Config, database, output, startText, stopFile 
 		return err
 	}
 
-	send := HTTPWithToken(&http.Client{Timeout: c.Timeout, Transport: k4Transport{base: http.DefaultTransport}, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, c.URL, c.BearerTokenFile)
 	stop := func() (time.Time, error) { return readK4Stop(stopFile) }
-	return runK4Plan(ctx, c, plan, start, j, realClock{}, send, stop)
+	return runK4Plan(ctx, c, plan, start, j, realClock{}, k4HTTPSender(c, http.DefaultTransport), stop)
+}
+
+func k4HTTPSender(c Config, transport http.RoundTripper) Sender {
+	return HTTPWithToken(&http.Client{
+		Timeout:       c.Timeout,
+		Transport:     k4Transport{base: transport},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}, c.URL, c.BearerTokenFile)
 }
 
 func readK4Stop(path string) (time.Time, error) {
@@ -90,47 +99,72 @@ func readK4Stop(path string) (time.Time, error) {
 }
 
 func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start time.Time, j *K4Journal, clock Clock, send Sender, stop func() (time.Time, error)) error {
+	_, err := runK4Schedule(ctx, c, plan, start, j, clock, send, k4Timing{
+		slot: func(i int) (time.Duration, time.Duration) {
+			return Offset(i, c.Rate), Offset(i+1, c.Rate)
+		},
+		stop: stop,
+	})
+	return err
+}
+
+type k4Timing struct {
+	slot            func(int) (at, cutoff time.Duration)
+	stop            func() (time.Time, error)
+	dispatchCutoffs bool
+}
+
+// The stock K4 entry point keeps its original deadlines and stop-file behavior.
+// Only the J2 two-period path opts into the additional dispatch cutoff.
+func runK4Schedule(ctx context.Context, c Config, plan invariants.Arrivals, start time.Time, j *K4Journal, clock Clock, send Sender, timing k4Timing) (int, error) {
 	for i := range plan.Rows {
-		plan.Rows[i].ScheduledAt = start.Add(Offset(i, c.Rate)).UTC()
+		offset, _ := timing.slot(i)
+		plan.Rows[i].ScheduledAt = start.Add(offset).UTC()
 	}
 	if err := j.Append(map[string]any{"event": "plan", "plan": plan}); err != nil {
-		return err
+		return 0, err
 	}
 	slots := make(chan struct{}, c.Concurrency)
 	var wg sync.WaitGroup
+	var accepted atomic.Int32
 	failures := make(chan error, c.Concurrency+1)
-	appendRow := func(row any) {
+	appendRow := func(row map[string]any) {
 		if e := j.Append(row); e != nil {
 			select {
 			case failures <- e:
 			default:
 			}
+		} else if row["outcome"] == "accepted" {
+			accepted.Add(1)
 		}
 	}
 	for i, row := range plan.Rows {
-		at := start.Add(Offset(i, c.Rate))
+		offset, slotEnd := timing.slot(i)
+		at, cutoff := start.Add(offset), start.Add(slotEnd)
 		if e := clock.Wait(ctx, at); e != nil {
 			break
 		}
-		end, e := stop()
-		if e != nil {
-			wg.Wait()
-			return e
-		}
-		if !end.IsZero() && !at.Before(end) {
-			appendRow(map[string]any{"event": "stop", "at": clock.Now().UTC(), "stop": end.UTC(), "reason": "stop-file"})
-			break
+		if timing.stop != nil {
+			end, e := timing.stop()
+			if e != nil {
+				wg.Wait()
+				return int(accepted.Load()), e
+			}
+			if !end.IsZero() && !at.Before(end) {
+				appendRow(map[string]any{"event": "stop", "at": clock.Now().UTC(), "stop": end.UTC(), "reason": "stop-file"})
+				break
+			}
 		}
 
 		select {
 		case e := <-failures:
 			wg.Wait()
-			return e
+			return int(accepted.Load()), e
 		default:
 		}
 		sum := sha256.Sum256(row.Request)
 		base := map[string]any{"event": "arrival", "id": row.Key, "key": row.Key, "workflow": row.WorkflowID, "scheduled": at.UTC(), "sent": nil, "outcome": "unsent", "status": 0, "error": "", "request_hash": hex.EncodeToString(sum[:]), "attempts": 0}
-		if !clock.Now().Before(start.Add(Offset(i+1, c.Rate))) {
+		if !clock.Now().Before(cutoff) {
 			base["error"] = "missed-deadline"
 			appendRow(base)
 			continue
@@ -143,15 +177,21 @@ func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start ti
 			continue
 		}
 		wg.Add(1)
-		go func(body []byte, entry map[string]any, index int) {
+		go func(body []byte, entry map[string]any, cutoff time.Time) {
 			defer wg.Done()
 			defer func() { <-slots }()
-			if !clock.Now().Before(start.Add(Offset(index+1, c.Rate))) {
+			if !clock.Now().Before(cutoff) {
 				entry["error"] = "missed-send-deadline"
 				appendRow(entry)
 				return
 			}
-			entry["sent"] = clock.Now().UTC()
+			intentTime := clock.Now()
+			if timing.dispatchCutoffs && !intentTime.Before(cutoff) {
+				entry["error"] = "missed-send-deadline"
+				appendRow(entry)
+				return
+			}
+			entry["sent"] = intentTime.UTC()
 			entry["outcome"] = "uncertain"
 			entry["attempts"] = 1
 			if e := j.Append(entry); e != nil {
@@ -163,9 +203,19 @@ func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start ti
 			}
 			requestCtx, cancel := context.WithTimeout(ctx, c.Timeout)
 			defer cancel()
+			if timing.dispatchCutoffs {
+				if !clock.Now().Before(cutoff) {
+					recordJ2Cutoff(entry)
+					appendRow(entry)
+					return
+				}
+				requestCtx = context.WithValue(requestCtx, j2CutoffKey{}, cutoff)
+			}
 			status, data, e := send(requestCtx, body)
 			entry["status"] = status
-			if e != nil {
+			if timing.dispatchCutoffs && errors.Is(e, errJ2Cutoff) {
+				recordJ2Cutoff(entry)
+			} else if e != nil {
 				entry["error"] = "transport-error"
 			} else if status >= 200 && status < 300 {
 				var r struct {
@@ -182,15 +232,15 @@ func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start ti
 				entry["outcome"] = "rejected"
 			}
 			appendRow(entry)
-		}(row.Request, base, i)
+		}(row.Request, base, cutoff)
 	}
 	wg.Wait()
 	select {
 	case e := <-failures:
-		return e
+		return int(accepted.Load()), e
 	default:
 	}
-	return j.Append(map[string]any{"event": "closed"})
+	return int(accepted.Load()), j.Append(map[string]any{"event": "closed"})
 }
 
 // K4 request IDs bind target-local API acknowledgments to the registered stream.

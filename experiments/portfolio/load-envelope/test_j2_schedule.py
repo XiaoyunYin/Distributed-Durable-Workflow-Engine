@@ -182,6 +182,36 @@ def test_explicit_unsent_cannot_have_durable_commit():
         )
 
 
+def test_continuous_journal_uses_period_cutoffs_and_consecutive_identities():
+    p = schedule.continuous_schedule(
+        "eng-1", "job-1", "step", "run-1", "j2-test", ORIGIN, ("1.5", 1), ("2", 1)
+    )
+    head = stock_plan(p)
+    first, tail, step, last = head["plan"]["rows"]
+    offsets = (0, 666_666_666, 1_000_000_000, 1_500_000_000)
+    for row, value in zip((first, tail, step, last), offsets, strict=True):
+        row["scheduled_ns"] = value
+        row["scheduled_at"] = schedule.timestamp(ORIGIN + value)
+    accepted = [first, step, last]
+    records = [head]
+    for row in (first, tail, step, last):
+        intent = arrival(row, sent_ns=ORIGIN + row["scheduled_ns"])
+        records.append(intent)
+        if row is tail:
+            records.append(arrival(tail, outcome="unsent", error="cutoff-after-intent"))
+        else:
+            records.append({**intent, "outcome": "accepted", "status": 201})
+    records.append({"event": "closed"})
+    durable = [row["key"] for row in accepted]
+    report = schedule.k4_report(encoded(*records), p, durable)
+    assert report["explicitly_unsent"] == [tail["key"]]
+    assert report["unresolved"] == report["remaining_intents"] == report["outside_slot"] == []
+    assert report["stock_verdict"] == "FAIL"
+    records[3]["sent"] = schedule.timestamp(p["hold_end_ns"])
+    report = schedule.k4_report(encoded(*records), p, durable)
+    assert report["outside_slot"] == [tail["key"]]
+
+
 def test_observer_sender_install_probe_matches_embedded_stdlib_imports():
     scripts = (
         hosted.INSTALL,
@@ -277,6 +307,30 @@ def test_run_stock_writes_stop_before_launch_and_copies_journal_after_exit(tmp_p
     assert "-k4" in calls[1][0] and schedule.timestamp(p["origin_ns"]) in calls[1][0]
     assert calls[2][0][-2:] == ("cat", hosted.JOURNAL)
     assert (tmp_path / driver.journal_name).read_bytes() == b"raw journal"
+
+
+def test_continuous_launch_uses_one_process_and_one_output(tmp_path):
+    p = schedule.continuous_schedule(
+        "eng-1", "job-1", "step", "run-1", "j2-test", ORIGIN, ("1", 8), ("4", 3)
+    )
+    calls = []
+
+    def exec_in_pod(*args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(stdout="raw journal" if "cat" in args else "", returncode=0)
+
+    driver = SimpleNamespace(
+        k=exec_in_pod, output=tmp_path, observer="obs", journal_name="sender-journal.jsonl"
+    )
+    assert hosted.run_continuous(driver, p, partial=False).returncode == 0
+    launch, readback = calls
+    assert launch[5] == hosted.CONTINUOUS
+    assert launch[launch.index("-hold-duration") + 1] == "8s"
+    assert launch[launch.index("-step-duration") + 1] == "3s"
+    assert launch[launch.index("-step-rate") + 1] == "4"
+    assert launch.count("-output") == 1
+    assert readback[-2:] == ("cat", launch[-1])
+    assert hosted.read(tmp_path / "schedule.json")["count"] == 20
 
 
 def test_observer_resource_summary_keeps_empty_io_and_missing_samples_distinct():
