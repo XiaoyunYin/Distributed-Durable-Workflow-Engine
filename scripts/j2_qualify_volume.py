@@ -29,7 +29,7 @@ from j2_checker import (
     POD_CHECKER,
     verify_binary,
 )
-from j2_checker_report import indexed_report, markers
+from j2_checker_report import ResourceEvidenceError, indexed_report, markers
 from j2_offline import SECOND, utc_ns
 from j2_overlay import EXPORTER, J2, PROM, ROOT
 from j2_qualification_evidence import (
@@ -210,12 +210,23 @@ class ObserverEvidence(J2Driver):
                     log.write(json.dumps(record) + "\n")
         return status
 
-    def copy_from_pod(self, pod, remote, local):
+    def copy_from_pod(self, pod, remote, local, *, lines=None):
         destination = self.output / local
         destination.parent.mkdir(parents=True, exist_ok=True)
+        command = ("cat", remote)
+        if lines is not None:
+            command = (
+                "python",
+                "-c",
+                "import itertools,sys\n"
+                "with open(sys.argv[1], 'rb') as stream:\n"
+                "    sys.stdout.buffer.writelines(itertools.islice(stream, int(sys.argv[2])))",
+                remote,
+                str(lines),
+            )
         status = self.run_stage(
             destination.name + "-copy",
-            self.exec_args("cat", remote, pod=pod),
+            self.exec_args(*command, pod=pod),
             120,
             stdout=local,
         )
@@ -260,13 +271,16 @@ class ObserverEvidence(J2Driver):
         )
         if sample.returncode:
             raise MissingContainerPID(pod, uid, container)
-        maximum, peak, *events = sample.stdout.splitlines()
-        return {
-            "cgroup": proc,
-            "max_bytes": int(maximum),
-            "peak_bytes": int(peak),
-            "events": event_counts(events),
-        }
+        try:
+            maximum, peak, *events = sample.stdout.splitlines()
+            return {
+                "cgroup": proc,
+                "max_bytes": int(maximum),
+                "peak_bytes": int(peak),
+                "events": event_counts(events),
+            }
+        except ValueError as error:
+            raise ResourceEvidenceError(f"incomplete cgroup memory sample for {pod}") from error
 
     def inventory(self):
         rows = {}
@@ -349,7 +363,7 @@ class ObserverEvidence(J2Driver):
             ).stdout
         )
 
-    def witness(self, inventories, *, upload=True):
+    def witness(self, inventories, *, upload=True, pinned_prefix=False):
         root = self.output / "witness-raw"
         for inv in inventories:
             require_capacity(
@@ -375,7 +389,10 @@ class ObserverEvidence(J2Driver):
             )
             single_witness_session(files, inv)
             self.copy_from_pod(
-                pod, f"/witness/{pod}/{inv['file']}", f"witness-raw/{pod}/{inv['file']}"
+                pod,
+                f"/witness/{pod}/{inv['file']}",
+                f"witness-raw/{pod}/{inv['file']}",
+                lines=inv["written"] if pinned_prefix else None,
             )
         path = self.output / "witness.json"
         write(
@@ -631,7 +648,8 @@ def event_counts(lines):
 
 
 def require_no_oom(events):
-    require("oom_kill" in events and "oom" in events, f"missing OOM counters: {events}")
+    if "oom_kill" not in events or "oom" not in events:
+        raise ResourceEvidenceError(f"missing OOM counters: {events}")
     require_capacity(not oom_kill(events), "oom", f"OOM kill: {events}")
     require(not any(n for k, n in events.items() if k.startswith("oom")), f"OOM event: {events}")
 
@@ -765,11 +783,11 @@ def populate(driver, count, plan, monitor_errors):
     return start, stop
 
 
-def retain_scrapes(driver, query, start, end, count):
+def retain_scrapes(driver, query, start, end, count, *, require_quiet=True):
     span = int(end - start) + 12
     series = {metric: query(f"{metric}{{job='j2'}}[{span}s]", end) for metric in METRICS}
     write(driver.output / "prometheus-samples.json", series)
-    summary = scrape_summary(series, start, end, count)
+    summary = scrape_summary(series, start, end, count, require_quiet=require_quiet)
     write(driver.output / "sample-gaps.json", summary)
     require(
         summary["max_scrape_gap_seconds"] <= 5 and summary["max_query_gap_seconds"] <= 5,

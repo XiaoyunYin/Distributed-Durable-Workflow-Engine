@@ -12,7 +12,12 @@ import zipfile
 from pathlib import Path
 
 from dur053_pilot import witness_events
-from j2_checker_report import indexed_report
+from j2_checker_report import (
+    IntegrityError,
+    ResourceEvidenceError,
+    indexed_report,
+    require_checker_pass,
+)
 from j2_offline import SECOND, attempt_key, clock_bounds, drain_identities, join
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
 from j2_schedule import k4_report, schedule_slots
@@ -24,9 +29,9 @@ POLL_SECONDS = 2
 class DrainExpired(TimeoutError):
     classification = "drain_failure"
 
-
-class IntegrityError(ValueError):
-    classification = "integrity_stop"
+    def __init__(self, message, result):
+        super().__init__(message)
+        self.result = result
 
 
 def json_bytes(value, *, sort_keys=True):
@@ -129,11 +134,115 @@ def fingerprint(state):
     return hashlib.sha256(json_bytes({"db": state["db"], "witness": state["witness"]})).hexdigest()
 
 
+def checked_cut(report, bracket, witness):
+    """Derive expiry counts from the exact snapshot the locked checker read."""
+    trace = report["trace"]
+    tables = trace["Snapshot"]
+    submissions = [
+        {
+            "id": row["workflow_id"],
+            "key": row["submission_key"],
+            "hash": row["submission_payload_hash"],
+            "namespace": row["namespace"],
+            "revision": row["revision"],
+            "state": row["state"],
+        }
+        for row in tables["engine.workflow_executions"]["rows"]
+    ]
+    successes = {r["id"]: r["revision"] for r in submissions if r["state"] == "SUCCEEDED"}
+    succeeded = [
+        row["workflow_id"]
+        for row in tables["engine.transition_history"]["rows"]
+        if row["new_state"] == "SUCCEEDED" and successes.get(row["workflow_id"]) == row["revision"]
+    ]
+    require(set(succeeded) == successes.keys(), "checked success lacks a final revision")
+    return {
+        **bracket,
+        "db": {
+            "submissions": submissions,
+            "succeeded": sorted(succeeded),
+            "unpublished": trace["UnpublishedOutbox"],
+            "claimed": sum(
+                row["state"] == "CLAIMED" for row in tables["engine.activity_attempts"]["rows"]
+            ),
+            "terminal_failures": sum(
+                row["state"] in {"FAILED", "CANCELED", "REJECTED", "ABANDONED"}
+                for row in submissions
+            ),
+        },
+        "witness": witness,
+    }
+
+
+def expire_drain(stop_ns, deadline, last, check_expiry, expected, sender, retain, *, now):
+    state, predicates = last or (None, None)
+    failure = {
+        "status": "FAIL",
+        "deadline_mono_ns": deadline,
+        "last_verified_read": state,
+        "last_verified_counts": predicates,
+    }
+    retain("deadline", {**failure, "check_status": "pending"})
+    try:
+        final = check_expiry()
+        retain("final", final)
+        require(
+            deadline <= final["lower_mono_ns"] <= final["upper_mono_ns"],
+            "expiry snapshot does not bracket a read at or after the deadline",
+        )
+        residuals = readiness(final, expected, sender)
+        failure.update(
+            **residuals,
+            pending_lower_bound_ns={
+                key: max(0, final["lower_unix_ns"] - expected[key]["scheduled_ns"])
+                for key in residuals["pending"]
+            },
+            final_fingerprint=fingerprint(final),
+            drain_seconds=(deadline - stop_ns) / SECOND,
+            checked_export_seconds=(now() - stop_ns) / SECOND,
+            expiry_read_seconds=(final["upper_mono_ns"] - stop_ns) / SECOND,
+        )
+        if residuals["missing_acknowledged"]:
+            raise IntegrityError(
+                f"acknowledged workflows absent at expiry: {residuals['missing_acknowledged']}"
+            )
+        if state:
+            revisions = {row["id"]: row["revision"] for row in final["db"]["submissions"]}
+            require(
+                all(
+                    revisions.get(row["id"], -1) >= row["revision"]
+                    for row in state["db"]["submissions"]
+                )
+                and set(state["db"]["succeeded"]) <= set(final["db"]["succeeded"]),
+                "durable identities, revisions or successes regressed at expiry",
+            )
+    except Exception as error:
+        resource_gap = isinstance(error, ResourceEvidenceError)
+        retain(
+            "deadline",
+            {
+                **failure,
+                "check_status": "failed",
+                "classification": error.classification if resource_gap else "integrity_stop",
+                "error": str(error),
+            },
+        )
+        if resource_gap:
+            raise
+        raise IntegrityError(f"expiry check failed: {error}") from error
+    failure.update(check_status="PASS", classification="drain_failure")
+    retain("deadline", failure)
+    raise DrainExpired(
+        f"600 s drain deadline expired with {len(residuals['missing'])} missing IDs", failure
+    )
+
+
 def quiet_drain(
     *,
     stop_ns,
     observe,
     check,
+    check_expiry,
     expected,
     sender,
     retain,
@@ -179,6 +288,9 @@ def quiet_drain(
                 problem = None
                 try:
                     check(state)
+                except ResourceEvidenceError as error:
+                    retain("check-invalid", {"error": str(error), "at_ns": now()})
+                    raise
                 except (ValueError, RuntimeError, OSError) as error:
                     problem = error
                 checker_completed = now()
@@ -215,28 +327,16 @@ def quiet_drain(
         delay = min(POLL_SECONDS, (deadline - now()) / SECOND)
         if delay > 0:
             sleep(delay)
-    state, predicates = last or (None, {"missing": sorted(expected), "pending": []})
-    lower = state["lower_unix_ns"] if state else None
-    failure = {
-        "status": "FAIL",
-        "deadline_mono_ns": deadline,
-        **predicates,
-        "last_verified_read": state,
-        "pending_lower_bound_ns": {
-            key: max(0, lower - expected[key]["scheduled_ns"]) for key in predicates["pending"]
-        },
-    }
-    retain("deadline", failure)
-    raise DrainExpired(
-        f"600 s drain deadline expired with {len(predicates['missing'])} missing IDs"
-    )
+    remaining = deadline - now()
+    if remaining > 0:
+        sleep(remaining / SECOND)
+    expire_drain(stop_ns, deadline, last, check_expiry, expected, sender, retain, now=now)
 
 
-def checked_results(report, expected, sender, witness, polls, uncertainty, observed):
-    require(
-        report["status"] == "PASS" and report["valid"] is True and not report["non_terminal"],
-        "locked checker failed structural or terminal checks",
-    )
+def checked_results(
+    report, expected, sender, witness, polls, uncertainty, observed, *, expiry=None
+):
+    require_checker_pass(report)
     trace = report["trace"]
     submissions = trace["Submissions"]
     admitted = [s["WorkflowID"] for s in submissions]
@@ -250,13 +350,26 @@ def checked_results(report, expected, sender, witness, polls, uncertainty, obser
             and s["Namespace"] == expected[key]["namespace"],
             f"checked durable key or payload hash differs: {key}",
         )
+    pending = report["non_terminal"]
+    if expiry is None:
+        require(not pending, "locked checker failed terminal checks")
+        require(
+            admitted_ids == expected.keys() - set(sender["explicitly_unsent"]),
+            "checked admission does not cover planned identities",
+        )
+    else:
+        residuals = readiness(expiry, expected, sender)
+        require(
+            admitted_ids == {row["id"] for row in expiry["db"]["submissions"]}
+            and len(set(pending)) == len(pending)
+            and set(pending) == set(residuals["pending"]),
+            "checked identities or pending set differ from the expiry snapshot",
+        )
+    completed = admitted_ids - set(pending)
     identities = drain_identities(
         admitted, sender["acknowledged"], admitted, report["workflow_ids"]
     )
-    require(
-        identities["valid"] and admitted_ids == expected.keys() - set(sender["explicitly_unsent"]),
-        f"checked identity mismatch: {identities}",
-    )
+    require(identities["valid"], f"checked identity mismatch: {identities}")
     events = witness_events(witness)
     starts, finishes = {}, {}
     for event in events:
@@ -268,9 +381,16 @@ def checked_results(report, expected, sender, witness, polls, uncertainty, obser
         iid = event["invocation_id"]
         require(iid not in rows and iid, "duplicate or incomplete invocation identity")
         rows[iid] = event
-    require(starts.keys() == finishes.keys(), "missing invocation start or finish")
-    for iid, begin in starts.items():
-        end = finishes[iid]
+    require(
+        finishes.keys() <= starts.keys()
+        and all(
+            starts[iid]["workflow_id"] not in completed for iid in starts.keys() - finishes.keys()
+        ),
+        "missing invocation start or finish",
+    )
+    successful_attempts = set()
+    for iid, end in finishes.items():
+        begin = starts[iid]
         require(
             attempt_key(begin) == attempt_key(end)
             and all(begin[field] == end[field] for field in ("pod_uid", "session", "claim_token"))
@@ -278,11 +398,15 @@ def checked_results(report, expected, sender, witness, polls, uncertainty, obser
             and begin["monotonic_ns"] <= end["monotonic_ns"],
             f"incomparable invocation finish: {iid}",
         )
+        if expiry is not None and end["outcome"] == "SUCCEEDED":
+            key = attempt_key(end)
+            require(key not in successful_attempts, "duplicate witnessed success for one attempt")
+            successful_attempts.add(key)
 
     joined = []
     succeeded = []
     for row in join(
-        [(key, expected[key]["scheduled_ns"]) for key in admitted],
+        [(key, expected[key]["scheduled_ns"]) for key in admitted if key in completed],
         trace,
         events,
         polls,
@@ -316,9 +440,7 @@ def checked_results(report, expected, sender, witness, polls, uncertainty, obser
         )
         joined[-1]["winning_attempt"] = list(row["winning_attempt"])
     require(
-        drain_identities(admitted, sender["acknowledged"], succeeded, report["workflow_ids"])[
-            "valid"
-        ],
+        len(succeeded) == len(completed) and set(succeeded) == completed,
         "admitted, uniquely succeeded and checked identities differ",
     )
     return sorted(joined, key=lambda row: row["workflow_id"])
@@ -365,17 +487,38 @@ def replay_episode(root):
         "schedule hash differs from journal binding",
     )
     expected, sender = expected_arrivals(raw, schedule)
-    report, _ = indexed_report(root / "live-checker.json", join_trace=True, verify_tables=True)
+    result = read(root / "drain-result.json")
+    expired = result.get("classification") == "drain_failure"
+    require(result["status"] == ("FAIL" if expired else "PASS"), "invalid drain replay outcome")
+    report, _ = indexed_report(
+        root / "live-checker.json", join_trace=True, verify_tables=True, drain_counts=expired
+    )
     first = read_polls(root / "terminal-polls.jsonl")
     final = read(root / "final.json")
     witness = read(root / "witness.json")
     observed = final["upper_unix_ns"]
     require(
-        fingerprint(final) == read(root / "drain-result.json")["final_fingerprint"],
-        "final quiet evidence differs from retained drain result",
+        fingerprint(final) == result["final_fingerprint"],
+        "final DB evidence differs from retained drain result",
     )
+    expiry = None
+    if expired:
+        require(
+            result["deadline_mono_ns"] <= final["lower_mono_ns"] <= final["upper_mono_ns"]
+            and result["check_status"] == "PASS",
+            "invalid final expiry read",
+        )
+        inventories = sorted(
+            (row["inventory"] for row in witness["ledgers"]), key=lambda row: row["pod_uid"]
+        )
+        expiry = checked_cut(report, final, inventories)
+        require(expiry == final, "expiry snapshot or witness differs from the retained final read")
+        residuals = readiness(expiry, expected, sender)
+        require(all(result[k] == v for k, v in residuals.items()), "expiry residuals differ")
     uncertainty = clock_bounds(read(root / "clock.json"), schedule["origin_ns"], observed)
-    joined = checked_results(report, expected, sender, witness, first, uncertainty, observed)
+    joined = checked_results(
+        report, expected, sender, witness, first, uncertainty, observed, expiry=expiry
+    )
     return joined, uncertainty
 
 
@@ -422,13 +565,16 @@ def replay_archive(archive, output):
                 )
                 cohorts = cohort_counts(read(root / "schedule.json"), joined)
                 require(cohorts == read(root / "cohorts.json"), f"offline cohorts differ: {name}")
+                result = read(root / "drain-result.json")
                 evidence[name] = {
-                    "status": "PASS",
+                    "status": result["status"],
                     "checked": len(joined),
                     "cohorts": cohorts,
                     "clock_uncertainty_ns": uncertainty,
                     "schedule": index[f"{name}/schedule.json"],
                 }
+                if result.get("classification") == "drain_failure":
+                    evidence[name].update(classification="drain_failure", check_status="PASS")
     write(output, evidence)
 
 

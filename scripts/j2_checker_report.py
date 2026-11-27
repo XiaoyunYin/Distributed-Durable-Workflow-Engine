@@ -18,6 +18,30 @@ JOIN_TABLES = {
 }
 
 
+class IntegrityError(ValueError):
+    classification = "integrity_stop"
+
+
+class ResourceEvidenceError(RuntimeError):
+    classification = "invalid"
+
+
+def require_checker_exit(status):
+    if type(status) is not int:
+        raise ResourceEvidenceError("missing locked checker exit status")
+    if status != 0:
+        raise IntegrityError(f"locked checker exited {status} (see checker stdout and stderr)")
+
+
+def require_checker_pass(report):
+    if (
+        report.get("status") != "PASS"
+        or report.get("valid") is not True
+        or report.get("violations")
+    ):
+        raise IntegrityError("locked checker failed structural checks")
+
+
 def space(data, offset):
     return SPACE.match(data, offset).end()
 
@@ -69,7 +93,9 @@ def object_spans(data, start, visitors=None):
     raise ValueError("incomplete checker JSON object")
 
 
-def indexed_report(path: Path, *, snapshot=None, join_trace=False, verify_tables=False):
+def indexed_report(
+    path: Path, *, snapshot=None, join_trace=False, verify_tables=False, drain_counts=False
+):
     """Return verdict fields and table inventory, with an optional replay projection."""
     tables = {}
     trace = {}
@@ -95,6 +121,10 @@ def indexed_report(path: Path, *, snapshot=None, join_trace=False, verify_tables
                 if join_trace and name in JOIN_TABLES:
                     rows = load((first, last))
                     if name == "engine.outbox":
+                        if drain_counts:
+                            trace["UnpublishedOutbox"] = sum(
+                                row["published_at"] is None for row in rows
+                            )
                         rows = [row for row in rows if row["event_type"] == "activity.result"]
                     trace["Snapshot"][name] = {"rows": rows}
                 return end

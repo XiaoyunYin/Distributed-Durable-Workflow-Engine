@@ -202,10 +202,9 @@ class DrainOffsets:
             and successful[-1]["lower_mono_ns"] >= end_mono,
             "Kafka offset snapshots do not bracket the drain closeout",
         )
-        max_gap = max(
-            current["lower_mono_ns"] - previous["lower_mono_ns"]
-            for previous, current in zip(successful, successful[1:], strict=False)
-        )
+        in_drain = [row["lower_mono_ns"] for row in successful if row["lower_mono_ns"] < end_mono]
+        bounds = [self.stop_mono, *in_drain, end_mono]
+        max_gap = max(right - left for left, right in zip(bounds, bounds[1:], strict=False))
         require(
             0 < max_gap <= (2 * OFFSET_INTERVAL + OFFSET_TIMEOUT) * SECOND,
             "Kafka offset sampling left a gap in the drain timeline",
@@ -223,6 +222,7 @@ class DrainOffsets:
             "samples": len(successful),
             "interval_seconds": OFFSET_INTERVAL,
             "max_gap_ns": max_gap,
+            "closeout_delay_ns": successful[-1]["lower_mono_ns"] - end_mono,
         }
 
 
@@ -248,7 +248,8 @@ def relay_attribution(driver, schedule, stop_mono, work_deadline, target):
                 yield
             finally:
                 driver.deadline = work_deadline
-                if (output / "drain-result.json").is_file():
+                result_path = output / "drain-result.json"
+                if result_path.is_file() and read(result_path)["status"] == "PASS":
                     final = read(output / "final.json")
                     end_mono, end = final["upper_mono_ns"], final["upper_unix_ns"]
                 else:

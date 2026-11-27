@@ -51,7 +51,7 @@ def test_kafka_offset_brackets_survive_closeout(tmp_path, monkeypatch, close_off
         return probe(), {"lower_mono_ns": lower, "upper_mono_ns": lower + 1}
 
     end_offsets = iter([10, close_offset])
-    times = iter([SECOND, 17 * SECOND])
+    times = iter([SECOND, 60 * SECOND])
     monkeypatch.setattr(relay, "bracketed", bracketed)
     monkeypatch.setattr(relay.DrainOffsets, "poll", lambda _: None)
     offsets = relay.DrainOffsets(SimpleNamespace(output=tmp_path, kafka=kafka), SECOND)
@@ -61,7 +61,8 @@ def test_kafka_offset_brackets_survive_closeout(tmp_path, monkeypatch, close_off
         with pytest.raises(ValueError, match="end offset regressed"):
             offsets.close(16 * SECOND)
     else:
-        assert offsets.close(16 * SECOND)["samples"] == 2
+        summary = offsets.close(16 * SECOND)
+        assert summary["samples"] == 2 and summary["closeout_delay_ns"] == 44 * SECOND
     raw = (tmp_path / "drain-kafka-offsets.jsonl").read_text(encoding="utf-8")
     assert [json.loads(line)["phase"] for line in raw.splitlines()] == [
         "during-drain",
@@ -131,6 +132,10 @@ def test_expiry_retains_attribution_and_preserves_drain_failure(
     tmp_path, monkeypatch, publication_error
 ):
     deadline = 601 * SECOND
+    relay.write(tmp_path / "drain-result.json", {"status": "FAIL"})
+    relay.write(
+        tmp_path / "final.json", {"upper_mono_ns": 650 * SECOND, "upper_unix_ns": 660 * SECOND}
+    )
     driver = SimpleNamespace(output=tmp_path, deadline=601)
     target = {"pod": "relay-r", "pod_uid": "relay-uid"}
     monkeypatch.setattr(relay.time, "monotonic_ns", lambda: deadline)
@@ -160,7 +165,7 @@ def test_expiry_retains_attribution_and_preserves_drain_failure(
             driver, {"origin_ns": SECOND, "stop_ns": 11 * SECOND}, SECOND, 750, target
         ),
     ):
-        raise DrainExpired("600 s drain failure")
+        raise DrainExpired("600 s drain failure", {})
     record = json.loads((tmp_path / "relay-attribution.json").read_text(encoding="utf-8"))
     assert record["observed_through_mono_ns"] == deadline
     assert record["kafka_end_offsets"]["samples"] == 41

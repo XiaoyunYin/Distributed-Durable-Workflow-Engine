@@ -13,21 +13,33 @@ from threading import Event
 
 import dur053_k3 as kind
 from dur053_k3_policy import stable_worker_sessions
-from j2_checker_report import indexed_report
+from j2_checker_report import (
+    ResourceEvidenceError,
+    indexed_report,
+    require_checker_exit,
+    require_checker_pass,
+)
 from j2_drain import (
     DrainExpired,
     IntegrityError,
+    checked_cut,
     checked_results,
     cohort_counts,
     expected_arrivals,
+    expire_drain,
     fingerprint,
     quiet_drain,
+    readiness,
     replay_episode,
 )
 from j2_harness import APP, DB, Harness, hosted_dispatch, run
 from j2_offline import SECOND, clock_bounds, utc_ns
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
-from j2_qualification_resources import checker_samples, sample_checker
+from j2_qualification_resources import (
+    checker_resource_summary,
+    require_checker_resources,
+    sample_checker,
+)
 from j2_qualify_volume import OBSERVER_LIMIT, ObserverEvidence, prometheus, retain_scrapes, watch
 from j2_relay_diagnostics import bracketed, relay_attribution
 from j2_schedule import (
@@ -166,6 +178,14 @@ def wait_until(event, target_ns):
     return not event.wait(max(0, (target_ns - time.monotonic_ns()) / SECOND))
 
 
+def check_monitor(errors):
+    if errors:
+        error = errors[0]
+        if isinstance(error, ResourceEvidenceError):
+            raise error
+        raise IntegrityError(str(error)) from error
+
+
 def observed_carry(reads, step_mono):
     before, after = set(), set()
     before_reads = after_reads = 0
@@ -235,8 +255,7 @@ def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped):
             carry = pool.submit(carry_probe, driver, schedule, step_mono, cancelled)
         try:
             while time.monotonic_ns() < stop_mono:
-                if errors:
-                    raise IntegrityError(str(errors[0])) from errors[0]
+                check_monitor(errors)
                 if sender.done():
                     outcome = sender.result()
                     if (
@@ -277,50 +296,53 @@ def retain_sender(driver, schedule, stop_mono, polls, errors, *, stepped):
     )
 
 
-def capture_checker(driver, expected_pods, errors, state, arrivals, sender, polls, uncertainty):
-    driver.witness(state["witness"], upload=False)
+def capture_checker(driver, expected_pods, errors, *, terminal):
     pod = f"{APP}/{driver.observer}"
     uid = expected_pods[pod]["uid"]
-    leaf = driver.container_groups[pod, uid]
-    with sample_checker(driver.output, driver.node_exec[-1], leaf, driver.env) as sampler:
-        status = driver.run_stage(
-            "live-checker",
-            driver.checker_args("-namespace", APP, "-require-terminal"),
-            DRAIN_SECONDS,
-            stdout="live-checker.json",
-            monitor_errors=errors,
+    leaf = driver.container_groups.get((pod, uid))
+    if leaf is None:
+        raise ResourceEvidenceError("observer cgroup is missing from checker resource evidence")
+    args = ["-namespace", APP]
+    if terminal:
+        args.append("-require-terminal")
+    for name in ("snapshot.json", "live-checker-read.json", "live-checker-tables.json"):
+        (driver.output / name).unlink(missing_ok=True)
+    sampler = status = None
+    try:
+        with sample_checker(driver.output, driver.node_exec[-1], leaf, driver.env) as sampler:
+            status, bracket = bracketed(
+                lambda: driver.run_stage(
+                    "live-checker",
+                    driver.checker_args(*args),
+                    DRAIN_SECONDS,
+                    stdout="live-checker.json",
+                    monitor_errors=errors,
+                )
+            )
+    except OSError as error:
+        if sampler is not None:
+            if status is None:
+                raise
+            require_checker_exit(status)
+        raise ResourceEvidenceError(f"checker resource sampling failed: {error}") from error
+    write(driver.output / "live-checker-read.json", {**bracket, "exit": status})
+    sampling = checker_resource_summary(driver.output, sampler.returncode, OBSERVER_LIMIT)
+    write(driver.output / "checker-resource-summary.json", {**sampling, "exit": sampler.returncode})
+    try:
+        report, tables = indexed_report(
+            driver.output / "live-checker.json",
+            snapshot=driver.output / "snapshot.json",
+            join_trace=True,
+            verify_tables=True,
+            drain_counts=not terminal,
         )
-    sampling = {"exit": sampler.returncode, **checker_samples(driver.output)}
-    sampling["limit_bytes"] = OBSERVER_LIMIT
-    write(driver.output / "checker-resource-summary.json", sampling)
-    require(
-        status == sampling["exit"] == 0
-        and 0 < sampling["observer_peak_bytes"] <= OBSERVER_LIMIT
-        and sampling["checker_vmhwm_peak_kib"],
-        "locked checker or observer resource evidence failed",
-    )
-    report, tables = indexed_report(
-        driver.output / "live-checker.json",
-        snapshot=driver.output / "snapshot.json",
-        join_trace=True,
-        verify_tables=True,
-    )
+    except (OSError, ValueError, KeyError) as error:
+        require_checker_exit(status)
+        raise IntegrityError(f"locked checker report is incomplete: {error}") from error
     write(driver.output / "live-checker-tables.json", tables)
-    checked_results(
-        report,
-        arrivals,
-        sender,
-        read(driver.output / "witness.json"),
-        polls.first,
-        uncertainty,
-        state["upper_unix_ns"],
-    )
-    rows = report["trace"]["Snapshot"]["engine.workflow_executions"]["rows"]
-    revisions = {row["workflow_id"]: row["revision"] for row in rows}
-    require(
-        revisions == {row["id"]: row["revision"] for row in state["db"]["submissions"]},
-        "checker snapshot revisions differ from bracketed DB state",
-    )
+    require_checker_exit(status)
+    require_checker_pass(report)
+    return report, bracket, sampling
 
 
 def episode_schedule(name, *, stepped, hold_rate="1"):
@@ -357,6 +379,7 @@ def exercise(driver, name, *, stepped, hold_rate):
         ExitStack() as diagnostics,
     ):
         setup = driver.clock()
+        write(output / "setup-clock.json", setup)
         uncertainty = utc_ns(setup["observer_after"]) - utc_ns(setup["observer_before"])
         require(
             utc_ns(setup["observer_before"])
@@ -382,6 +405,7 @@ def exercise(driver, name, *, stepped, hold_rate):
             relay_attribution(driver, schedule, stop_mono, work_deadline, relay)
         )
         driver.deadline = deadline / SECOND
+        expired = None
         try:
             retain_sender(driver, schedule, stop_mono, polls, errors, stepped=stepped)
             binding = file_record(output / "schedule.json")
@@ -391,15 +415,57 @@ def exercise(driver, name, *, stepped, hold_rate):
             arrivals, sender = expected_arrivals(raw, schedule)
 
             def observe():
-                if errors:
-                    raise IntegrityError(str(errors[0])) from errors[0]
+                check_monitor(errors)
                 return observation(driver, polls)
 
             def check(state):
-                capture_checker(driver, pods, errors, state, arrivals, sender, polls, uncertainty)
+                driver.witness(state["witness"], upload=False)
+                report, _, sampling = capture_checker(driver, pods, errors, terminal=True)
+                checked_results(
+                    report,
+                    arrivals,
+                    sender,
+                    read(output / "witness.json"),
+                    polls.first,
+                    uncertainty,
+                    state["upper_unix_ns"],
+                )
+                rows = report["trace"]["Snapshot"]["engine.workflow_executions"]["rows"]
+                require(
+                    {row["workflow_id"]: row["revision"] for row in rows}
+                    == {row["id"]: row["revision"] for row in state["db"]["submissions"]},
+                    "checker snapshot revisions differ from bracketed DB state",
+                )
+                require_checker_resources(sampling)
+
+            def check_expiry():
+                # The locked checker selects and checks the same repeatable-read cut.
+                # This export uses closeout time and cannot turn expiry into a pass.
+                driver.deadline = work_deadline
+                report, bracket, sampling = capture_checker(driver, pods, errors, terminal=False)
+                inventories = sorted(driver.witness_inventories(), key=lambda row: row["pod_uid"])
+                state = checked_cut(report, bracket, inventories)
+                write(output / "final.json", state)
+                polls.retain(state["db"]["succeeded"], bracket)
+                driver.witness(inventories, upload=False, pinned_prefix=True)
+                probes = {"setup": setup, "measured": driver.clock()}
+                write(output / "clock.json", probes)
+                width = clock_bounds(probes, schedule["origin_ns"], state["upper_unix_ns"])
+                checked_results(
+                    report,
+                    arrivals,
+                    sender,
+                    read(output / "witness.json"),
+                    polls.first,
+                    width,
+                    state["upper_unix_ns"],
+                    expiry=state,
+                )
+                require_checker_resources(sampling)
+                return state
 
             def retain(label, data):
-                if label in {"poll", "read-error", "check-retry", "quiet-start"}:
+                if label in {"poll", "read-error", "check-retry", "check-invalid", "quiet-start"}:
                     with (output / "drain-polls.jsonl").open("a", encoding="utf-8") as log:
                         log.write(json.dumps({"event": label, **data}) + "\n")
                 else:
@@ -409,30 +475,53 @@ def exercise(driver, name, *, stepped, hold_rate):
                 stop_ns=stop_mono,
                 observe=observe,
                 check=check,
+                check_expiry=check_expiry,
                 expected=arrivals,
                 sender=sender,
                 retain=retain,
             )
             # Final evidence must also close within the registered deadline.
             final = read(output / "final.json")
-            probes = {"setup": setup, "measured": driver.clock()}
-            clock_bounds(probes, schedule["origin_ns"], final["upper_unix_ns"])
-            require(time.monotonic_ns() <= deadline, "final clock bracket exceeded drain allowance")
+            probes = None
+            try:
+                probes = {"setup": setup, "measured": driver.clock()}
+            except ResourceEvidenceError:
+                raise
+            except (OSError, ValueError, RuntimeError):
+                if time.monotonic_ns() < deadline:
+                    raise
+            if probes is not None:
+                try:
+                    clock_bounds(probes, schedule["origin_ns"], final["upper_unix_ns"])
+                except ValueError as error:
+                    raise IntegrityError(str(error)) from error
+            if probes is None or time.monotonic_ns() > deadline:
+                expire_drain(
+                    stop_mono,
+                    deadline,
+                    (final, readiness(final, arrivals, sender)),
+                    check_expiry,
+                    arrivals,
+                    sender,
+                    retain,
+                    now=time.monotonic_ns,
+                )
             write(output / "clock.json", probes)
-            write(output / "drain-result.json", result)
-        except (OSError, ValueError) as error:
-            if not isinstance(error, DrainExpired) and time.monotonic_ns() >= deadline:
-                raise DrainExpired(
-                    "600 s drain allowance expired during sender/export closeout"
-                ) from error
-            raise
+        except DrainExpired as error:
+            expired = error
+            result = error.result
+            final = read(output / "final.json")
         finally:
             driver.deadline = work_deadline
+        write(output / "drain-result.json", result)
         diagnostics.close()
         durable = [row["id"] for row in final["db"]["submissions"]]
         report = k4_report(raw, schedule, durable)
         write(output / "sender-report.json", report)
-        joined, _ = replay_episode(output)
+        try:
+            joined, _ = replay_episode(output)
+        except (KeyError, OSError, ValueError) as error:
+            raise IntegrityError(f"checked evidence failed replay: {error}") from error
         if stepped:
             carry = read(output / "step-transition.json")
             pending_at_step = set(carry["observed_carry_ids"])
@@ -442,10 +531,10 @@ def exercise(driver, name, *, stepped, hold_rate):
                 if row["workflow_id"] in pending_at_step
                 and row["scheduled_ns"] < schedule["hold_end_ns"] <= row["terminal_ns"]
             ]
-            require(
-                set(crossed) == pending_at_step,
-                "observed carry-in did not reconcile to checked hold completions",
-            )
+            if set(crossed) != pending_at_step - set(result["pending"]):
+                raise IntegrityError(
+                    "observed carry-in did not reconcile to checked hold completions"
+                )
             carry["verified_crossing_ids"] = crossed
             write(output / "step-transition.json", carry)
         write(output / "phase-rows.json", joined)
@@ -463,16 +552,22 @@ def exercise(driver, name, *, stepped, hold_rate):
                 "drain_seconds": result["drain_seconds"],
             },
         )
-        if errors:
-            raise IntegrityError(str(errors[0])) from errors[0]
-        retain_scrapes(
-            driver,
-            query,
-            schedule["origin_ns"] / SECOND,
-            final["upper_unix_ns"] / SECOND,
-            len(durable),
-        )
-    require(fingerprint(final) == result["final_fingerprint"], "final read identity drift")
+        check_monitor(errors)
+        try:
+            retain_scrapes(
+                driver,
+                query,
+                schedule["origin_ns"] / SECOND,
+                final["upper_unix_ns"] / SECOND,
+                len(durable),
+                require_quiet=expired is None,
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ResourceEvidenceError(f"incomplete scrape evidence: {error}") from error
+    if fingerprint(final) != result["final_fingerprint"]:
+        raise IntegrityError("final read identity drift")
+    if expired is not None:
+        raise expired
     if stepped and not carry["verified_crossing_ids"]:
         raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
@@ -481,6 +576,7 @@ def rehearse(driver, layouts, exporter_layout, binaries, hold_rate):
     with driver.stage("bootstrap"):
         addresses, exporter = start_profile(driver, layouts, exporter_layout)
     previous = None
+    grid_expiry = None
     for name, stepped in (("grid-drain", False), ("step-drain", True)):
         with driver.stage(f"fresh-{name}"):
             previous = driver.fresh_episode(name, addresses, exporter, previous)
@@ -492,8 +588,15 @@ def rehearse(driver, layouts, exporter_layout, binaries, hold_rate):
             driver.install_checker()
             binary, manifest = binaries[stepped]
             install_sender(driver, binary, driver.evidence / manifest, continuous=stepped)
-        with driver.stage(name):
-            exercise(driver, name, stepped=stepped, hold_rate=hold_rate)
+        try:
+            with driver.stage(name):
+                exercise(driver, name, stepped=stepped, hold_rate=hold_rate)
+        except DrainExpired as error:
+            if stepped:
+                raise
+            grid_expiry = error
+    if grid_expiry is not None:
+        raise grid_expiry
 
 
 def main():
