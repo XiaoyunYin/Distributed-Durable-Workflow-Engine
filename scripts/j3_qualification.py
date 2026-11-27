@@ -13,6 +13,7 @@ from math import ceil
 from statistics import median
 
 import dur053_k3 as kind
+from j2_checker import verify_binary
 from j2_offline import utc_ns
 from j3_admission_diagnostics import arm_resources
 from j3_diagnostics import retain_postgres_log, runner_pressure
@@ -76,9 +77,10 @@ ALERT_SETUP_SECONDS = 30
 
 
 class Qualification(Pilot):
-    def __init__(self, output, scratch):
+    def __init__(self, output, scratch, checker):
         super().__init__(output, scratch)
         self.job_scratch = scratch
+        self.checker = checker.resolve()
 
     def episode_objects(self, objects):
         super().episode_objects(objects)
@@ -771,10 +773,10 @@ def run_qualification(driver, args, addresses, pins):
 
 
 def main():
-    args = hosted_arguments(__doc__)
+    args = hosted_arguments(__doc__, with_checker=True)
     require(os.environ["GITHUB_RUN_ATTEMPT"] == "1", "qualification requires attempt 1")
     kind.CLUSTER, kind.LABEL = "j3-qualification", "j3.qualification=owned"
-    driver = Qualification(args.evidence, args.scratch)
+    driver = Qualification(args.evidence, args.scratch, args.checker)
     # Reserve the last 15 minutes for failure evidence, cleanup and upload.
     driver.live_reservation = FORECAST_CAP * 60 - (time.time() - int(os.environ["J3_JOB_STARTED"]))
     runtime, pins = locked_images(driver)
@@ -786,6 +788,7 @@ def main():
             "head": os.environ["GITHUB_SHA"],
             "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
             "runtime_profile": runtime["profile"],
+            "checker": verify_binary(driver.checker),
             "images": {**driver.images, **pins},
             "kubernetes_namespace": APP,
         },

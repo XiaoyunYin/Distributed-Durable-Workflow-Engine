@@ -94,7 +94,11 @@ allowance, then charges Δ to both extended arms. The job seals the schedule
 before the full-volume stop, restore and identity drain. It saves each episode,
 forecast input, verdict and hash index in the attempt's Actions artifact.
 
-The full-volume checker runs in the existing observer pod. On a failed exit,
+The full-volume check uses the [locked J2 checker](../load-envelope/checker.lock.json).
+The job reproduces it with the [J2 builder](../../../scripts/j2_checker.py),
+verifies the installed hash in the observer pod, and runs it with the locked
+`GOMEMLIMIT` and J3's namespace and terminal checks. `checker-binary.json`
+records the source, tree, verified digest and memory setting. On a failed exit,
 the diagnostic retains pod state, pod cgroup counters and node kernel OOM
 records. Linux emits the `oom-kill:constraint=…` summary, adds `oom_memcg`
 and `task_memcg` paths, then prints the victim task, PID and UID. The cgroup

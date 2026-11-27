@@ -17,6 +17,20 @@ import j3_qualification as j3  # noqa: E402
 import j3_slots as slots  # noqa: E402
 
 
+def test_full_volume_refuses_a_checker_that_differs_from_the_lock(tmp_path):
+    checker = tmp_path / "checker"
+    checker.write_bytes(b"unverified checker")
+
+    def pod(*_args):
+        pytest.fail("checker digest must be verified before accessing the observer")
+
+    driver = SimpleNamespace(output=tmp_path, checker=checker, pod=pod)
+    with pytest.raises(episode.CheckerError, match="checker outcome: invalid") as error:
+        episode.check_full_volume(driver, {"namespace": "target"}, [], {}, [])
+    assert "J2 checker SHA-256 mismatch" in str(error.value.__cause__)
+    assert not (tmp_path / "checker.json").exists()
+
+
 @pytest.mark.parametrize(
     ("arm", "started_ms", "sampled_ms", "finished_ms", "phase", "error"),
     [
@@ -224,7 +238,7 @@ def test_two_fresh_episodes_render_separate_packages(tmp_path, monkeypatch):
     (job_scratch / "bin").mkdir(parents=True)
     (job_scratch / "bin/kind").touch()
     (job_scratch / "kubeconfig").touch()
-    driver = j3.Qualification(tmp_path, job_scratch)
+    driver = j3.Qualification(tmp_path, job_scratch, tmp_path / "checker")
     driver.images = {"worker": "repo/worker@sha256:test"}
     environment = dict(driver.env)
     packages = []

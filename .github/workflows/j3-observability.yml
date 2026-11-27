@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/j3-observability.yml'
       - 'experiments/portfolio/observability/**'
+      - 'experiments/portfolio/load-envelope/checker.lock.json'
+      - 'scripts/j2_checker.py'
       - 'scripts/j3_*'
       - 'go.mod'
       - 'go.sum'
@@ -37,12 +39,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.27.4'
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.9.5'
+      - name: Reproduce the locked J2 checker
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/j3-exporter"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-exporter/checker-build.log"
       - name: Hosted promtool and PostgreSQL fixtures
         env:
           GOMAXPROCS: '2'
@@ -89,9 +99,18 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.27.4'
+      - name: Reproduce the locked J2 checker
+        if: inputs.mode == 'qualification'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/j3-qualification"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-qualification/checker-build.log"
       - name: Restore locked OCI artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -135,7 +154,8 @@ jobs:
         if: inputs.mode == 'qualification'
         run: |
           python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-qualification" "$RUNNER_TEMP/j3-scratch" \
-            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
+            "$RUNNER_TEMP/j3-tooling/checker"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

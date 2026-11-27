@@ -799,10 +799,12 @@ def run_overlay(driver, db_ip, pins, target, binary):
     require(not delivery_evidence["matches"], "unexpected receiver notifications during pilot")
 
 
-def hosted_arguments(description):
+def hosted_arguments(description, *, with_checker=False):
     parser = argparse.ArgumentParser(description=description)
     for name in ("evidence", "scratch", "runtime_layout", "exporter_layout", "sender"):
         parser.add_argument(name, type=Path)
+    if with_checker:
+        parser.add_argument("checker", type=Path)
     args = parser.parse_args()
     require(
         os.environ.get("GITHUB_ACTIONS") == "true"

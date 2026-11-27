@@ -12,6 +12,7 @@ from math import ceil
 from threading import Event, Thread
 
 import dur053_k3 as kind
+from j2_checker import verify_binary
 from j2_offline import attempt_key, drain_identities, utc_ns
 from j3_admission_diagnostics import outstanding_journal, retain_sender_context
 from j3_evidence import jsonl
@@ -1024,12 +1025,14 @@ def check_full_volume(driver, data, origins, quiet, events):
     namespace = data["namespace"]
     path = driver.output / "checker.json"
     try:
+        lock = verify_binary(driver.checker)
         checked = run_checker(
             driver,
             kind.CLUSTER + "-control-plane",
             APP,
             driver.pod(APP, "observer"),
-            "/checker",
+            driver.checker,
+            lock,
             ["-namespace", namespace, "-require-terminal"],
         )
     except Exception as error:
