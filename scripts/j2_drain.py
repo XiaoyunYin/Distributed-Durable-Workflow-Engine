@@ -18,7 +18,7 @@ from j2_checker_report import (
     indexed_report,
     require_checker_pass,
 )
-from j2_offline import SECOND, attempt_key, clock_bounds, drain_identities, join
+from j2_offline import SECOND, ClockEvidenceError, attempt_key, clock_bounds, drain_identities, join
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
 from j2_schedule import k4_report, schedule_slots
 
@@ -334,7 +334,16 @@ def quiet_drain(
 
 
 def checked_results(
-    report, expected, sender, witness, polls, uncertainty, observed, *, expiry=None
+    report,
+    expected,
+    sender,
+    witness,
+    polls,
+    uncertainty,
+    observed,
+    *,
+    expiry=None,
+    snapshot_only=False,
 ):
     require_checker_pass(report)
     trace = report["trace"]
@@ -366,9 +375,14 @@ def checked_results(
             "checked identities or pending set differ from the expiry snapshot",
         )
     completed = admitted_ids - set(pending)
-    identities = drain_identities(
-        admitted, sender["acknowledged"], admitted, report["workflow_ids"]
-    )
+    checked_ids = report.get("workflow_ids")
+    if snapshot_only:
+        require(checked_ids is None, "offline checker unexpectedly supplied a live ID list")
+        checked_ids = [
+            row["workflow_id"] for row in trace["Snapshot"]["engine.workflow_executions"]["rows"]
+        ]
+    require(checked_ids is not None, "locked checker did not identify the live scope")
+    identities = drain_identities(admitted, sender["acknowledged"], admitted, checked_ids)
     require(identities["valid"], f"checked identity mismatch: {identities}")
     events = witness_events(witness)
     starts, finishes = {}, {}
@@ -414,6 +428,8 @@ def checked_results(
         observed,
     ):
         key = row["workflow_id"]
+        if row["status"] == "terminal_clock_or_observation":
+            raise ClockEvidenceError(f"invalid final revision/attempt for {key}: {row['status']}")
         require(
             row["status"] == "observed",
             f"invalid final revision/attempt for {key}: {row['status']}",
@@ -479,7 +495,7 @@ def cohort_counts(schedule, phases):
     }
 
 
-def replay_episode(root):
+def replay_episode(root, *, snapshot_only=False):
     schedule = read(root / "schedule.json")
     raw = (root / "sender-journal.jsonl").read_bytes()
     require(
@@ -493,6 +509,7 @@ def replay_episode(root):
     report, _ = indexed_report(
         root / "live-checker.json", join_trace=True, verify_tables=True, drain_counts=expired
     )
+    require_checker_pass(report)
     first = read_polls(root / "terminal-polls.jsonl")
     final = read(root / "final.json")
     witness = read(root / "witness.json")
@@ -515,9 +532,21 @@ def replay_episode(root):
         require(expiry == final, "expiry snapshot or witness differs from the retained final read")
         residuals = readiness(expiry, expected, sender)
         require(all(result[k] == v for k, v in residuals.items()), "expiry residuals differ")
-    uncertainty = clock_bounds(read(root / "clock.json"), schedule["origin_ns"], observed)
+    try:
+        probes = read(root / "clock.json")
+    except (OSError, ValueError) as error:
+        raise ClockEvidenceError("missing or malformed observer/DB clock bracket") from error
+    uncertainty = clock_bounds(probes, schedule["origin_ns"], observed)
     joined = checked_results(
-        report, expected, sender, witness, first, uncertainty, observed, expiry=expiry
+        report,
+        expected,
+        sender,
+        witness,
+        first,
+        uncertainty,
+        observed,
+        expiry=expiry,
+        snapshot_only=snapshot_only,
     )
     return joined, uncertainty
 

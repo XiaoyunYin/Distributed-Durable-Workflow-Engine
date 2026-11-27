@@ -11,18 +11,19 @@ import time
 import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal
+from decimal import Decimal
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from j2_schedule import MEASURED, ORDERS, RATES, WARMUP
+from j2_schedule import MEASURED, ORDERS, RATES, WARMUP, population, soak_population
 
 JOBS = (1, 2, 3)
 BARRIER_SECONDS = 45 * 60
 JOB_MINUTES = 75
 INTEGRATED_SCOPE = "synthetic integrated rehearsal grid"
+REGISTERED_GRID_SCOPE = "registered J2 grid"
 # Two polling peers and one withholding peer share the repository token quota.
 # Two list calls per poller and one per withholding peer cost about 450 over 45 min.
 POLL_SECONDS = 30
@@ -120,14 +121,6 @@ def barrier_deadline(ready, job_deadline):
         reason="insufficient_budget",
     )
     return ready + BARRIER_SECONDS
-
-
-def population(rate, seconds):
-    return int((Decimal(RATES[rate]) * seconds).to_integral_value(rounding=ROUND_CEILING))
-
-
-def soak_population(rate):
-    return population(rate, WARMUP) + population(rate, 1800) + population("C", 300)
 
 
 def job_name(job, scope=None):
@@ -422,9 +415,11 @@ def validate_grid(body, campaign, job, job_id):
     cells = body["cells"]
     require(isinstance(cells, list) and len(cells) == len(RATES), "incomplete five-cell grid")
     for cell, rate in zip(cells, ORDERS[job - 1], strict=True):
+        population_field = " population" if campaign.scope == REGISTERED_GRID_SCOPE else ""
         schema(
             cell,
-            "rate offered_rate counts outcome reason checked reset_verified evidence_sha256",
+            "rate offered_rate counts outcome reason checked reset_verified evidence_sha256"
+            + population_field,
             "cell",
         )
         require(
@@ -449,6 +444,34 @@ def validate_grid(body, campaign, job, job_id):
             and counts[0] == population(rate, WARMUP + MEASURED),
             "invalid cell counts",
         )
+        if campaign.scope == REGISTERED_GRID_SCOPE:
+            recorded = cell["population"]
+            schema(recorded, "bound scheduled windows", "registered cell population")
+            require(
+                type(recorded["bound"]) is int
+                and type(recorded["scheduled"]) is int
+                and recorded["bound"] == recorded["scheduled"] == counts[0],
+                "registered grid population bound or scheduled count differs",
+            )
+            windows = recorded["windows"]
+            schema(windows, "warmup grid", "registered cell population windows")
+            warmup_count = population(rate, WARMUP)
+            for name, scheduled in (("warmup", warmup_count), ("grid", counts[0] - warmup_count)):
+                window = windows[name]
+                schema(window, "scheduled checked_success in_window_success", "population window")
+                require(
+                    all(type(n) is int for n in window.values())
+                    and 0
+                    <= window["in_window_success"]
+                    <= window["checked_success"]
+                    <= window["scheduled"]
+                    == scheduled,
+                    "registered population window counts differ",
+                )
+            require(
+                sum(window["checked_success"] for window in windows.values()) == counts[-1],
+                "registered population checked total differs",
+            )
         require(
             (
                 outcome == "pass"
@@ -512,7 +535,7 @@ class Barrier:
         grid_names = {job: self.campaign.name("grid", job) for job in JOBS}
         evidence_names = {job: self.campaign.name("grid-evidence", job) for job in JOBS}
         names = set(grid_names.values()) | set(evidence_names.values())
-        integrated = self.campaign.scope == INTEGRATED_SCOPE
+        integrated = self.campaign.scope in {INTEGRATED_SCOPE, REGISTERED_GRID_SCOPE}
         if integrated:
             names.update(
                 checkpoint_name(self.campaign.run, self.campaign.attempt, job, cell)

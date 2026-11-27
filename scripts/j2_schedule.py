@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 from datetime import UTC, datetime
+from decimal import ROUND_CEILING, Decimal
 
 from j2_offline import SECOND, utc_ns
 from j2_qualification_evidence import require
@@ -24,6 +25,9 @@ ORDERS = (
 )
 WARMUP = 120
 MEASURED = 600
+HOLD = 1800
+STEP = 300
+MEASURED_CAMPAIGN = "j2-load-envelope-v1"
 CAP = 16
 REQUEST_TIMEOUT = "10s"
 ENGINEERING = "engineering timing only"
@@ -32,6 +36,30 @@ ENGINEERING = "engineering timing only"
 def timestamp(ns):
     seconds, nanos = divmod(ns, SECOND)
     return datetime.fromtimestamp(seconds, UTC).strftime("%Y-%m-%dT%H:%M:%S") + f".{nanos:09d}Z"
+
+
+def population(rate, seconds):
+    return int((Decimal(RATES[rate]) * seconds).to_integral_value(rounding=ROUND_CEILING))
+
+
+def soak_population(rate):
+    return population(rate, WARMUP) + population(rate, HOLD) + population("C", STEP)
+
+
+def registered_schedule(campaign, job, cell, run_id, namespace, origin_ns, rate):
+    require(rate in RATES and (cell == rate or cell == "soak"), "invalid registered cell or rate")
+    common = (campaign, job, cell, run_id, namespace, origin_ns)
+    if cell == "soak":
+        schedule = continuous_schedule(
+            *common, (RATES[rate], WARMUP + HOLD), (RATES["C"], STEP), warmup=WARMUP
+        )
+        bound = soak_population(rate)
+    else:
+        schedule = stock_schedule(*common, RATES[rate], WARMUP, MEASURED)
+        bound = population(rate, WARMUP + MEASURED)
+    schedule.update(registered_clock=True, population_bound=bound)
+    require(schedule["count"] <= bound, "actual schedule exceeds its registered population bound")
+    return schedule
 
 
 def stock_schedule(campaign, job, cell, run_id, namespace, origin_ns, rate, warmup, measured):
@@ -93,6 +121,43 @@ def schedule_slots(schedule):
             yield at, cutoff
         start = end
     require(start == stop, "periods do not reach scheduled stop")
+
+
+def registered_population(schedule, cohorts):
+    """Bind the planned and observed populations separately from the capacity bound."""
+    rate = next((key for key, value in RATES.items() if value == schedule["rate"]), None)
+    expected = registered_schedule(
+        *(schedule[k] for k in ("campaign", "job", "cell", "run_id", "namespace", "origin_ns")),
+        rate,
+    )
+    warmup = population(rate, WARMUP)
+    window_counts = {"warmup": warmup}
+    if expected["cell"] == "soak":
+        window_counts.update(
+            hold=population(rate, WARMUP + HOLD) - warmup,
+            step=population("C", STEP),
+        )
+    else:
+        window_counts["grid"] = expected["population_bound"] - warmup
+    require(
+        ("periods" in schedule) == ("periods" in expected)
+        and all(schedule.get(key) == value for key, value in expected.items() if key != "scope")
+        and {name: cohort["offered"] for name, cohort in cohorts.items()} == window_counts
+        and sum(window_counts.values()) == expected["count"],
+        "registered schedule or population bound differs",
+    )
+    return {
+        "bound": expected["population_bound"],
+        "scheduled": expected["count"],
+        "windows": {
+            name: {
+                "scheduled": cohort["offered"],
+                "checked_success": cohort["checked_success"],
+                "in_window_success": len(cohort["in_window_success"]),
+            }
+            for name, cohort in cohorts.items()
+        },
+    }
 
 
 def admission_states(planned, finished, durable):

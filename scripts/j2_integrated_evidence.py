@@ -5,21 +5,30 @@ from collections import Counter
 from j2_checker_report import IntegrityError, indexed_report, require_checker_exit
 from j2_control_evidence import gates_samples, quiet_evidence
 from j2_drain import checked_cut, cohort_counts, expected_arrivals, replay_episode
-from j2_offline import bins_gate, summarize
+from j2_offline import ClockEvidenceError, bins_gate, clock_evidence, summarize
 from j2_qualification_evidence import DRAIN_SECONDS, read, require
 from j2_qualification_resources import checker_resource_summary, require_checker_resources
 from j2_qualify_volume import OBSERVER_LIMIT
-from j2_schedule import k4_report
+from j2_schedule import RATES, k4_report, registered_population
 from j2_step_rehearsal import verified_crossings
 
 
-def summarize_episode(root):
+def summarize_episode(root, *, snapshot_only=False):
     schedule = read(root / "schedule.json")
     result = read(root / "drain-result.json")
     final = read(root / "final.json")
     expired = result.get("classification") == "drain_failure"
+    registered = schedule.get("registered_clock") is True
+    if registered:
+        require_checker_exit(read(root / "live-checker-read.json")["exit"])
     try:
-        checked, width = replay_episode(root)
+        checked, width = (
+            replay_episode(root, snapshot_only=True) if snapshot_only else replay_episode(root)
+        )
+    except ClockEvidenceError as error:
+        if registered:
+            raise
+        raise IntegrityError(f"checked evidence failed replay: {error}") from error
     except (KeyError, OSError, ValueError) as error:
         raise IntegrityError(f"checked evidence failed replay: {error}") from error
     if checked != read(root / "phase-rows.json") or cohort_counts(schedule, checked) != read(
@@ -38,10 +47,11 @@ def summarize_episode(root):
     )
     cut = read(root / "live-checker-read.json")
     require_checker_exit(cut["exit"])
-    resources = checker_resource_summary(
-        root, read(root / "checker-resource-summary.json")["exit"], OBSERVER_LIMIT
-    )
-    require_checker_resources(resources)
+    if not snapshot_only:
+        resources = checker_resource_summary(
+            root, read(root / "checker-resource-summary.json")["exit"], OBSERVER_LIMIT
+        )
+        require_checker_resources(resources)
     report, _ = indexed_report(
         root / "live-checker.json", join_trace=True, verify_tables=True, drain_counts=True
     )
@@ -112,6 +122,7 @@ def summarize_episode(root):
             raise IntegrityError("workers changed across the continuous step")
         crossing = verified_crossings(probe, checked, boundary, width, pending=result["pending"])
     samples = gates_samples(read(root / "prometheus-samples.json"))
+    pending = set(result["pending"]) if registered and expired else set()
     cohorts = {}
     for name, lo, hi in windows:
         offered = {
@@ -119,13 +130,21 @@ def summarize_episode(root):
         }
         observed = [rows[key] for key in sorted(offered.keys() & rows.keys())]
         unresolved = [
-            {"workflow_id": key, "scheduled_ns": entry["scheduled_ns"], "status": "censored"}
+            {
+                "workflow_id": key,
+                "scheduled_ns": entry["scheduled_ns"],
+                "status": "censored" if not registered or key in pending else "unresolved",
+                "admitted": key in committed,
+                "attempts": attempts[key],
+            }
             for key, entry in offered.items()
             if key not in rows
         ]
-        phases = summarize(observed)
+        phases = summarize([*observed, *unresolved] if registered else observed)
         if unresolved:
-            phases["censored_keys"] = sorted(row["workflow_id"] for row in unresolved)
+            phases["censored_keys"] = sorted(
+                row["workflow_id"] for row in unresolved if row["status"] == "censored"
+            )
         cohorts[name] = {
             "offered": len(offered),
             "sent": len(sent & offered.keys()),
@@ -144,18 +163,76 @@ def summarize_episode(root):
         }
         if name != "warmup":
             cohorts[name]["gate"] = bins_gate(
-                [*observed, *unresolved], samples, lo, hi, sender_valid
+                [*observed, *unresolved],
+                samples,
+                lo,
+                hi,
+                sender_valid,
+                checked_expiry=registered and expired,
             )
-    return {
+        if registered:
+            cohorts[name]["first_observed_minus_durable_ns"] = {
+                row["workflow_id"]: row["polling_minus_durable_ns"] for row in observed
+            }
+    summary = {
         "cohorts": cohorts,
         "clock_bracket_ns": width,
         "drain": quiet,
         "sender_valid": sender_valid,
         "stock_verdict": sender["stock_verdict"],
         "verified_crossing_ids": crossing,
-        "checker_peak_rss_kib": resources["checker_peak_rss_kib"],
         "measured_eligible": False,
     }
+    if not snapshot_only:
+        summary["checker_peak_rss_kib"] = resources["checker_peak_rss_kib"]
+    if registered:
+        clock = clock_evidence(read(root / "clock.json"), start, final["upper_unix_ns"])
+        require(clock["uncertainty_ns"] == width, "replayed clock uncertainty differs")
+        summary.update(
+            registered_clock=True,
+            clock=clock,
+            population=registered_population(schedule, cohorts),
+        )
+        if boundary is not None:
+            summary["soak_evidence_eligible"] = (
+                not snapshot_only
+                and sender_valid
+                and quiet["status"] == "PASS"
+                and cohorts["hold"]["gate"]["status"] == "pass"
+                and cohorts["step"]["gate"]["status"] in {"pass", "failed_gate"}
+            )
+        else:
+            summary["grid_eligible"] = (
+                sender_valid
+                and quiet["status"] == "PASS"
+                and cohorts["grid"]["gate"]["status"] == "pass"
+            )
+    return summary
+
+
+def registered_boundary(episodes):
+    stable, drains = [], {}
+    saturation = None
+    lower_passed = True
+    for cell in RATES:
+        episode = episodes.get(cell)
+        if episode is None:
+            lower_passed = False
+            continue
+        drains[cell] = episode["drain"]["status"]
+        gate = episode["cohorts"]["grid"]["gate"]
+        if episode["sender_valid"] and gate["status"] == "pass":
+            stable.append(cell)
+        else:
+            if (
+                lower_passed
+                and episode["sender_valid"]
+                and gate["status"] == "failed_gate"
+                and gate["sustained_growth"]
+            ):
+                saturation = cell
+            lower_passed = False
+    return {"stable_rates": stable, "drains": drains, "saturation": saturation}
 
 
 def engineering_boundary(episodes, order):

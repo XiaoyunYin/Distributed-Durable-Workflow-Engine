@@ -1,5 +1,5 @@
 {"schema": "j2-decision-mutations.v1", "cases": [
-  {"id": "clock-width", "file": "scripts/j2_offline.py", "old": "return max(setup[2] - setup[0], final[2] - final[0])", "new": "return min(setup[2] - setup[0], final[2] - final[0])", "test": "test_j2_offline.py::test_clock_uses_widest_spanning_bracket"},
+  {"id": "clock-width", "file": "scripts/j2_offline.py", "old": "max(widths.values())", "new": "min(widths.values())", "test": "test_j2_offline.py::test_clock_uses_widest_spanning_bracket"},
   {"id": "clock-enclosure", "file": "scripts/j2_offline.py", "old": "<= setup[1]", "new": "<= setup[0]", "test": "test_j2_offline.py::test_clock_uses_widest_spanning_bracket"},
   {"id": "clock-span", "file": "scripts/j2_offline.py", "old": "<= final[0]\n        <= final[1]", "new": "<= final[2]\n        and final[0] <= final[1]", "test": "test_j2_offline.py::test_clock_uses_widest_spanning_bracket"},
   {"id": "missing-journal", "file": "scripts/j2_offline.py", "old": "if len(candidates) != 1:", "new": "if len(candidates) > 1:", "test": "test_j2_offline.py::test_invalid_sender[missing-missing_or_duplicate_journal]"},

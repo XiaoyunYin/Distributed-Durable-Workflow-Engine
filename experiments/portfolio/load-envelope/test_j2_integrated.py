@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager, nullcontext
@@ -19,9 +20,11 @@ from j2_barrier import (  # noqa: E402
     RetryLater,
     checkpoint_name,
 )
+from j2_checked_cut_fixture import exercise_fixture  # noqa: E402
 from j2_checker_report import IntegrityError  # noqa: E402
 from j2_drain import DrainExpired  # noqa: E402
 from j2_harness_evidence import seal  # noqa: E402
+from j2_integrated_evidence import registered_boundary  # noqa: E402
 from j2_qualification_evidence import read, write  # noqa: E402
 from j2_schedule import ORDERS, RATES  # noqa: E402
 
@@ -253,3 +256,72 @@ def test_witness_duration_replay_accepts_only_the_underlying_event_sums(monkeypa
         report.check_witness_durations(
             [*starts, *ends], {"campaign": {**totals, "busy_seconds": 3.0}}
         )
+
+
+@pytest.fixture(scope="module")
+def native_checker(tmp_path_factory):
+    target = tmp_path_factory.mktemp("checked-cut-bin") / "checker"
+    if sys.platform == "win32":
+        target = target.with_suffix(".exe")
+    subprocess.run(
+        [
+            "go",
+            "build",
+            "-p",
+            "1",
+            "-mod=readonly",
+            "-buildvcs=false",
+            "-o",
+            str(target),
+            "./cmd/dur049-checker",
+        ],
+        cwd=Path(__file__).resolve().parents[3],
+        check=True,
+        timeout=180,
+    )
+    return target
+
+
+def test_full_clock_c_cut_checks_pending_identities_and_replays(native_checker, tmp_path):
+    exercise_fixture(tmp_path, native_checker, "1200MiB", "eng-checked-cut-test")
+    report_file = read(tmp_path / "fixture-report.json")
+    expired, quiet = (report_file["cases"][name] for name in ("checked-expiry", "quiet"))
+    assert expired["population"]["scheduled"] == quiet["population"]["scheduled"] == 17519
+    assert expired["population"]["windows"]["grid"]["scheduled"] == 14599
+    assert expired["pending_count"] == 5353
+    assert expired["gate"] == "failed_gate" and expired["drain"] == "drain_failure"
+    assert expired["checks"] == {"4a": False, "4b": None, "4c": False}
+    assert quiet["gate"] == "pass" and quiet["drain"] == "PASS"
+    assert expired["independent_replay"] == quiet["independent_replay"] == "PASS"
+    assert report_file["boundary_with_passing_lower_inputs"]["saturation"] == "C"
+    cut = read(tmp_path / "checked-expiry" / "episode-replay.json")
+    grid = cut["cohorts"]["grid"]
+    assert grid["phases"]["end_to_end_quantiles"]["censored"] == 5353
+    assert len(grid["first_observed_minus_durable_ns"]) == 9246
+    assert set(grid["first_observed_minus_durable_ns"].values()) == {1_000_000}
+    assert report_file["clock_negatives"]["missing_clock"]["claim_eligible"] is False
+    assert report_file["clock_negatives"]["bad_final_clock"]["claim_eligible"] is False
+    assert (tmp_path / "bad-clock.json").is_file()
+
+
+def test_boundary_uses_checked_gate_and_keeps_drain_verdict_separate():
+    def cell(gate, drain, *, growth=False):
+        return {
+            "sender_valid": True,
+            "cohorts": {"grid": {"gate": {"status": gate, "sustained_growth": growth}}},
+            "drain": {"status": drain},
+        }
+
+    grid = {
+        "AB": cell("failed_gate", "drain_failure", growth=True),
+        "A": cell("pass", "drain_failure"),
+        "B": cell("pass", "PASS"),
+    }
+    result = registered_boundary(grid)
+    assert result == {
+        "stable_rates": ["A", "B"],
+        "drains": {"A": "drain_failure", "AB": "drain_failure", "B": "PASS"},
+        "saturation": "AB",
+    }
+    grid["A"] = cell("invalid_gate_inputs", "PASS")
+    assert registered_boundary(grid)["saturation"] is None

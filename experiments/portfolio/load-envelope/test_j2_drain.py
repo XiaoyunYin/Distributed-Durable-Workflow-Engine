@@ -416,7 +416,16 @@ def test_checked_results_reconcile_receipts_and_final_witness(episode, monkeypat
 
 
 @pytest.mark.parametrize(
-    "defect", [None, "violation", "pending_set", "duplicate_success", "missing_acknowledged"]
+    "defect",
+    [
+        None,
+        "violation",
+        "pending_set",
+        "duplicate_success",
+        "missing_acknowledged",
+        "clock_unobserved",
+        "clock_before_durable",
+    ],
 )
 def test_expiry_reconciles_completed_work_and_preserves_pending(
     episode,  # noqa: F811
@@ -483,9 +492,16 @@ def test_expiry_reconciles_completed_work_and_preserves_pending(
     target["a"]["scheduled_ns"] = S + 1
     acknowledged = ["a", "c"] if defect == "missing_acknowledged" else ["a"]
     sender = {"acknowledged": acknowledged, "explicitly_unsent": []}
+    if defect == "clock_unobserved":
+        polls = {}
+    elif defect == "clock_before_durable":
+        polls = {"a": 8 * S - uncertainty - 1}
     args = report, target, sender, {}, polls, uncertainty, observed
     if defect == "missing_acknowledged":
         with pytest.raises(ValueError, match=r"checked identity mismatch: .*'missing': \['c'\]"):
+            drain.checked_results(*args, expiry=expiry)
+    elif defect in {"clock_unobserved", "clock_before_durable"}:
+        with pytest.raises(drain.ClockEvidenceError, match="terminal_clock_or_observation"):
             drain.checked_results(*args, expiry=expiry)
     elif defect:
         with pytest.raises(ValueError, match="structural|pending set|duplicated.*success"):

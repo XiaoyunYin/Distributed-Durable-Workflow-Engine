@@ -8,8 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 from j2_offline import (  # noqa: E402
     SECOND,
+    ClockEvidenceError,
     bins_gate,
     clock_bounds,
+    clock_evidence,
     drain_identities,
     join,
     quantiles,
@@ -189,6 +191,91 @@ def test_clock_uses_widest_spanning_bracket():
         clock_bounds(probes, SECOND, 3 * SECOND)
 
 
+@pytest.mark.parametrize(
+    "case", ["before_setup", "after_final", "unspanned", "missing", "malformed"]
+)
+def test_clock_evidence_rejects_bad_brackets(case):
+    probes = {
+        "setup": dict(observer_before=ts(0), database=ts(0, 100), observer_after=ts(0, 200)),
+        "measured": dict(observer_before=ts(3), database=ts(3, 100), observer_after=ts(3, 500)),
+    }
+    assert clock_evidence(probes, SECOND, 3 * SECOND) == {
+        "valid": True,
+        "bracket_widths_ns": {"setup": 200, "measured": 500},
+        "uncertainty_ns": 500,
+    }
+    match case:
+        case "before_setup":
+            probes["setup"]["observer_before"] = ts(0, 101)
+        case "after_final":
+            probes["measured"]["database"] = ts(3, 501)
+        case "unspanned":
+            probes["setup"] = {key: ts(2) for key in probes["setup"]}
+        case "missing":
+            del probes["measured"]
+        case "malformed":
+            probes["setup"]["database"] = "not UTC"
+    with pytest.raises(ClockEvidenceError, match="clock bracket"):
+        clock_evidence(probes, SECOND, 3 * SECOND)
+
+
+@pytest.mark.parametrize(
+    ("edge", "delta", "status"),
+    [
+        ("scheduled", 0, "reversed_phase"),
+        ("scheduled", 1, "terminal_clock_or_observation"),
+        ("observed", 0, "observed"),
+        ("observed", -1, "terminal_clock_or_observation"),
+        ("missing", 0, "terminal_clock_or_observation"),
+    ],
+)
+def test_terminal_clock_inequality_and_equal_edges(episode, edge, delta, status):
+    plan, snapshot, starts, first, width, end = episode
+    terminal = 8 * SECOND
+    if edge == "scheduled":
+        plan = [("a", terminal + width + delta)]
+    elif edge == "observed":
+        first = {"a": terminal - width + delta}
+    else:
+        first = {}
+    (row,) = join(plan, snapshot, starts, first, width, end)
+    assert row["status"] == status
+    if edge == "scheduled" and delta == 0:
+        # The lower clock bound holds, but the raw phases are reversed.
+        assert row["polling_minus_durable_ns"] == SECOND
+    if edge == "observed" and delta == 0:
+        assert row["polling_minus_durable_ns"] == -width
+
+
+def test_p99_workflow_ties_use_schedule_then_identity_and_disclose_populations():
+    rows = [
+        dict(
+            workflow_id=f"w{i:03}",
+            scheduled_ns=i // 2,
+            admitted=True,
+            attempts=1,
+            status="observed",
+            phase_ns=[1, 2, 3, 4],
+            end_to_end_ns=11,
+        )
+        for i in reversed(range(200))
+    ]
+    rows += [dict(admitted=True, attempts=0, status=s) for s in ("censored", "missing_workflow")]
+    result = summarize(rows)
+    assert result["end_to_end_p99_workflow"]["workflow_id"] == "w197"
+    assert result["end_to_end_p99_workflow"]["phase_ns"] == [1, 2, 3, 4]
+    for counts in [*result["phase_quantiles"], result["end_to_end_quantiles"]]:
+        assert {k: counts[k] for k in ("eligible", "observed", "missing", "censored")} == {
+            "eligible": 202,
+            "observed": 200,
+            "missing": 1,
+            "censored": 1,
+        }
+    small = summarize(rows[1:])
+    assert small["end_to_end_p99_workflow"] is None
+    assert small["end_to_end_quantiles"]["p95_ns"] == 11
+
+
 @pytest.fixture
 def delivery():
     plan = {
@@ -313,6 +400,27 @@ def test_pooled_gate_allows_one_bad_bin(gate_input):
     assert result["checks"] == {"4a": True, "4b": True, "4c": True}
     rows[4]["terminal_ns"] = rows[5]["terminal_ns"] = 24 * SECOND
     assert bins_gate(*gate_input)["checks"]["4a"] is False
+
+
+@pytest.mark.parametrize("lost", [1, 2])
+def test_checked_censoring_counts_in_planned_denominator_and_cannot_pass(gate_input, lost):
+    rows, samples, *_ = gate_input
+    for row in rows[-lost:]:
+        row.update(status="censored", terminal_state=None, admitted=True)
+        del row["terminal_ns"], row["raw_end_to_end_ns"]
+    assert bins_gate(*gate_input)["status"] == "invalid_gate_inputs"
+    result = bins_gate(*gate_input, checked_expiry=True)
+    assert result["pooled_arrivals"] == 20 and result["pooled_completions"] == 20 - lost
+    assert result["checks"] == {"4a": lost == 1, "4b": None, "4c": True}
+    assert result["status"] == ("unevaluable_gate" if lost == 1 else "failed_gate")
+    for sample in samples[-2:]:
+        sample["outstanding"] = 9
+    for sample in samples[-4:-2]:
+        sample["outstanding"] = 3
+    result = bins_gate(*gate_input, checked_expiry=True)
+    assert result["checks"]["4c"] is False and result["sustained_growth"]
+    rows[-1]["admitted"] = False
+    assert bins_gate(*gate_input, checked_expiry=True)["status"] == "invalid_gate_inputs"
 
 
 def test_drift_backlog_and_strict_growth(gate_input):

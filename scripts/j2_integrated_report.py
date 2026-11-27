@@ -309,17 +309,13 @@ def verify_episode(root, job, cell, previous, checker, timeout):
         "replayed fresh-state predicates differ",
     )
     checked = checker_replay(root, checker, timeout)
-    summary = summarize_episode(root)
+    summary = verify_episode_reduction(root)
     if cell == "soak":
         require(
             summary["verified_crossing_ids"]
             == read(root / "step-transition.json")["verified_crossing_ids"],
             "retained crossings differ",
         )
-    require(
-        canonical(summary) == canonical(read(root / "episode-replay.json")),
-        "episode replay differs from the checkpoint",
-    )
     if (job, cell) == EXPIRY_FIXTURE:
         require(
             checkpoint["quiet_visibility_fixture"]
@@ -329,6 +325,23 @@ def verify_episode(root, job, cell, previous, checker, timeout):
             "checked grid expiry fixture missing",
         )
     return identity, {"episode": summary, "checker": checked}
+
+
+def verify_episode_reduction(root, *, snapshot_only=False):
+    summary = (
+        summarize_episode(root, snapshot_only=True) if snapshot_only else summarize_episode(root)
+    )
+    require(
+        canonical(summary) == canonical(read(root / "episode-replay.json")),
+        "episode replay differs from the checkpoint",
+    )
+    if summary.get("registered_clock"):
+        require(
+            summary["clock"]["valid"] is True
+            and summary["population"] == read(root / "checkpoint.json")["population"],
+            "registered checkpoint clock or population evidence differs",
+        )
+    return summary
 
 
 def replay_job(barrier, output, checker, job, artifacts, checkpoint_refs):

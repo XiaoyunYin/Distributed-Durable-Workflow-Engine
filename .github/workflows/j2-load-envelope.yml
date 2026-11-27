@@ -31,6 +31,7 @@ on:
           - harness-step
           - controls
           - rehearsal
+          - checked-cut-replay
           - barrier-success
           - barrier-peer-failure
           - barrier-missing-peer
@@ -664,6 +665,46 @@ jobs:
           name: j2-rehearsal-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-rehearsal-report/
           if-no-files-found: warn
+          compression-level: 1
+          retention-days: 90
+
+  checked-cut-replay:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'checked-cut-replay'
+    name: J2 engineering checked-cut replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-checked-cut-replay"
+          mkdir "$evidence"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-checked-cut-tooling/checker" \
+            2>&1 | tee "$evidence/checker-build.log"
+      - name: Check and independently replay the full-clock offline fixtures
+        timeout-minutes: 17
+        run: |
+          python3 scripts/j2_checked_cut_fixture.py "$RUNNER_TEMP/j2-checked-cut-replay" \
+            "$RUNNER_TEMP/j2-checked-cut-tooling/checker"
+      - name: Retain sealed or partial fixture evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-checked-cut-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-checked-cut-replay/
+          if-no-files-found: error
           compression-level: 1
           retention-days: 90
 
