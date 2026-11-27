@@ -204,7 +204,7 @@ jobs:
           [[ "$SEAL_ID" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEAL_ID/zip" > "$seal"
           PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), *sys.argv[2:]); print("Verified calibration artifact and its forecast")' \
-            "$seal" "$SEAL_DIGEST" "j3-r419-$GITHUB_RUN_ID" "$GITHUB_SHA"
+            "$seal" "$SEAL_DIGEST" "j3-r420-$GITHUB_RUN_ID" "$GITHUB_SHA"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.4'

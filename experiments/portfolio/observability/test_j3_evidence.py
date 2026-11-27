@@ -661,20 +661,46 @@ def test_receiver_requires_resolution_matching_a_real_prometheus_transition():
     resolved = copy.deepcopy(firing)
     resolved.update(received_ns=21 * SECOND, status="resolved")
     resolved["alerts"][0].update(status="resolved", endsAt="1970-01-01T00:00:20Z")
-    rows = [
-        {"heartbeat": "start", "received_ns": 0},
-        firing,
-        resolved,
-        {"heartbeat": "end", "received_ns": 30 * SECOND},
-    ]
+    rows = receiver_rows([firing, resolved])
     evidence = notifications(rows, transitions, target, SECOND, 25 * SECOND)
     assert [pair["transition"] for pair in evidence["matches"]] == transitions
     assert evidence["setup_incidents"] == []
     with pytest.raises(ValueError, match="unexpected or unpaired"):
         notifications(rows, transitions[:1], target, SECOND, 25 * SECOND)
     resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:19Z"
-    with pytest.raises(ValueError, match="missing resolved"):
+    with pytest.raises(episode.EpisodeFailure, match="absent alert: missing resolved"):
         notifications(rows, transitions, target, SECOND, 25 * SECOND)
+
+
+def receiver_rows(deliveries):
+    rows = sorted(
+        [
+            {"heartbeat": "start", "received_ns": 0},
+            *({"heartbeat": "alive", "received_ns": t * SECOND} for t in range(5, 60, 5)),
+            *deliveries,
+        ],
+        key=lambda row: row["received_ns"],
+    )
+    for sequence, row in enumerate(rows):
+        row["sequence"] = sequence
+    return [*rows, {"heartbeat": "end", "received_ns": 60 * SECOND}]
+
+
+@pytest.mark.parametrize("gap", ["heartbeat", "log", "deadline"])
+def test_receiver_gap_keeps_missing_delivery_invalid(gap):
+    rows = receiver_rows([])
+    if gap == "heartbeat":
+        del rows[3:6]
+        for sequence, row in enumerate(rows[:-1]):
+            row["sequence"] = sequence
+    elif gap == "log":
+        del rows[4]
+    else:
+        rows = [r for r in rows if r["received_ns"] < 40 * SECOND or r.get("heartbeat") == "end"]
+    transition = {"alert": "OldestClaimable", "firing": True, "at_ns": 10 * SECOND}
+    with pytest.raises(ValueError, match=r"receiver (heartbeat|log sequence) gap") as caught:
+        notifications(rows, [transition], {}, SECOND, 25 * SECOND)
+    assert not isinstance(caught.value, episode.EpisodeFailure)
 
 
 @pytest.mark.parametrize(
@@ -727,11 +753,7 @@ def test_receiver_classifies_only_closed_setup_incidents(case, error):
         resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:10Z"
     elif case == "in_window":
         deliveries.append(receipt("firing", 11, startsAt="1970-01-01T00:00:10Z"))
-    rows = [
-        {"heartbeat": "start", "received_ns": 0},
-        *deliveries,
-        {"heartbeat": "end", "received_ns": 30 * SECOND},
-    ]
+    rows = receiver_rows(deliveries)
     if error:
         with pytest.raises(ValueError, match=error):
             notifications(rows, [], target, 10 * SECOND, 25 * SECOND)

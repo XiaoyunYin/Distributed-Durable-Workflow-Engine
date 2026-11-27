@@ -3,7 +3,30 @@
 import json
 
 from j2_offline import attempt_key, utc_ns
-from j3_replay import ALERTS, DEADLINE, SECOND, require, unique
+from j3_replay import ALERTS, DEADLINE, SECOND, EpisodeFailure, require, unique
+
+DELIVERY_WINDOW = 30 * SECOND
+MAX_HEARTBEAT_GAP = 10 * SECOND
+
+
+def receiver_sequence_ok(rows):
+    # The end marker times the snapshot; only the receiver writes sequence numbers.
+    return all(row.get("sequence") == index for index, row in enumerate(rows[:-1]))
+
+
+def missing_delivery(rows, at, detail):
+    require(receiver_sequence_ok(rows), f"receiver log sequence gap: {detail}")
+    heartbeats = [row["received_ns"] for row in rows if row.get("heartbeat") in {"start", "alive"}]
+    deadline = at + DELIVERY_WINDOW
+    before = max((t for t in heartbeats if t <= at), default=None)
+    after = min((t for t in heartbeats if t >= deadline), default=None)
+    require(before is not None and after is not None, f"receiver heartbeat gap: {detail}")
+    window = [t for t in heartbeats if before <= t <= after]
+    require(
+        all(b - a <= MAX_HEARTBEAT_GAP for a, b in zip(window, window[1:], strict=False)),
+        f"receiver heartbeat gap: {detail}",
+    )
+    raise EpisodeFailure(f"absent alert: {detail}")
 
 
 def notifications(rows, transitions, target, start_ns, end_ns):
@@ -21,6 +44,8 @@ def notifications(rows, transitions, target, start_ns, end_ns):
     deliveries = []
     setup = {}
     for row in rows[1:-1]:
+        if row.get("heartbeat") == "alive":
+            continue
         require(
             row.get("http_status") == 204
             and row.get("status") in {"firing", "resolved"}
@@ -75,7 +100,7 @@ def notifications(rows, transitions, target, start_ns, end_ns):
             received = d["received_ns"]
             if not (d["labels"]["alertname"] == name and d["status"] == expected and i not in used):
                 continue
-            if not at <= received <= at + 30 * SECOND:
+            if not at <= received <= at + DELIVERY_WINDOW:
                 continue
             started = utc_ns(d["startsAt"])
             if firing:
@@ -92,7 +117,8 @@ def notifications(rows, transitions, target, start_ns, end_ns):
             matched.append({"transition": transition, "delivery": d})
             break
         else:
-            raise ValueError(f"missing {expected} receiver delivery for {name} at {at}")
+            missing_delivery(rows, at, f"missing {expected} receiver delivery for {name} at {at}")
+    require(receiver_sequence_ok(rows), "receiver log sequence gap")
     allowed_repeats = {
         (d["labels"]["alertname"], d["status"], d["fingerprint"], d["startsAt"])
         for i, d in enumerate(deliveries)

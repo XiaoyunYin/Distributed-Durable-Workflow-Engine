@@ -9,7 +9,7 @@ from pathlib import Path
 from statistics import median
 from zipfile import ZipFile
 
-from j3_replay import SECOND, require
+from j3_replay import DOMAIN, SECOND, oldest_clear_input, require
 
 ARRIVAL_RATE = Fraction("7.136100570066256")
 OUTAGE = 300
@@ -41,6 +41,32 @@ RESERVED_MINUTES = {
     "foreign_export_reset": 10,
     "final_evidence": 25,
 }
+
+
+def recovery_age_evidence(evaluations, transitions, restored, stop):
+    first_clear_input = next(
+        (row for row in evaluations if restored < row["at_ns"] < stop and oldest_clear_input(row)),
+        None,
+    )
+    oldest = [row for row in transitions if row["alert"] == DOMAIN[0]]
+    clear = next(
+        (row for row in oldest if restored < row["at_ns"] < stop and not row["firing"]), None
+    )
+    age_endpoint = next(
+        (row for row in evaluations if clear and row["at_ns"] == clear["at_ns"]), None
+    )
+    require(
+        not clear or (age_endpoint and oldest_clear_input(age_endpoint)), "invalid oldest clear"
+    )
+    return {
+        "first_clear_input": first_clear_input,
+        "age_endpoint": age_endpoint,
+        "oldest_refires_before_stop": [
+            row
+            for row in oldest
+            if clear and row["firing"] and clear["at_ns"] < row["at_ns"] < stop
+        ],
+    }
 
 
 def recovery_evidence(outage, evaluations, transitions, stop):
@@ -91,24 +117,11 @@ def recovery_evidence(outage, evaluations, transitions, stop):
         if len(terminals) == len(pre_restore)
         else None
     )
-    age_endpoint = next(
-        (
-            row
-            for row in evaluations
-            if restored < row["at_ns"] < stop
-            and (row["claimable_attempts"] == 0 or row["oldest_claimable_age_seconds"] <= 28.540)
-        ),
-        None,
+    age = recovery_age_evidence(evaluations, transitions, restored, stop)
+    age_endpoint = age["age_endpoint"]
+    failed = (
+        terminal_endpoint is None or age_endpoint is None or bool(age["oldest_refires_before_stop"])
     )
-    re_fires = [
-        row
-        for row in transitions
-        if age_endpoint
-        and row["alert"] == "OldestClaimable"
-        and row["firing"]
-        and age_endpoint["at_ns"] < row["at_ns"] < stop
-    ]
-    failed = terminal_endpoint is None or age_endpoint is None or bool(re_fires)
     elapsed = (
         max(terminal_endpoint["terminal_ns"], age_endpoint["at_ns"]) - restored
         if terminal_endpoint and age_endpoint
@@ -119,8 +132,7 @@ def recovery_evidence(outage, evaluations, transitions, stop):
         "restore_ns": restored,
         "offer_stop_ns": stop,
         "terminal_endpoint": terminal_endpoint,
-        "age_endpoint": age_endpoint,
-        "oldest_refires_before_stop": re_fires,
+        **age,
         "refire_check_through_ns": stop,
         "R_ns": elapsed,
         "R_s": None if elapsed is None else elapsed / SECOND,

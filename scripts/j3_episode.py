@@ -19,7 +19,7 @@ from j3_evidence import jsonl
 from j3_overlay import APP, NS, RECEIVER
 from j3_pilot import json_request, prom
 from j3_prometheus import epoch_ns
-from j3_replay import DOMAIN, SECOND, require, unique
+from j3_replay import DOMAIN, SECOND, EpisodeFailure, require, unique
 from j3_resources import checker_outcome, run_checker
 from j3_schedule import ARRIVAL_RATE
 from j3_slots import sample_ready_slots
@@ -150,10 +150,6 @@ print(json.dumps(sorted(rows,key=lambda row:row['pid'])))
 def append(path, row):
     with path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(row) + "\n")
-
-
-class EpisodeFailure(ValueError):
-    """A registered behavior failed with observations available."""
 
 
 def require_behavior(condition, detail):

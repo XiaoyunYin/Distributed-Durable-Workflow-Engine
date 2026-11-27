@@ -79,6 +79,7 @@ from j3_schedule import (
     derive_from_outages,
     measurement_forecast,
     qualification_forecast,
+    recovery_age_evidence,
     recovery_evidence,
     restored_rate,
     verify_seal,
@@ -498,7 +499,42 @@ def wait_for_settled_alerts(driver, target):
     kind.save(driver.output / "alert-arming.json", evidence)
 
 
-def run_episode(driver, pins, target, arm, run, setup, observer, binary, duration, bounds):
+def episode_error_status(error):
+    if isinstance(error, CheckerError):
+        return error.outcome.upper()
+    return "FAIL" if isinstance(error, EpisodeFailure) else "INVALID"
+
+
+def check_episode(outcome, behavior, delivery):
+    first_error = None
+    for name, check in (("behavior", behavior), ("delivery", delivery)):
+        try:
+            check()
+        except Exception as error:
+            status = episode_error_status(error)
+            outcome[name] = {"status": status, "error": str(error)}
+            if first_error is None or (
+                status == "FAIL" and not isinstance(first_error, EpisodeFailure)
+            ):
+                first_error = error
+        else:
+            outcome[name] = {"status": "PASS"}
+    if first_error is not None:
+        raise first_error
+
+
+def require_calibration_recovery(recovery):
+    require_behavior(
+        not recovery["oldest_refires_before_stop"],
+        "OldestClaimable re-fired before calibration offers stopped",
+    )
+    require_behavior(
+        recovery["terminal_endpoint"] is not None and recovery["age_endpoint"] is not None,
+        "calibration recovery endpoint unobserved",
+    )
+
+
+def run_episode(driver, pins, target, arm, run, setup, observer, binary, duration, bounds, outcome):
     with ExitStack() as stack:
         for role, port in ((PROM, "19090:9090"), (GRAFANA, "13000:3000"), (EXPORTER, "19188:9188")):
             stack.enter_context(driver.forward(role, [port]))
@@ -543,7 +579,6 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
             evaluations = collect_replay_inputs(driver, target, origin, end)
             if arm != "scrape_loss":
                 require(all(r["valid"] for r in evaluations), "unexpected rule input gap")
-            receiver = list(jsonl(receiver_log(driver)))
             durable = database_rows(driver)
             kind.save(driver.output / "durable-rows.json", durable)
             data = {
@@ -570,60 +605,75 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                 "published replay did not reconcile the target population",
             )
             transitions = result["alert_inputs"]["transitions"]
-            delivery_evidence = notifications(receiver, transitions, target, origin, end)
-            kind.save(driver.output / "notification-pairs.json", delivery_evidence["matches"])
-            kind.save(
-                driver.output / "setup-incidents.json",
-                {"setup_incidents": delivery_evidence["setup_incidents"]},
-            )
-            events = worker_ledgers(driver, sampler.inventories.copy(), sampler.latest["witness"])
-            if arm == "outage":
-                evidence = outage_commits(
-                    driver, origin, fault["down"], fault["restore"], fault["backlog"]
-                )
+
+            def delivery():
+                receiver = list(jsonl(receiver_log(driver)))
+                evidence = notifications(receiver, transitions, target, origin, end)
+                kind.save(driver.output / "notification-pairs.json", evidence["matches"])
                 kind.save(
-                    driver.output / "actual-clears.json",
-                    [
-                        {
+                    driver.output / "setup-incidents.json",
+                    {"setup_incidents": evidence["setup_incidents"]},
+                )
+
+            def behavior():
+                if arm == "outage":
+                    restore = fault["restore"]
+                    age = recovery_age_evidence(evaluations, transitions, restore, stop)
+                    first_below = age["first_clear_input"]
+                    clears = []
+                    for row in transitions:
+                        if row["firing"]:
+                            continue
+                        clear = {
                             **row,
                             "seconds_from_origin": (row["at_ns"] - origin) / SECOND,
-                            "seconds_from_restore": (row["at_ns"] - fault["restore"]) / SECOND,
+                            "seconds_from_restore": (row["at_ns"] - restore) / SECOND,
                         }
-                        for row in transitions
-                        if not row["firing"]
-                    ],
-                )
-                if bounds is None:
-                    recovery = recovery_evidence(evidence, evaluations, transitions, stop)
-                    kind.save(driver.output / "calibration-recovery.json", recovery)
-                    require_behavior(
-                        recovery["terminal_endpoint"] is not None
-                        and recovery["age_endpoint"] is not None,
-                        "calibration recovery endpoint unobserved",
+                        if row["alert"] == DOMAIN[0]:
+                            clear["first_clear_input_ns"] = (
+                                first_below["at_ns"] if first_below else None
+                            )
+                        clears.append(clear)
+                    kind.save(
+                        driver.output / "actual-clears.json",
+                        clears,
                     )
-                    require_behavior(
-                        not recovery["oldest_refires_before_stop"],
-                        "OldestClaimable re-fired before calibration offers stopped",
+                    evidence = outage_commits(
+                        driver, origin, fault["down"], restore, fault["backlog"]
                     )
-                witness = verify_outage(
-                    evidence,
-                    evaluations,
-                    list(jsonl(driver.output / "ready-slots.jsonl")),
-                    bounds["catchup_before_s"] if bounds else None,
-                )
-                kind.save(driver.output / "outage-witness.json", witness)
-                restored_rate(evidence)
-                if bounds:
-                    check_final_window(evaluations, transitions, origin, bounds)
-                    check_full_volume(driver, data, sender_plan, quiet, events)
-            else:
-                require_behavior(attainment["attainment"] >= 0.99, "healthy attainment below 99%")
-                if arm == "scrape_loss":
-                    verify_scrape(evaluations, transitions, origin, fault["cut"], fault["reopen"])
+                    if bounds is None:
+                        recovery = recovery_evidence(evidence, evaluations, transitions, stop)
+                        kind.save(driver.output / "calibration-recovery.json", recovery)
+                        require_calibration_recovery(recovery)
+                    witness = verify_outage(
+                        evidence,
+                        evaluations,
+                        list(jsonl(driver.output / "ready-slots.jsonl")),
+                        bounds["catchup_before_s"] if bounds else None,
+                    )
+                    kind.save(driver.output / "outage-witness.json", witness)
+                    restored_rate(evidence)
+                    if bounds:
+                        check_final_window(evaluations, transitions, origin, bounds)
                 else:
-                    require_behavior(not transitions, "unexpected healthy control alert")
-                if arm == "foreign":
+                    require_behavior(
+                        attainment["attainment"] >= 0.99, "healthy attainment below 99%"
+                    )
+                    if arm == "scrape_loss":
+                        verify_scrape(
+                            evaluations, transitions, origin, fault["cut"], fault["reopen"]
+                        )
+                    else:
+                        require_behavior(not transitions, "unexpected healthy control alert")
+                events = worker_ledgers(
+                    driver, sampler.inventories.copy(), sampler.latest["witness"]
+                )
+                if bounds:
+                    check_full_volume(driver, data, sender_plan, quiet, events)
+                elif arm == "foreign":
                     verify_foreign(driver, data, result, fixture, origin, sampler, events)
+
+            check_episode(outcome, behavior, delivery)
             return origin, end
         finally:
             if not (driver.output / "durable-rows.json").exists():
@@ -663,7 +713,12 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
             "campaign": campaign,
             "namespace": f"j3-target-{name}",
         }
-        runs[name] = {"status": "RUNNING", "target": target}
+        runs[name] = {
+            "status": "RUNNING",
+            "target": target,
+            "behavior": {"status": "UNPERFORMED"},
+            "delivery": {"status": "UNPERFORMED"},
+        }
         kind.save(
             out / "run.json",
             {
@@ -688,6 +743,7 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
                     binary,
                     duration,
                     bounds,
+                    runs[name],
                 )
             except Exception:
                 retain_postgres_log(driver, start, required=False)
@@ -776,13 +832,8 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
             if forecast["forecast_seconds"] > FORECAST_CAP * 60:
                 verdict.update(status="HALT", reason="measurement_forecast_over_cap")
     except Exception as error:
-        status = "INVALID"
-        if isinstance(error, CheckerError):
-            status = error.outcome.upper()
-        elif isinstance(error, EpisodeFailure):
-            status = "FAIL"
         verdict.update(
-            status=status,
+            status=episode_error_status(error),
             reason=str(error),
             full_volume="UNPERFORMED" if "full-volume" not in runs else "FAILED",
         )

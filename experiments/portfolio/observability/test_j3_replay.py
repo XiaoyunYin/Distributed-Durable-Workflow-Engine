@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,6 +19,56 @@ from j3_diagnostics import enable_exporter_diagnostics  # noqa: E402
 T = 1_767_226_800 * j3.SECOND
 SETUP, CLOSING = 1_000_000, 3_000_000
 HERE = Path(__file__).parent
+
+
+@pytest.mark.parametrize("invalid_interruption", [False, True])
+def test_alert_replay_requires_24_consecutive_valid_clear_evaluations(invalid_interruption):
+    evaluations, visibility_rows = [], []
+    for tick in range(38):
+        at = T + tick * 5 * j3.SECOND
+        invalid = invalid_interruption and tick == 13
+        above = tick == 0 or (not invalid_interruption and tick == 13)
+        row = {
+            "at_ns": at,
+            "valid": not invalid,
+            "rule_ok": True,
+            "firing": [j3.DOMAIN[0]] if tick < 37 else [],
+        }
+        if not invalid:
+            counts = {window: {"eligible": 0, "bad": 0} for window in j3.WINDOWS}
+            age = 28.541 if above else 28.540
+            row.update(
+                sample_ns=at,
+                scrape_ns=at,
+                demand_ns=at,
+                windows=counts,
+                claimable_attempts=1,
+                oldest_claimable_age_seconds=age,
+            )
+            visibility_rows.append(
+                {
+                    "sample_ns": at,
+                    "u_ns": 0,
+                    "admissions": {"delete": [], "set": {}},
+                    "successes": {"delete": [], "set": {}},
+                    "windows": counts,
+                    "demand": {
+                        "sampled_at": datetime.fromtimestamp(at // j3.SECOND, UTC).isoformat(),
+                        "claimable_attempts": 1,
+                        "oldest_claimable_age_seconds": age,
+                    },
+                }
+            )
+        evaluations.append(row)
+    last = evaluations[-1]["at_ns"]
+    result = j3.verify_alerts({}, 0, visibility_rows, evaluations, T, last)
+    assert result["transitions"] == [
+        {"alert": j3.DOMAIN[0], "at_ns": T, "firing": True},
+        {"alert": j3.DOMAIN[0], "at_ns": last, "firing": False},
+    ]
+    evaluations[-2]["firing"] = []
+    with pytest.raises(ValueError, match="actual rule transitions"):
+        j3.verify_alerts({}, 0, visibility_rows, evaluations, T, last)
 
 
 def fixture_data():

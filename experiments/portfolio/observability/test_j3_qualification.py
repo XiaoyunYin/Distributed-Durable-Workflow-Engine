@@ -14,8 +14,43 @@ import j3_admission_diagnostics as admission  # noqa: E402
 import j3_diagnostics as diagnostics  # noqa: E402
 import j3_episode as episode  # noqa: E402
 import j3_qualification as j3  # noqa: E402
+import j3_runner_gate as gate  # noqa: E402
 import j3_schedule as schedule  # noqa: E402
 import j3_slots as slots  # noqa: E402
+
+
+def test_round_590_outage_2_refire_remains_fail_despite_unpaired_delivery():
+    fixture = Path(__file__).with_name("fixtures") / "r420-outage-2.json"
+    trace = json.loads(fixture.read_bytes())
+    evaluations = [
+        dict(zip(trace["evaluation_fields"], row, strict=True)) for row in trace["evaluations"]
+    ]
+    transitions = trace["transitions"]
+    age = schedule.recovery_age_evidence(
+        evaluations, transitions, trace["restore_ns"], trace["stop_ns"]
+    )
+    assert age["oldest_refires_before_stop"][0]["at_ns"] == 1795786947246000000
+    outcome = {}
+    with pytest.raises(j3.EpisodeFailure, match="OldestClaimable re-fired"):
+        j3.check_episode(
+            outcome,
+            lambda: j3.require_calibration_recovery(age),
+            lambda: j3.notifications(
+                trace["receiver"], transitions, trace["target"], trace["origin_ns"], trace["end_ns"]
+            ),
+        )
+    assert outcome["behavior"]["status"] == "FAIL"
+    # The original receiver had start/end markers and deliveries, no periodic sequence proof.
+    assert outcome["delivery"]["status"] == "INVALID"
+    assert (
+        "missing firing receiver delivery for OldestClaimable at 1795786972246000000"
+        in (outcome["delivery"]["error"])
+    )
+
+
+def test_clear_hold_uses_distinct_campaign_id(monkeypatch):
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    assert gate.campaign_id() == "j3-r420-42"
 
 
 @pytest.mark.parametrize("stage", ["calibration", "confirmation"])
@@ -33,7 +68,7 @@ def test_qualification_job_uses_only_its_registered_arms(tmp_path, monkeypatch, 
     sealed = {"matched_healthy": {"stop_s": 2460}, "primary": {"stop_s": 2460}}
 
     def run_episode(
-        _driver, _pins, target, arm, _run, _setup, _observer, _binary, duration, bounds
+        _driver, _pins, target, arm, _run, _setup, _observer, _binary, duration, bounds, _outcome
     ):
         calls.append((target["namespace"], arm, duration))
         assert target["campaign"] == "j3-r417-example"

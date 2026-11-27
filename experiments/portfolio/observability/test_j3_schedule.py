@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+from j3_replay import oldest_states  # noqa: E402
 from j3_schedule import (  # noqa: E402
     ARRIVAL_RATE,
     CALIBRATION_MINUTES,
@@ -146,18 +147,18 @@ def test_missing_backlog_and_invalid_episode_fail():
 @pytest.mark.parametrize(
     ("case", "status", "r"),
     [
-        ("later_terminal", "PASS", 365),
-        ("later_age", "PASS", 360),
-        ("zero_claimable", "PASS", 360),
+        ("later_terminal", "PASS", 480),
+        ("later_age", "PASS", 475),
+        ("zero_claimable", "PASS", 475),
         ("missing_age", "FAIL", None),
         ("not_terminal", "FAIL", None),
-        ("refire", "FAIL", 360),
+        ("refire", "FAIL", 475),
         ("missing_tick", "INVALID", None),
         ("missing_terminal_timestamp", "INVALID", None),
     ],
 )
 def test_recovery_endpoints_require_replay_coverage_and_continuing_offers(case, status, r):
-    evidence = outage(1365 if case == "later_terminal" else 1355)
+    evidence = outage(1480 if case == "later_terminal" else 1355)
     stop = 2320 * SECOND
     evidence["observed_through_ns"] = stop + SECOND
     evaluations = [
@@ -180,19 +181,30 @@ def test_recovery_endpoints_require_replay_coverage_and_continuing_offers(case, 
         evidence["admissions"][2]["terminal_ns"] = None
     if case == "not_terminal":
         evidence["admissions"][2]["state"] = "WAITING"
-    transitions = (
-        [{"at_ns": 1370 * SECOND, "firing": True, "alert": "OldestClaimable"}]
-        if case == "refire"
-        else []
-    )
+    if case == "refire":
+        next(r for r in evaluations if r["at_ns"] == 1480 * SECOND)[
+            "oldest_claimable_age_seconds"
+        ] = 90
+    transitions, previous = [], False
+    for row, firing in zip(evaluations, oldest_states(evaluations), strict=True):
+        if firing != previous:
+            transitions.append(
+                {"at_ns": row["at_ns"], "firing": firing, "alert": "OldestClaimable"}
+            )
+        previous = firing
     if status == "INVALID":
         with pytest.raises(ValueError, match="missing"):
             recovery_evidence(evidence, evaluations, transitions, stop)
         return
     result = recovery_evidence(evidence, evaluations, transitions, stop)
     assert result["status"] == status and result["R_s"] == r
-    assert result["oldest_refires_before_stop"] == transitions
+    assert [row["at_ns"] for row in result["oldest_refires_before_stop"]] == (
+        [1480 * SECOND] if case == "refire" else []
+    )
     assert (result["age_endpoint"] is None) == (case == "missing_age")
+    if result["age_endpoint"]:
+        assert result["first_clear_input"]["at_ns"] == 1360 * SECOND
+        assert result["age_endpoint"]["at_ns"] == 1475 * SECOND
     assert (result["terminal_endpoint"] is None) == (case == "not_terminal")
 
 
