@@ -329,8 +329,7 @@ jobs:
           archive="$RUNNER_TEMP/j2-harness-attempt.zip"
           mkdir "$receipt"
           endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
-          gh api "$endpoint" > "$receipt/artifact.json"
-          gh api "$endpoint/zip" > "$archive"
+          python3 scripts/j2_artifact_fetch.py "$endpoint" "$receipt" "$archive"
           python3 scripts/j2_harness_evidence.py verify-upload \
             "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" \
             --mode "$J2_HARNESS_MODE"
@@ -428,8 +427,7 @@ jobs:
           archive="$RUNNER_TEMP/j2-controls-attempt.zip"
           mkdir "$receipt"
           endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
-          gh api "$endpoint" > "$receipt/artifact.json"
-          gh api "$endpoint/zip" > "$archive"
+          python3 scripts/j2_artifact_fetch.py "$endpoint" "$receipt" "$archive"
           python3 scripts/j2_harness_evidence.py verify-upload \
             "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode controls
           python3 scripts/j2_controls.py replay "$archive" "$receipt/offline-replay.json"
