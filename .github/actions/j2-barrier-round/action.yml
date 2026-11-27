@@ -1,0 +1,107 @@
+name: Rehearse one J2 barrier fixture
+description: Publish a synthetic grid and retain this job's independent barrier decision
+inputs:
+  scenario:
+    description: Engineering fixture round
+    required: true
+  job:
+    description: Logical job number
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Freeze the local synthetic grid evidence and anchor the barrier
+      id: prepare
+      shell: bash
+      env:
+        SCENARIO: ${{ inputs.scenario }}
+        LOGICAL_JOB: ${{ inputs.job }}
+      run: |
+        root="$RUNNER_TEMP/j2-barrier/$SCENARIO"
+        python3 scripts/j2_barrier_rehearsal.py prepare "$root" "$SCENARIO" "$LOGICAL_JOB"
+    - name: Retain the grid evidence before publishing its manifest
+      if: steps.prepare.outputs.ready == 'true'
+      id: evidence
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ steps.prepare.outputs.grid_evidence_name }}
+        path: ${{ runner.temp }}/j2-barrier/${{ inputs.scenario }}/grid-evidence/
+        if-no-files-found: error
+        retention-days: 90
+        overwrite: false
+    - name: Rehearse a live peer withholding its manifest
+      if: steps.prepare.outputs.ready == 'true' && inputs.scenario == 'missing-peer' && inputs.job == '3'
+      shell: bash
+      run: python3 scripts/j2_barrier_rehearsal.py withhold "$RUNNER_TEMP/j2-barrier/missing-peer" missing-peer 3
+    - name: Sequence the peer-failure fixture
+      if: steps.prepare.outputs.ready == 'true' && inputs.scenario == 'peer-failure' && inputs.job == '2'
+      shell: bash
+      run: python3 scripts/j2_barrier_rehearsal.py wait-for-failure "$RUNNER_TEMP/j2-barrier/peer-failure" peer-failure 2
+    - name: Bind the manifest to its grid evidence upload
+      if: steps.prepare.outputs.ready == 'true' && (inputs.scenario != 'missing-peer' || inputs.job != '3')
+      shell: bash
+      env:
+        SCENARIO: ${{ inputs.scenario }}
+        LOGICAL_JOB: ${{ inputs.job }}
+        GRID_EVIDENCE_ID: ${{ steps.evidence.outputs.artifact-id }}
+        GRID_EVIDENCE_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+      run: |
+        root="$RUNNER_TEMP/j2-barrier/$SCENARIO"
+        python3 scripts/j2_barrier_rehearsal.py grid "$root" "$SCENARIO" "$LOGICAL_JOB"
+    - name: Publish the immutable grid manifest
+      if: steps.prepare.outputs.ready == 'true' && (inputs.scenario != 'missing-peer' || inputs.job != '3')
+      id: grid
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ steps.prepare.outputs.grid_name }}
+        path: ${{ runner.temp }}/j2-barrier/${{ inputs.scenario }}/grid/
+        if-no-files-found: error
+        retention-days: 90
+        overwrite: false
+    - name: Inject peer failure after manifest publication
+      if: steps.prepare.outputs.ready == 'true' && inputs.scenario == 'peer-failure' && inputs.job == '3'
+      shell: bash
+      env:
+        GRID_ID: ${{ steps.grid.outputs.artifact-id }}
+        GRID_DIGEST: ${{ steps.grid.outputs.artifact-digest }}
+      run: python3 scripts/j2_barrier_rehearsal.py fail "$RUNNER_TEMP/j2-barrier/peer-failure" peer-failure 3
+    - name: Verify the grids and compute the local decision
+      if: steps.prepare.outputs.ready == 'true' && (inputs.scenario != 'missing-peer' || inputs.job != '3')
+      id: decide
+      shell: bash
+      env:
+        SCENARIO: ${{ inputs.scenario }}
+        LOGICAL_JOB: ${{ inputs.job }}
+      run: |
+        root="$RUNNER_TEMP/j2-barrier/$SCENARIO"
+        python3 scripts/j2_barrier_rehearsal.py rendezvous "$root" "$SCENARIO" "$LOGICAL_JOB"
+    - name: Publish the independent local decision
+      if: steps.decide.outputs.publish_decision == 'true'
+      id: decision
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ steps.prepare.outputs.decision_name }}
+        path: ${{ runner.temp }}/j2-barrier/${{ inputs.scenario }}/decision/
+        if-no-files-found: error
+        retention-days: 90
+        overwrite: false
+    - name: Verify publication and recheck peer health locally
+      if: steps.decision.outcome == 'success'
+      shell: bash
+      env:
+        SCENARIO: ${{ inputs.scenario }}
+        LOGICAL_JOB: ${{ inputs.job }}
+        DECISION_ID: ${{ steps.decision.outputs.artifact-id }}
+        DECISION_DIGEST: ${{ steps.decision.outputs.artifact-digest }}
+      run: |
+        root="$RUNNER_TEMP/j2-barrier/$SCENARIO"
+        python3 scripts/j2_barrier_rehearsal.py confirm "$root" "$SCENARIO" "$LOGICAL_JOB"
+    - name: Retain the local outcome and API observations
+      if: always() && steps.prepare.outcome == 'success'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ steps.prepare.outputs.outcome_name }}
+        path: ${{ runner.temp }}/j2-barrier/${{ inputs.scenario }}/outcome/
+        if-no-files-found: warn
+        retention-days: 90
+        overwrite: false

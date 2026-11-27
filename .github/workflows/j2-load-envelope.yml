@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/j2-load-envelope.yml'
       - '.github/workflows/j2-volume-qualification.yml'
+      - '.github/actions/j2-barrier-round/**'
       - 'experiments/portfolio/load-envelope/**'
       - 'scripts/j2_*'
       - 'cmd/j2-sender/**'
@@ -27,6 +28,9 @@ on:
           - harness-schedule
           - harness-sender
           - harness-step
+          - barrier-success
+          - barrier-peer-failure
+          - barrier-missing-peer
         default: overlay
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
@@ -95,6 +99,104 @@ jobs:
           name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-overlay-evidence/
           if-no-files-found: warn
+
+  barrier:
+    if: >-
+      github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'barrier-success' || inputs.mode == 'barrier-peer-failure'
+          || inputs.mode == 'barrier-missing-peer')
+    name: J2 barrier job-${{ matrix.job }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        job: [1, 2, 3]
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Rehearse the eligible decision
+        if: inputs.mode == 'barrier-success'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: eligible
+          job: ${{ matrix.job }}
+      - name: Rehearse no eligible rate
+        if: inputs.mode == 'barrier-success'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: no-eligible
+          job: ${{ matrix.job }}
+      - name: Rehearse an integrity stop
+        if: inputs.mode == 'barrier-success'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: integrity
+          job: ${{ matrix.job }}
+      - name: Rehearse a corrupted manifest
+        if: inputs.mode == 'barrier-success'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: corrupted
+          job: ${{ matrix.job }}
+      - name: Rehearse a mixed-attempt manifest
+        if: inputs.mode == 'barrier-success'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: mixed
+          job: ${{ matrix.job }}
+      - name: Rehearse peer failure after publication
+        if: inputs.mode == 'barrier-peer-failure'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: peer-failure
+          job: ${{ matrix.job }}
+      - name: Rehearse the actual missing-peer deadline
+        if: inputs.mode == 'barrier-missing-peer'
+        uses: ./.github/actions/j2-barrier-round
+        with:
+          scenario: missing-peer
+          job: ${{ matrix.job }}
+      - name: Preserve partial barrier evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-barrier-partial-${{ github.run_id }}-${{ github.run_attempt }}-job-${{ matrix.job }}
+          path: ${{ runner.temp }}/j2-barrier/
+          if-no-files-found: warn
+          retention-days: 90
+
+  barrier-report:
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'barrier-success' || inputs.mode == 'barrier-peer-failure'
+          || inputs.mode == 'barrier-missing-peer')
+    needs: [barrier]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify immutable barrier decisions and fixture outcomes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SCENARIO: ${{ inputs.mode }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 scripts/j2_barrier_rehearsal.py report "$RUNNER_TEMP/j2-barrier-report" "$SCENARIO"
+      - name: Retain the independently verified report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-barrier-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-barrier-report/
+          if-no-files-found: warn
+          retention-days: 90
 
   harness-reset:
     if: >-
