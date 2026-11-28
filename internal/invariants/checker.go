@@ -572,7 +572,7 @@ func checkHistory(history []HistoryRecord, violations *[]string) {
 			if index > 0 && record.OldState != previousState {
 				*violations = append(*violations, fmt.Sprintf("history old state %q does not follow %q for %s", record.OldState, previousState, workflowID))
 			}
-			if index > 0 && !allowedTransition(record.OldState, record.NewState) {
+			if index > 0 && !allowedTransition(record.OldState, record.NewState, record.Reason) {
 				*violations = append(*violations, fmt.Sprintf("illegal workflow transition %s -> %s for %s", record.OldState, record.NewState, workflowID))
 			}
 			if terminalSeen {
@@ -587,9 +587,15 @@ func checkHistory(history []HistoryRecord, violations *[]string) {
 	}
 }
 
-func allowedTransition(from, to string) bool {
+func allowedTransition(from, to, reason string) bool {
 	if isTerminal(from) {
 		return false
+	}
+	// A claimed sibling can exhaust its expiry allowance while the workflow
+	// is waiting on another node's timer.
+	if from == "WAITING_TIMER" && to == "FAILED" &&
+		(reason == "TIMEOUT_REPLACEMENT_BUDGET_EXHAUSTED" || reason == "TIMEOUT_REPLACEMENT_DEADLINE_EXCEEDED") {
+		return true
 	}
 	allowed := map[string]map[string]bool{
 		"RUNNABLE": {
