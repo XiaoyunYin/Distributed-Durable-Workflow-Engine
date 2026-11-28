@@ -27,9 +27,14 @@ func TestPostgres18Media(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	data, archive := filepath.Join(root, "data"), filepath.Join(root, "wal")
-	writer := filepath.Join(root, "j7-media")
-	if out, err := exec.CommandContext(ctx, "go", "build", "-p", "1", "-o", writer, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build archive writer: %v\n%s", err, out)
+	writer := os.Getenv("DURABLE_J7_TEST_MEDIA_BINARY")
+	if writer == "" {
+		writer = filepath.Join(root, "j7-media")
+		if out, err := exec.CommandContext(ctx, "go", "build", "-p", "1", "-o", writer, ".").CombinedOutput(); err != nil {
+			t.Fatalf("build archive writer: %v\n%s", err, out)
+		}
+	} else if !filepath.IsAbs(writer) {
+		t.Fatal("the hosted media fixture binary path must be absolute")
 	}
 	pg := func(name string, args ...string) {
 		t.Helper()

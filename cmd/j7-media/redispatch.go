@@ -348,7 +348,7 @@ func verifyRedispatchedWorkflow(t invariants.Trace, hold dispatchAtCut, known re
 			a.Outcome != "KNOWN_SUCCESS" || !a.ResultRecorded {
 			return r, errors.New("redispatch did not preserve and complete its original attempt number")
 		}
-		r.ClaimSHA = restoreledger.SHA256([]byte(a.ClaimToken))
+		r.ClaimSHA = credentialDigest(a.ClaimToken)
 	}
 	if attempts != 1 || !slices.ContainsFunc(t.Results, func(a invariants.AcceptedResult) bool {
 		return a.WorkflowID == r.WorkflowID && a.NodeID == hold.Attempt.NodeID && a.Iteration == hold.Attempt.Iteration && a.Accepted

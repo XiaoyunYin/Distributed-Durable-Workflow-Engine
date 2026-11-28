@@ -1,0 +1,180 @@
+name: J7 PostgreSQL restore
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/j7.yml'
+      - 'cmd/j7-media/**'
+      - 'internal/restoreledger/**'
+      - 'internal/j7markers/**'
+      - 'internal/j7fences/**'
+      - 'deploy/j7/**'
+      - 'deploy/runtime-switches.json'
+      - 'deploy/k8s/tools.lock.json'
+      - 'experiments/portfolio/postgres-restore/**'
+      - 'scripts/j7_hosted.sh'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: J7 job
+        type: choice
+        options: [tooling, qualification, measurement]
+        default: tooling
+      campaign:
+        description: Short reviewed campaign ID for qualification and measurement
+        type: string
+      reviewed_head:
+        description: Exact reviewed checkout SHA for qualification and measurement
+        type: string
+      qualification_run:
+        description: Reviewed qualification run ID for measurement
+        type: string
+      qualification_artifact:
+        description: Reviewed qualification artifact ID for measurement
+        type: string
+      qualification_digest:
+        description: Reviewed qualification artifact digest for measurement (sha256:...)
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: j7-${{ inputs.mode || 'tooling' }}
+  cancel-in-progress: false
+
+env:
+  GOMAXPROCS: '2'
+
+jobs:
+  tooling:
+    if: github.event.repository.private == false && (github.event_name == 'pull_request' || inputs.mode == 'tooling')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check media, ledger, probes and offline replay
+        run: |
+          bash -n scripts/j7_hosted.sh
+          go build -p 1 ./...
+          go test -race -p 1 ./cmd/j7-media ./internal/restoreledger ./internal/j7markers ./internal/j7fences ./internal/invariants/k6v1
+      - name: Verify physical backup and WAL tooling with PostgreSQL 18.6
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          install -d -m 0755 "$RUNNER_TEMP/j7-tooling"
+          go build -p 1 -o "$RUNNER_TEMP/j7-tooling/j7-media" ./cmd/j7-media
+          go test -p 1 -c -o "$RUNNER_TEMP/j7-tooling/media.test" ./cmd/j7-media
+          image=$(jq -er .postgres deploy/k8s/tools.lock.json)
+          docker run --rm --network none --user postgres \
+            --mount "type=bind,source=$RUNNER_TEMP/j7-tooling,target=/j7/tooling,readonly" \
+            --env DURABLE_J7_TEST_PG_BIN=/usr/lib/postgresql/18/bin \
+            --env DURABLE_J7_TEST_MEDIA_BINARY=/j7/tooling/j7-media \
+            --entrypoint /j7/tooling/media.test "$image" -test.v -test.run '^TestPostgres18Media$'
+
+  campaign:
+    if: github.event.repository.private == false && github.event_name == 'workflow_dispatch' && inputs.mode != 'tooling'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      J7_MODE: ${{ inputs.mode }}
+      J7_CAMPAIGN: ${{ inputs.campaign }}
+      J7_REVIEWED_HEAD: ${{ inputs.reviewed_head }}
+      J7_QUALIFICATION_RUN: ${{ inputs.qualification_run }}
+      J7_QUALIFICATION_ARTIFACT: ${{ inputs.qualification_artifact }}
+      J7_QUALIFICATION_DIGEST: ${{ inputs.qualification_digest }}
+    steps:
+      - name: Start the runner budget
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/j7-retained" "$RUNNER_TEMP/j7-private"
+          {
+            printf 'J7_PUBLIC=%s/j7-retained\n' "$RUNNER_TEMP"
+            printf 'J7_PRIVATE=%s/j7-private\n' "$RUNNER_TEMP"
+            printf 'J7_QUALIFICATION=%s/j7-private/qualification.json\n' "$RUNNER_TEMP"
+            awk '{print "J7_JOB_START=" int($1)}' /proc/uptime
+          } >>"$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Validate the reviewed checkout and build the controller tools
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          [[ "$J7_CAMPAIGN" =~ ^[a-z][a-z0-9_-]{0,31}$ ]]
+          [[ "$J7_REVIEWED_HEAD" =~ ^[0-9a-f]{40}$ && "$J7_REVIEWED_HEAD" == "$GITHUB_SHA" ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          go build -p 1 -o "$J7_PRIVATE/j7-media" ./cmd/j7-media
+      - name: Retrieve the exact reviewed qualification artifact
+        if: inputs.mode == 'measurement'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$J7_QUALIFICATION_RUN" =~ ^[1-9][0-9]+$ ]]
+          [[ "$J7_QUALIFICATION_ARTIFACT" =~ ^[1-9][0-9]+$ ]]
+          [[ "$J7_QUALIFICATION_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$J7_QUALIFICATION_RUN" |
+            jq -e --arg head "$GITHUB_SHA" '
+              .run_attempt == 1 and .event == "workflow_dispatch" and .head_sha == $head
+              and .conclusion == "success" and .path == ".github/workflows/j7.yml"' >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$J7_QUALIFICATION_ARTIFACT" |
+            jq -e --arg sha "$J7_QUALIFICATION_DIGEST" --argjson run "$J7_QUALIFICATION_RUN" '
+              .digest == $sha and .expired == false and .workflow_run.id == $run
+              and .name == ("j7-qualification-seal-" + ($run|tostring) + "-1")' >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$J7_QUALIFICATION_ARTIFACT/zip" > "$J7_PRIVATE/qualification.zip"
+          printf '%s  %s\n' "${J7_QUALIFICATION_DIGEST#sha256:}" "$J7_PRIVATE/qualification.zip" | sha256sum --check --status
+          [[ $(unzip -Z1 "$J7_PRIVATE/qualification.zip") == qualification.json ]]
+          unzip -p "$J7_PRIVATE/qualification.zip" qualification.json > "$J7_QUALIFICATION"
+      - name: Admit the candidate and run the frozen campaign
+        run: bash scripts/j7_hosted.sh "$J7_MODE" "$J7_PRIVATE/j7-media" "$GITHUB_WORKSPACE" "$J7_PUBLIC" "$J7_PRIVATE"
+      - name: Retain a preflight stop before the controller started
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$J7_PUBLIC/campaign.json" ]]; then
+            if [[ "$J7_MODE" == qualification ]]; then
+              ids='["q1"]'
+            else
+              ids='["r1","r2","r3"]'
+            fi
+            jq -n --arg mode "$J7_MODE" --arg revision "$GITHUB_SHA" --argjson drills "$ids" '
+              {schema:"j7.campaign.v1",mode:$mode,revision:$revision,status:"invalid",reason:"preflight",
+               drills:($drills|map({drill:.,status:"unperformed",reason:"preflight"}))}' >"$J7_PUBLIC/campaign.json"
+          fi
+      - name: Upload the exact passing qualification seal
+        if: success() && inputs.mode == 'qualification'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j7-qualification-seal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.J7_PUBLIC }}/qualification.json
+          if-no-files-found: error
+      - name: Retain all redacted evidence and stopped populations
+        if: always()
+        id: retained
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j7-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.J7_PUBLIC }}/
+          if-no-files-found: error
+      - name: Record the retained artifact identity
+        if: always() && steps.retained.outputs.artifact-id != ''
+        env:
+          RID: ${{ steps.retained.outputs.artifact-id }}
+          RDIGEST: ${{ steps.retained.outputs.artifact-digest }}
+        run: |
+          printf 'J7 run %s attempt %s retained artifact %s with digest %s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$RID" "$RDIGEST" >>"$GITHUB_STEP_SUMMARY"

@@ -12,7 +12,6 @@ import (
 	"durable-agent-execution-engine/internal/effects/k6sink"
 	"durable-agent-execution-engine/internal/invariants"
 	"durable-agent-execution-engine/internal/k6receipt"
-	"durable-agent-execution-engine/internal/restoreledger"
 	"durable-agent-execution-engine/internal/state"
 )
 
@@ -364,7 +363,7 @@ func checkHeldAttempt(rows []attemptAtRestore, hold attemptAtCut, state, class s
 	}
 	if state == "CLAIMED" {
 		// The same token can heartbeat between the source witness and C.
-		if r.Claim == "" || restoreledger.SHA256([]byte(r.Claim)) != hold.ClaimSHA || r.Worker == "" || r.Request == "" {
+		if r.Claim == "" || credentialDigest(r.Claim) != hold.ClaimSHA || r.Worker == "" || r.Request == "" {
 			return result, fmt.Errorf("restored held claim differs for %s", hold.WorkflowID)
 		}
 	} else if r.Claim != "" || r.Worker != "" || r.Request != "" || hold.ClaimSHA != "" ||
@@ -459,7 +458,7 @@ func checkPrewriteOrphan(t invariants.Trace, nodes []nodeAtRestore, attempts []a
 			row.IntentID == e.Intent && row.Decision == "APPROVED" && row.DispatchStatus == "GRANTED" &&
 			row.ExpectedResourceRevision == "0" && row.CanonicalArgumentHash == e.CanonicalHash &&
 			row.GrantScopeHash == e.ScopeHash && row.GrantToken != "" &&
-			restoreledger.SHA256([]byte(row.GrantToken)) == e.GrantSHA {
+			credentialDigest(row.GrantToken) == e.GrantSHA {
 			approvals++
 		}
 	}

@@ -59,6 +59,16 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 		return runRedispatchStage(ctx, args, out, diagnostics)
 	case "orphan-source", "orphan-rebind", "verify-orphan":
 		return runOrphanStage(ctx, args, out, diagnostics)
+	case "index-evidence", "publish-evidence":
+		return runEvidence(args, out, diagnostics)
+	case "verify-drill":
+		return runDrillVerdict(args, out, diagnostics)
+	case "observe-quiet":
+		return runQuietObservation(ctx, args, out, diagnostics)
+	case "verify-controls":
+		return runQualificationControls(args, out, diagnostics)
+	case "hosted-gate":
+		return runHostedGate(args, out, diagnostics)
 	case "stage-target":
 		if len(args) != 1 {
 			return errors.New("stage-target uses the sealed mounts")
