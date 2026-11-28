@@ -85,7 +85,7 @@ def complete_resilient(
             "eligible_ns": schedule["eligible_ns"],
         }
     )
-    used_ids = set()
+    used_ids: set[str] = set()
     while True:
         if terminal := schedule.get("terminal_state"):
             if terminal not in {"SUCCEEDED", "FAILED_FINAL"} or not isinstance(
@@ -107,6 +107,7 @@ def complete_resilient(
             type(sequence) is not int
             or not 1 <= sequence <= 4
             or permit["attempt"] != attempt
+            or not isinstance(call_id, str)
             or call_id in used_ids
             or len(used_ids) >= 4
         ):
@@ -120,13 +121,11 @@ def complete_resilient(
         used_ids.add(call_id)
         details = {**asdict(call), "issued_ns": issued_ns, "deadline_ns": deadline_ns}
         trace({"event": "reserved", **details, "at_ns": time.monotonic_ns()})
-        reply = call_provider(
-            config,
-            call,
-            value,
-            deadline_ns,
-            lambda send, details=details: trace({**send, **details}),
-        )
+
+        def record_send(send: dict[str, Any], fields: dict[str, Any] = details) -> None:
+            trace({**send, **fields})
+
+        reply = call_provider(config, call, value, deadline_ns, record_send)
         kind, retry_after = provider_outcome(reply, call, digest)
         trace(
             {

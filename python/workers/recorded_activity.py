@@ -90,7 +90,9 @@ class ProviderConfig:
 @contextmanager
 def isolated_caller(
     config: ProviderConfig, *, probe: bool = False
-) -> Iterator[tuple[socket.socket, subprocess.Popen]]:
+) -> Iterator[tuple[socket.socket, subprocess.Popen[bytes]]]:
+    if sys.platform != "linux":
+        raise RuntimeError("J4 provider caller requires Linux")
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
     with parent, child:
         process = subprocess.Popen(

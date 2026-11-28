@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -28,6 +29,33 @@ ADDRESSES = (
     "192.168.0.6",
     "192.168.0.7",
 )
+
+
+def test_j4_runtime_switches_match_the_registered_profiles() -> None:
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / "deploy/runtime-switches.json").read_bytes())
+    switches = registry["switches"]
+    activity = switches["J4_RECORDED_LLM_ACTIVITY"]
+    resilience = switches["J4_PROVIDER_RESILIENCE"]
+    protected = {"K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"}
+    for entry in (activity, resilience):
+        assert entry["unset_default"] == "0" and set(entry["values"]) == {"0", "1"}
+        assert set(entry["required_unset_profiles"]) == protected
+    assert activity["permitted_enabled_profiles"] == ["j4-core", "j4-b2"]
+    assert activity["routes_added"] == activity["migrations_added"] == []
+    assert resilience["permitted_enabled_profiles"] == ["j4-b2"]
+    provider_route = "POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}"
+    assert resilience["routes_added"] == [
+        f"{provider_route}/provider-attempts/{action}" for action in ("reserve", "outcome")
+    ]
+    migration = "migrations/j4_b2/000025_j4_provider_resilience.up.sql"
+    assert resilience["migrations_added"] == [migration] and (root / migration).is_file()
+    inventories = registry["migration_inventories"]
+    assert inventories["j4-core"] == {"base": "runtime_base", "additional": []}
+    assert inventories["j4-b2"] == {"base": "runtime_base", "additional": [migration]}
+    assert {"j4-core", "j4-b2"} <= set(
+        switches["RUNTIME_TIMEOUT_RETRY_POLICY"]["required_unset_profiles"]
+    )
 
 
 def overlay(arm: str = "C2") -> Overlay:

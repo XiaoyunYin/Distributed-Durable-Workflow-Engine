@@ -147,7 +147,11 @@ def request_once(
             trace({"event": "send", "before_ns": before, "at_ns": time.monotonic_ns()})
             sock.settimeout(remaining(deadline_ns))
             sock.sendall(wire[sent:])
-            with http.client.HTTPResponse(DeadlineReader(sock, deadline_ns)) as response:
+            with http.client.HTTPResponse(sock) as response:
+                # Before parsing any bytes, replace the socket's default
+                # stream with one that reapplies the deadline on every read.
+                response.fp.close()
+                response.fp = DeadlineReader(sock, deadline_ns).makefile("rb")
                 response.begin()
                 observed = time.monotonic_ns()
                 remaining(deadline_ns)

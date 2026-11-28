@@ -31,6 +31,8 @@ def process_status() -> dict[str, str]:
 
 
 def verify_caller(ipc: socket.socket) -> None:
+    if sys.platform != "linux":
+        raise RuntimeError("J4 provider caller requires Linux")
     if (
         ipc.family != socket.AF_UNIX
         or ipc.type != socket.SOCK_STREAM
@@ -77,7 +79,7 @@ def main() -> None:
         if type(deadline_ns) is not int:
             raise ValueError("invalid fixture deadline")
 
-        def emit(record: dict) -> None:
+        def emit(record: dict[str, object]) -> None:
             ipc.sendall(json.dumps(record, separators=(",", ":")).encode() + b"\n")
 
         try:

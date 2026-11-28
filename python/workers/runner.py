@@ -265,8 +265,7 @@ class ActivityRunner:
                         ),
                     },
                 )
-            if recorded:
-                assert isinstance(activity, RecordedActivity)
+            if isinstance(activity, RecordedActivity):
 
                 def record_provider(event: dict[str, Any]) -> None:
                     if self.deployment_hook is not None:

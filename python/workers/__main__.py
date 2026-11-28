@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 class HealthHandler(BaseHTTPRequestHandler):
     lifecycle: WorkerLifecycle | None = None
-    health_details: Callable[[], dict] | None = None
+    health_details: Callable[[], dict[str, object]] | None = None
     """Process health; this is not a claim that dependencies are available."""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -85,7 +85,7 @@ def run(
     *,
     deployment_hook: DeploymentHook | None = None,
     control_factory: ControlFactory | None = None,
-    health_details: Callable[[], dict] | None = None,
+    health_details: Callable[[], dict[str, object]] | None = None,
 ) -> None:
     from faults.client import FailpointClient
 

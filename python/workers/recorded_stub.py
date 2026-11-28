@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import threading
 import time
 from dataclasses import asdict
@@ -63,7 +64,7 @@ class ReceiptJournal:
                     if type(record["branch"]) is int or record["branch"] in {"withhold", "success"}:
                         self._ordinals.add((record["cell"], record["ordinal"]))
         self._file = path.open("ab")
-        if os.name == "posix":
+        if sys.platform != "win32" and os.name == "posix":
             directory = os.open(path.parent, os.O_DIRECTORY)
             try:
                 os.fsync(directory)

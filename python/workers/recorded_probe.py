@@ -6,6 +6,7 @@ import http.client
 import json
 import os
 import socket
+import sys
 import time
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -96,7 +97,7 @@ def clock_sample() -> dict[str, str | int]:
     return {"boot_id": boot, "monotonic_ns": time.monotonic_ns()}
 
 
-def inventory(role: str) -> dict:
+def inventory(role: str) -> dict[str, object]:
     # Record names, mount paths and types only. The single optional GPG_KEY
     # variable identifies the pinned image's public signing key.
     approved = {
@@ -107,6 +108,8 @@ def inventory(role: str) -> dict:
     names = set(os.environ)
     if names - approved:
         raise RuntimeError(f"unexpected J4 {role} environment names: {sorted(names - approved)}")
+    if sys.platform != "linux":
+        raise RuntimeError("J4 credential inventory requires Linux")
     mounts = {row.split(" ")[4] for row in Path("/proc/self/mountinfo").read_text().splitlines()}
     scope = BASE_MOUNTS | {"/etc/j4", "/evidence"}
     if role in {"worker", "caller"}:
@@ -178,20 +181,23 @@ def udp_reachable(target: tuple[str, int]) -> bool:
         return False
 
 
-def stub_ready(target: tuple[str, int]) -> dict:
+def stub_ready(target: tuple[str, int]) -> dict[str, str | int]:
     api = http.client.HTTPConnection(*target, timeout=0.5)
     try:
         api.request("GET", "/readyz", headers={"Connection": "close"})
         reply = api.getresponse()
-        body = json.loads(reply.read(1024))
-        if reply.status != 200 or "boot_id" not in body or "monotonic_ns" not in body:
+        body: object = json.loads(reply.read(1024))
+        if reply.status != 200 or not isinstance(body, dict):
             raise ValueError("stub positive probe did not return its clock")
-        return body
+        boot_id, monotonic_ns = body.get("boot_id"), body.get("monotonic_ns")
+        if not isinstance(boot_id, str) or type(monotonic_ns) is not int:
+            raise ValueError("stub positive probe did not return its clock")
+        return {"boot_id": boot_id, "monotonic_ns": monotonic_ns}
     finally:
         api.close()
 
 
-def caller_probe(stub: IPv4Address) -> dict:
+def caller_probe(stub: IPv4Address) -> dict[str, object]:
     targets = probe_targets(stub)
     credential_inventory = inventory("caller")
     positive = stub_ready(targets["stub"])
