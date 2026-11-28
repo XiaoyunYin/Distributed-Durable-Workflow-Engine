@@ -222,6 +222,12 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	if err != nil {
 		return CreateWorkflowResult{}, err
 	}
+	if input.Tenant != nil {
+		if input.Tenant.Namespace != input.Namespace || input.Tenant.Issuer == "" || input.Tenant.Subject == "" {
+			return CreateWorkflowResult{}, errors.New("invalid J12 requester identity")
+		}
+		input.ActorID = input.Tenant.Subject
+	}
 	if input.ActorID == "" {
 		input.ActorID = "client"
 	}
@@ -250,8 +256,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		&workflow.PartitionID, &workflow.State, &workflow.Revision,
 		&workflow.CreatedAt, &workflow.UpdatedAt)
 	if err == nil {
-		if workflow.PayloadHash != input.SubmissionPayloadHash {
-			return CreateWorkflowResult{}, ErrSubmissionConflict
+		if err := validateSubmissionReplay(ctx, tx, workflow, input); err != nil {
+			return CreateWorkflowResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return CreateWorkflowResult{}, err
@@ -306,8 +312,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			&workflow.PartitionID, &workflow.State, &workflow.Revision,
 			&workflow.CreatedAt, &workflow.UpdatedAt)
 		if err == nil {
-			if workflow.PayloadHash != input.SubmissionPayloadHash {
-				return CreateWorkflowResult{}, ErrSubmissionConflict
+			if err := validateSubmissionReplay(ctx, tx, workflow, input); err != nil {
+				return CreateWorkflowResult{}, err
 			}
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
@@ -327,8 +333,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			if existing.Namespace != input.Namespace || existing.SubmissionKey != input.SubmissionKey {
 				return CreateWorkflowResult{}, ErrWorkflowIDConflict
 			}
-			if existing.PayloadHash != input.SubmissionPayloadHash {
-				return CreateWorkflowResult{}, ErrSubmissionConflict
+			if err := validateSubmissionReplay(ctx, tx, existing, input); err != nil {
+				return CreateWorkflowResult{}, err
 			}
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
@@ -378,8 +384,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			&workflow.PartitionID, &workflow.State, &workflow.Revision,
 			&workflow.CreatedAt, &workflow.UpdatedAt)
 		if err == nil {
-			if workflow.PayloadHash != input.SubmissionPayloadHash {
-				return CreateWorkflowResult{}, ErrSubmissionConflict
+			if err := validateSubmissionReplay(ctx, tx, workflow, input); err != nil {
+				return CreateWorkflowResult{}, err
 			}
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
@@ -406,8 +412,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		if workflow.Namespace != input.Namespace || workflow.SubmissionKey != input.SubmissionKey {
 			return CreateWorkflowResult{}, ErrWorkflowIDConflict
 		}
-		if workflow.PayloadHash != input.SubmissionPayloadHash {
-			return CreateWorkflowResult{}, ErrSubmissionConflict
+		if err := validateSubmissionReplay(ctx, tx, workflow, input); err != nil {
+			return CreateWorkflowResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
 			return CreateWorkflowResult{}, err
@@ -416,6 +422,12 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	}
 	if err != nil {
 		return CreateWorkflowResult{}, fmt.Errorf("insert workflow: %w", err)
+	}
+	if input.Tenant != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO engine.j12_workflow_requesters (workflow_id, issuer, subject)
+			VALUES ($1, $2, $3)`, workflow.WorkflowID, input.Tenant.Issuer, input.Tenant.Subject); err != nil {
+			return CreateWorkflowResult{}, fmt.Errorf("insert J12 requester binding: %w", err)
+		}
 	}
 	if admissionLocked {
 		if err := insertAdmissionSlot(ctx, tx, workflow.Namespace, workflow.WorkflowID); err != nil {

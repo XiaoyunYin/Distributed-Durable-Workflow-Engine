@@ -2,6 +2,19 @@
   "schema_version": 1,
   "scope": "D037 and D038 runtime changes introduced after the registered K profiles",
   "switches": {
+    "RUNTIME_PUBLIC_API_AUTH": {
+      "task": "J12",
+      "unset_default": "0",
+      "values": {"0": "legacy routes and credentials", "1": "tenant JWT and stored namespace authorisation with separate TokenReview and demand listeners"},
+      "permitted_enabled_profiles": ["J12"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
+      "routes_added": [
+        "POST /v1/workflows/{workflowID}/cancel-request",
+        "POST /v1/approvals/{intentID}/decision"
+      ],
+      "route_inventory": "experiments/portfolio/public-api-auth/protocol.md#method-listener-and-credential-matrix",
+      "migrations_added": ["migrations/j12/000026_j12_workflow_requesters.up.sql"]
+    },
     "RUNTIME_TIMEOUT_RETRY_POLICY": {
       "task": "J19",
       "unset_default": "0",
@@ -54,6 +67,10 @@
       "database": "separate sink",
       "source": "sink-migrations/*.up.sql",
       "versions": "000001-000004 inclusive"
+    },
+    "J12": {
+      "base": "runtime_base",
+      "additional": ["migrations/j12/000026_j12_workflow_requesters.up.sql"]
     },
     "J19": {"base": "runtime_base", "additional": []},
     "j4-core": {"base": "runtime_base", "additional": []},

@@ -37,6 +37,7 @@ type ControlPod struct {
 var controlLegacyEnv = map[string]string{
 	"J4_PROVIDER_RESILIENCE":       "0",
 	"J4_RECORDED_LLM_ACTIVITY":     "0",
+	"RUNTIME_PUBLIC_API_AUTH":      "0",
 	"RUNTIME_TIMEOUT_RETRY_POLICY": "0",
 }
 

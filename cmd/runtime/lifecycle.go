@@ -48,6 +48,11 @@ func main() {
 	ctx, stop := k4SignalContext(context.Background(), signal.Notify, signal.Stop)
 	defer stop()
 	if mode == "legacy" {
+		publicAuth, err := publicAPIAuthFromEnvironment()
+		if err != nil || publicAuth {
+			slog.Error("J12 requires a split drain runtime and valid RUNTIME_PUBLIC_API_AUTH", "error", err)
+			os.Exit(1)
+		}
 		if state.K6Enabled() {
 			slog.Error("K6 requires the split drain runtime")
 			os.Exit(1)
@@ -162,6 +167,10 @@ func serveLifecycle(signalCtx context.Context) error {
 	if err := state.ValidateRecordedLLMMode(); err != nil {
 		return err
 	}
+	publicAuth, err := publicAPIAuthFromEnvironment()
+	if err != nil {
+		return err
+	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	defaultAddr := "127.0.0.1:8080"
 	if os.Getenv("RUNTIME_ROLES") == "demand" {
@@ -179,9 +188,15 @@ func serveLifecycle(signalCtx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if publicAuth && *rolesFlag == "combined" {
+		return validateJ12Credentials(api.RoutesCombined, nil, nil)
+	}
 	routes, err := lifecycleRoutes(*rolesFlag, roles)
 	if err != nil {
 		return err
+	}
+	if publicAuth && (*j4WorkerAddr != "" || state.ProviderResilienceEnabled() || state.K6Enabled()) {
+		return errors.New("J12 requires its own split listener profile")
 	}
 	if err := validateJ4Listener(routes, *j4WorkerAddr, *j4FixedDelay); err != nil {
 		return err
@@ -206,7 +221,13 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	var reviewer *api.TokenReviewer
 	var demandAuth *api.DemandBearerAuthenticator
-	if routes == api.RoutesDemand {
+	var tenantJWT *api.TenantJWTVerifier
+	if publicAuth && routes == api.RoutesPublic {
+		tenantJWT, err = api.NewTenantJWTVerifierFromEnvironment()
+		if err != nil {
+			return err
+		}
+	} else if routes == api.RoutesDemand {
 		authSetting := os.Getenv("RUNTIME_TOKEN_AUTH")
 		if authSetting == "" || authSetting == "disabled" {
 			// Local and Compose demand behavior remains auth-disabled by default.
@@ -222,6 +243,14 @@ func serveLifecycle(signalCtx context.Context) error {
 		reviewer, err = api.AuthenticationFromEnvironment()
 		if err != nil {
 			return err
+		}
+	}
+	if publicAuth {
+		if err := validateJ12Credentials(routes, reviewer, demandAuth); err != nil {
+			return err
+		}
+		if routes != api.RoutesNone && os.Getenv("DATABASE_URL") == "" {
+			return errors.New("J12 API listeners require DATABASE_URL")
 		}
 	}
 	k6, err := loadK6RuntimeConfig(*rolesFlag, roles, reviewer)
@@ -249,6 +278,11 @@ func serveLifecycle(signalCtx context.Context) error {
 		} else {
 			store, err = state.NewFromURL(ctx, url)
 		}
+		if err == nil && tenantJWT != nil {
+			if err = store.CheckTenantRequesterSchema(ctx); err != nil {
+				store.Close()
+			}
+		}
 		cancel()
 		if err != nil {
 			return err
@@ -269,7 +303,9 @@ func serveLifecycle(signalCtx context.Context) error {
 			return err
 		}
 	}
-	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
+	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).
+		WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE")).
+		WithPublicAPIAuth(publicAuth, tenantJWT)
 	if k6.worker != nil {
 		k6.worker.Store = store
 		apiServer.WithK6WorkerControl(k6.worker)

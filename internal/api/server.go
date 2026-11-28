@@ -20,6 +20,7 @@ import (
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -65,6 +66,8 @@ type Server struct {
 	demandNamespace  string
 	k6               *K6WorkerControl
 	j4               j4ProviderControl
+	publicAPIAuth    bool
+	tenantJWT        *TenantJWTVerifier
 }
 
 type K6WorkerControl struct {
@@ -92,28 +95,37 @@ func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
 	return s
 }
 
+func (s *Server) WithPublicAPIAuth(enabled bool, verifier *TenantJWTVerifier) *Server {
+	s.publicAPIAuth, s.tenantJWT = enabled, verifier
+	return s
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	if s.routes == RoutesCombined || s.routes == RoutesPublic || s.routes == RoutesOperator {
+	legacyCombined := s.routes == RoutesCombined && !s.publicAPIAuth
+	legacyOperator := s.routes == RoutesOperator && !s.publicAPIAuth
+	if s.routes == RoutesPublic || legacyCombined || legacyOperator {
 		mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
 		mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
 		mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
 	}
-	if s.routes == RoutesCombined || s.routes == RoutesWorkerControl {
+	if legacyCombined || s.routes == RoutesWorkerControl {
 		mux.HandleFunc("POST /v1/worker-deliveries", s.workerDelivery)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
 	}
-	if s.routes == RoutesWorkerControl && s.j4 != nil {
+	if s.routes == RoutesWorkerControl && s.j4 != nil && !s.publicAPIAuth {
 		s.registerJ4Routes(mux)
 	}
-	if s.routes == RoutesCombined || s.routes == RoutesOperator {
+	if legacyCombined || s.routes == RoutesOperator {
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/approval", s.createApproval)
-		mux.HandleFunc("POST /v1/approvals/{intentID}/decision", s.recordApprovalDecision)
 		mux.HandleFunc("POST /v1/approvals/{intentID}/apply", s.applyApproval)
-		mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
 		mux.HandleFunc("POST /v1/cancellations/{requestID}/apply", s.applyCancellation)
+	}
+	if legacyCombined || legacyOperator || (s.publicAPIAuth && s.routes == RoutesPublic) {
+		mux.HandleFunc("POST /v1/approvals/{intentID}/decision", s.recordApprovalDecision)
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
 	}
 	if s.routes == RoutesDemand {
 		mux.HandleFunc("GET /v1/demand", s.durableDemand)
@@ -122,9 +134,11 @@ func (s *Server) Handler() http.Handler {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
 	var handler http.Handler = mux
-	if s.routes == RoutesDemand {
+	if s.publicAPIAuth {
+		handler = s.j12CredentialHandler(mux)
+	} else if s.routes == RoutesDemand {
 		if s.demandAuth != nil {
-			handler = s.demandAuth.middleware(handler)
+			handler = s.demandAuth.middleware(handler, false)
 		}
 	} else if s.authenticator != nil {
 		handler = s.authenticator.middleware(handler)
@@ -470,7 +484,17 @@ func (s *Server) recordApprovalDecision(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
-	if identity := authenticatedIdentity(r.Context()); identity != "" {
+	tenant := tenantIdentity(r.Context())
+	intentID := r.PathValue("intentID")
+	if tenant != nil {
+		id, err := uuid.Parse(intentID)
+		if err != nil {
+			writeRepositoryError(w, state.ErrApprovalNotFound)
+			return
+		}
+		intentID = id.String()
+		request.ApproverID = tenant.Subject
+	} else if identity := authenticatedIdentity(r.Context()); identity != "" {
 		request.ApproverID = identity
 	}
 	if request.ApproverID == "" || request.ProposalHash == "" {
@@ -478,13 +502,21 @@ func (s *Server) recordApprovalDecision(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	intent, err := repository.RecordApprovalDecision(r.Context(), state.ApprovalDecisionInput{
-		IntentID: r.PathValue("intentID"), ApproverID: request.ApproverID,
+		IntentID: intentID, ApproverID: request.ApproverID, Tenant: tenant,
 		ProposalHash: request.ProposalHash, Decision: request.Decision,
 		DecisionReason: request.DecisionReason,
 	})
 	if err != nil {
+		if tenant != nil && errors.Is(err, state.ErrApprovalUnauthorized) {
+			writeError(w, http.StatusForbidden, "APPROVAL_UNAUTHORIZED", "tenant cannot decide this approval", nil)
+			return
+		}
 		writeRepositoryError(w, err)
 		return
+	}
+	if tenant != nil {
+		// An idempotent decision can return an intent that has since been granted.
+		intent.GrantToken, intent.GrantScopeHash, intent.GrantExpiresAt = "", "", nil
 	}
 	writeJSON(w, http.StatusOK, intent)
 }
@@ -501,6 +533,26 @@ func (s *Server) applyApproval(w http.ResponseWriter, r *http.Request) {
 	}
 	if identity := authenticatedIdentity(r.Context()); identity != "" {
 		request.ActorID = identity
+	}
+	if s.publicAPIAuth {
+		id, err := uuid.Parse(r.PathValue("intentID"))
+		if err != nil {
+			writeRepositoryError(w, state.ErrApprovalNotFound)
+			return
+		}
+		intent, err := repository.GetApprovalIntent(r.Context(), id.String())
+		if err != nil {
+			writeRepositoryError(w, err)
+			return
+		}
+		if (request.IntentID != "" && request.IntentID != intent.IntentID) ||
+			(request.WorkflowID != "" && request.WorkflowID != intent.WorkflowID) ||
+			(request.NodeID != "" && request.NodeID != intent.NodeID) ||
+			(request.Iteration != 0 && request.Iteration != intent.Iteration) {
+			writeRepositoryError(w, state.ErrApprovalMismatch)
+			return
+		}
+		request.IntentID, request.WorkflowID, request.NodeID, request.Iteration = intent.IntentID, intent.WorkflowID, intent.NodeID, intent.Iteration
 	}
 	if request.WorkflowID == "" || request.NodeID == "" || request.OwnerID == "" || request.Epoch <= 0 || request.IntentID == "" || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "workflow, node, intent, lease, and actor identity are required", nil)
@@ -532,9 +584,13 @@ func (s *Server) requestCancellation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "client_key and observed_revision are required", nil)
 		return
 	}
+	var namespace string
+	if tenant := tenantIdentity(r.Context()); tenant != nil {
+		namespace = tenant.Namespace
+	}
 	result, err := repository.RequestCancellation(r.Context(), state.CancellationRequestInput{
 		WorkflowID: r.PathValue("workflowID"), ClientKey: request.ClientKey,
-		ObservedRevision: request.ObservedRevision,
+		ObservedRevision: request.ObservedRevision, TenantNamespace: namespace,
 	})
 	if err != nil {
 		writeRepositoryError(w, err)
@@ -637,14 +693,24 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
-	if request.Namespace == "" {
+	tenant := tenantIdentity(r.Context())
+	if tenant != nil {
+		if request.Namespace != "" && request.Namespace != tenant.Namespace {
+			writeError(w, http.StatusForbidden, "NAMESPACE_FORBIDDEN", "namespace does not match tenant token", nil)
+			return
+		}
+		request.Namespace = tenant.Namespace
+		request.ActorID = tenant.Subject
+	} else if request.Namespace == "" {
 		request.Namespace = "default"
 	}
 	if request.WorkflowID == "" {
 		request.WorkflowID = state.NewID()
 	}
-	if identity := authenticatedIdentity(r.Context()); identity != "" {
-		request.ActorID = identity
+	if tenant == nil {
+		if identity := authenticatedIdentity(r.Context()); identity != "" {
+			request.ActorID = identity
+		}
 	}
 	if request.ActorID == "" {
 		request.ActorID = "client"
@@ -678,6 +744,7 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 		InitialNodeID:         request.InitialNodeID,
 		InitialInput:          initialInput,
 		ActorID:               request.ActorID,
+		Tenant:                tenant,
 	})
 	if err != nil {
 		writeRepositoryError(w, err)
@@ -692,7 +759,7 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getWorkflow(w http.ResponseWriter, r *http.Request) {
 	workflowID := r.PathValue("workflowID")
-	workflow, err := s.repository.GetWorkflow(r.Context(), workflowID)
+	workflow, err := s.getVisibleWorkflow(r.Context(), workflowID)
 	if err != nil {
 		writeRepositoryError(w, err)
 		return
@@ -725,7 +792,7 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "limit must be between 1 and 1000", nil)
 		return
 	}
-	workflow, err := s.repository.GetWorkflow(r.Context(), workflowID)
+	workflow, err := s.getVisibleWorkflow(r.Context(), workflowID)
 	if err != nil {
 		writeRepositoryError(w, err)
 		return
