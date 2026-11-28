@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -78,28 +79,13 @@ func TestReplayCommandUsesOnlySealedWAL(t *testing.T) {
 }
 
 func TestRecoveredTimelineAndRange(t *testing.T) {
+	wal, logs := completeReplayFixture()
 	r := restoreReceipt{
 		State: targetState{SystemID: 123, Version: serverVersion, Timeline: 2, PreviousTimeline: 1, DataDirectory: targetData,
 			ReplayLSN: "0/4000000", Recovered: true, SocketOnly: true, ReadOnly: true, Restricted: true,
 			DatabaseBytes: 12, ClusterBytes: 37, WALBytes: walSegmentBytes},
-		WAL:           walProof{Start: "0/1000028", End: "0/4000000", FinalRecord: "0/3002048", NextSegment: segmentName(1, 4)},
-		ReplayLogs:    "LOG: redo done at 0/3002048 system usage: example\nLOG: selected new timeline ID: 2\n",
-		FirstReplayNS: 123, History: "1\t0/4000000\tno recovery target specified\n",
-	}
-	logs := ""
-	for i := uint64(1); i < 4; i++ {
-		logs += "j7-archive restored " + segmentName(1, i) + "\n"
-	}
-	cut := cutReceipt{PreSwitch: sourceSample{Timeline: 1}}
-	if err := checkReplaySegments(logs+"j7-archive absent "+segmentName(1, 4)+"\n", cut, r.WAL); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkReplaySegments(logs, cut, r.WAL); err == nil {
-		t.Fatal("accepted recovery without the archive-end probe")
-	}
-	if err := checkReplaySegments(strings.Replace(logs, "j7-archive restored "+segmentName(1, 2)+"\n", "", 1)+
-		"j7-archive absent "+segmentName(1, 4)+"\n", cut, r.WAL); err == nil {
-		t.Fatal("accepted recovery with no proof of the interior segment")
+		WAL: wal, ReplayLogs: logs, FirstReplayNS: 123, ReadyObservedNS: 125,
+		History: "1\t0/4000000\tno recovery target specified\n",
 	}
 	src := sourceState{SystemID: 123, Timeline: 1}
 	if err := r.verifyReplay(src); err != nil {
@@ -114,6 +100,7 @@ func TestRecoveredTimelineAndRange(t *testing.T) {
 		{"replay_stopped_before_switch", func(r *restoreReceipt) { r.State.ReplayLSN = r.WAL.FinalRecord }},
 		{"fork_before_C", func(r *restoreReceipt) { r.History = "1\t0/3002028\tunexpected\n" }},
 		{"different_last_record", func(r *restoreReceipt) { r.ReplayLogs = strings.Replace(r.ReplayLogs, "0/3002048", "0/3002040", 1) }},
+		{"missing_ready_observation", func(r *restoreReceipt) { r.ReadyObservedNS = 0 }},
 		{"writer_access", func(r *restoreReceipt) { r.State.SocketOnly = false }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -121,6 +108,86 @@ func TestRecoveredTimelineAndRange(t *testing.T) {
 			tc.change(&mutant)
 			if err := mutant.verifyReplay(src); err == nil {
 				t.Fatal("invalid target replay was accepted")
+			}
+		})
+	}
+}
+
+func completeReplayFixture() (walProof, string) {
+	wal := walProof{Start: "0/1000028", End: "0/4000000", FinalRecord: "0/3002048", NextSegment: segmentName(1, 4)}
+	logs := "LOG: redo starts at 0/1000028\n"
+	for i := uint64(1); i < 4; i++ {
+		logs += "j7-archive restored " + segmentName(1, i) + "\n"
+	}
+	logs += "j7-archive absent " + wal.NextSegment + "\n" +
+		"LOG: redo done at 0/3002048 system usage: example\n" +
+		"LOG: selected new timeline ID: 2\n" +
+		"LOG: archive recovery complete\n" +
+		"LOG: database system is ready to accept connections\n"
+	return wal, logs
+}
+
+func TestReplayLogReadiness(t *testing.T) {
+	wal, complete := completeReplayFixture()
+	const accepting = "LOG: database system is ready to accept connections\n"
+	for _, tc := range []struct {
+		name, logs string
+		started    bool
+		timeline   uint32
+		fail       bool
+	}{
+		{name: "before_redo", logs: "LOG: starting archive recovery\n"},
+		{name: "standby_start_returned", logs: "LOG: redo starts at 0/1000028\n", started: true},
+		{name: "read_only_standby", logs: "LOG: redo starts at 0/1000028\nLOG: database system is ready to accept read-only connections\n", started: true},
+		{name: "archive_complete_socket_not_ready", logs: strings.TrimSuffix(complete, accepting), started: true},
+		{name: "normal_acceptance_before_archive_complete", logs: strings.Replace(complete, "LOG: archive recovery complete\n"+accepting, accepting+"LOG: archive recovery complete\n", 1), started: true, fail: true},
+		{name: "missing_interior_segment", logs: strings.Replace(complete, "j7-archive restored "+segmentName(1, 2)+"\n", "", 1), started: true, fail: true},
+		{name: "no_end_of_archive_probe", logs: strings.Replace(complete, "j7-archive absent "+wal.NextSegment+"\n", "", 1), started: true, fail: true},
+		{name: "wrong_last_record", logs: strings.Replace(complete, wal.FinalRecord, "0/3002000", 1), started: true, fail: true},
+		{name: "fatal_replay_error", logs: complete + "FATAL: recovery failed\n", fail: true},
+		{name: "sealed_end_and_normal_acceptance", logs: complete, started: true, timeline: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			started, timeline, err := replayLogStatus(tc.logs, 1, wal)
+			if (err != nil) != tc.fail || started != tc.started || timeline != tc.timeline {
+				t.Fatalf("readiness = %t, %d, %v; want %t, %d, error=%t", started, timeline, err, tc.started, tc.timeline, tc.fail)
+			}
+		})
+	}
+}
+
+func TestAwaitArchiveReplayRequiresReadySocket(t *testing.T) {
+	wal, complete := completeReplayFixture()
+	var now int64 = 10
+	clock := func() (int64, error) { now++; return now, nil }
+	for _, tc := range []struct {
+		name      string
+		socketErr error
+	}{
+		{name: "accepts_connections"},
+		{name: "rejects_connections", socketErr: errors.New("socket not accepting")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := restoreReceipt{WAL: wal}
+			reads := 0
+			err := awaitArchiveReplay(t.Context(), 1, clock, &r, func(context.Context) ([]byte, error) {
+				reads++
+				if reads == 1 {
+					return []byte("LOG: redo starts at 0/1000028\n"), nil
+				}
+				return []byte(complete), nil
+			}, func(context.Context) error {
+				if reads != 2 || r.FirstReplayNS != now || r.ReadyObservedNS != 0 {
+					t.Fatal("socket probe ran before the sealed replay witness")
+				}
+				return tc.socketErr
+			})
+			if !errors.Is(err, tc.socketErr) {
+				t.Fatalf("wait for replay: %v, want %v", err, tc.socketErr)
+			}
+			if tc.socketErr == nil && r.ReadyObservedNS <= r.FirstReplayNS ||
+				tc.socketErr != nil && r.ReadyObservedNS != 0 || r.RecoveredNS != 0 {
+				t.Fatalf("invalid observations: first=%d ready=%d recovered=%d", r.FirstReplayNS, r.ReadyObservedNS, r.RecoveredNS)
 			}
 		})
 	}

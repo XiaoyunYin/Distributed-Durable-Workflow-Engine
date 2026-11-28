@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -329,7 +328,7 @@ func restoreIsolated(ctx context.Context, in restoreInputs, source mediaSource, 
 	if err != nil {
 		return r, err
 	}
-	err = d.awaitReplay(ctx, in.cut, source.now, &r)
+	err = d.awaitReplay(ctx, in.cut.PreSwitch.Timeline, in.config.Database, source.now, &r)
 	if err != nil {
 		return r, err
 	}
@@ -442,28 +441,20 @@ func readPrivateDSN(path string) (string, error) {
 	return strings.TrimSpace(string(raw)), nil
 }
 
-var (
-	redoDone    = regexp.MustCompile(`(?m)redo done at ([[:xdigit:]]+/[[:xdigit:]]+)\b`)
-	newTimeline = regexp.MustCompile(`(?m)selected new timeline ID: ([0-9]+)\b`)
-)
-
 func (r restoreReceipt) verifyReplay(s sourceState) error {
 	t := r.State
 	replayed, replayErr := parseLSN(t.ReplayLSN)
 	end, endErr := parseLSN(r.WAL.End)
-	redo := redoDone.FindAllStringSubmatch(r.ReplayLogs, -1)
-	timelines := newTimeline.FindAllStringSubmatch(r.ReplayLogs, -1)
+	_, selected, err := replayLogStatus(r.ReplayLogs, s.Timeline, r.WAL)
+	if err != nil {
+		return err
+	}
 	if t.SystemID != s.SystemID || t.Version != serverVersion || t.Timeline <= s.Timeline ||
 		(t.PreviousTimeline != s.Timeline && t.PreviousTimeline != t.Timeline) || t.DataDirectory != targetData ||
 		replayErr != nil || endErr != nil || replayed != end || !t.Recovered || !t.SocketOnly || !t.ReadOnly || !t.Restricted ||
 		t.DatabaseBytes <= 0 || t.DatabaseBytes > maxDatabaseSize || t.ClusterBytes < t.DatabaseBytes || t.WALBytes < walSegmentBytes ||
-		r.FirstReplayNS <= 0 || len(redo) != 1 || len(timelines) != 1 || timelines[0][1] != fmt.Sprint(t.Timeline) {
+		r.FirstReplayNS <= 0 || r.ReadyObservedNS < r.FirstReplayNS || selected != t.Timeline {
 		return errors.New("target identity, isolation or replay end does not match the sealed source")
-	}
-	redoLSN, redoErr := parseLSN(redo[0][1])
-	last, lastErr := parseLSN(r.WAL.FinalRecord)
-	if redoErr != nil || lastErr != nil || redoLSN != last {
-		return errors.New("recovery log stopped at a different WAL record than pg_waldump")
 	}
 	return matchTimelineHistory(r.History, s.Timeline, end)
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -202,36 +204,63 @@ func checkIsolatedContainer(c isolatedContainer, in restoreInputs, manifest, bin
 	return nil
 }
 
-func (d restoreDocker) awaitReplay(ctx context.Context, c cutReceipt, now restoreledger.Clock, r *restoreReceipt) error {
+func (d restoreDocker) awaitReplay(ctx context.Context, timeline uint32, database string, now restoreledger.Clock, r *restoreReceipt) error {
+	return awaitArchiveReplay(ctx, timeline, now, r, func(ctx context.Context) ([]byte, error) {
+		raw, err := d.logs.command(ctx, "container", "logs", r.TargetID)
+		if err != nil {
+			return nil, err
+		}
+		status, err := d.container(ctx, r.TargetID)
+		if err != nil {
+			return raw, err
+		}
+		if !runningSource(status.State) || status.RestartCount != 0 {
+			return raw, errors.New("isolated target exited or restarted while waiting for archive recovery")
+		}
+		return raw, nil
+	}, func(ctx context.Context) error {
+		_, err := d.command(ctx, "container", "exec", "--user=postgres", r.TargetID, "pg_isready",
+			"--quiet", "--host="+targetSocket, "--port=5432", "--username="+observerRole,
+			"--dbname="+database, "--timeout=2")
+		return err
+	})
+}
+
+// A successful postmaster start is not a replay witness. Even pg_ctl -w
+// accepts the standby PID-file status while hot standby is disabled.
+func awaitArchiveReplay(ctx context.Context, timeline uint32, now restoreledger.Clock, r *restoreReceipt,
+	readLogs func(context.Context) ([]byte, error), socketReady func(context.Context) error) error {
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		raw, err := d.logs.command(ctx, "container", "logs", r.TargetID)
+		raw, err := readLogs(ctx)
+		r.ReplayLogs = string(raw)
 		if err != nil {
 			return err
 		}
-		r.ReplayLogs = string(raw)
-		if len(raw) > 1<<20 || strings.Contains(r.ReplayLogs, "j7-archive integrity error:") ||
-			strings.Contains(r.ReplayLogs, "PANIC:") || strings.Contains(r.ReplayLogs, "FATAL:") {
-			return errors.New("isolated replay logged a fatal error or oversized output")
+		started, selected, err := replayLogStatus(r.ReplayLogs, timeline, r.WAL)
+		if err != nil {
+			return err
 		}
-		if r.FirstReplayNS == 0 && strings.Contains(r.ReplayLogs, "redo starts at ") {
+		if r.FirstReplayNS == 0 && started {
 			r.FirstReplayNS, err = now()
 			if err != nil {
 				return err
 			}
 		}
-		if r.FirstReplayNS != 0 && strings.Contains(r.ReplayLogs, "archive recovery complete") &&
-			strings.Contains(r.ReplayLogs, "database system is ready to accept connections") {
-			r.ReadyObservedNS, err = now()
+		if selected != 0 {
+			if err := socketReady(ctx); err != nil {
+				return fmt.Errorf("isolated PostgreSQL socket rejected readiness after replay: %w", err)
+			}
+			ready, err := now()
 			if err != nil {
 				return err
 			}
-			return checkReplaySegments(r.ReplayLogs, c, r.WAL)
-		}
-		status, err := d.container(ctx, r.TargetID)
-		if err != nil || !runningSource(status.State) {
-			return errors.New("isolated target exited before archive recovery completed")
+			if r.FirstReplayNS <= 0 || ready < r.FirstReplayNS {
+				return errors.New("invalid isolated replay readiness clock")
+			}
+			r.ReadyObservedNS = ready
+			return nil
 		}
 		select {
 		case <-ctx.Done():
@@ -241,13 +270,55 @@ func (d restoreDocker) awaitReplay(ctx context.Context, c cutReceipt, now restor
 	}
 }
 
-func checkReplaySegments(logs string, c cutReceipt, proof walProof) error {
+var (
+	redoDone    = regexp.MustCompile(`redo done at ([[:xdigit:]]+/[[:xdigit:]]+)\b`)
+	newTimeline = regexp.MustCompile(`selected new timeline ID: ([0-9]+)\b`)
+)
+
+// A nonzero selected timeline means the postmaster reported normal acceptance
+// after the startup process reached the sealed end and completed recovery.
+func replayLogStatus(logs string, sourceTimeline uint32, proof walProof) (started bool, selected uint32, err error) {
+	if len(logs) > 1<<20 || strings.Contains(logs, "j7-archive integrity error:") ||
+		strings.Contains(logs, "PANIC:") || strings.Contains(logs, "FATAL:") {
+		return false, 0, errors.New("isolated replay logged a fatal error or oversized output")
+	}
+	first := strings.Index(logs, "redo starts at ")
+	ready := strings.Index(logs, "database system is ready to accept connections")
+	if ready < 0 {
+		return first >= 0, 0, nil
+	}
+	done := strings.Index(logs, "archive recovery complete")
+	if first < 0 || done <= first || ready <= done {
+		return first >= 0, 0, errors.New("normal connections were reported without completed archive replay")
+	}
+	closed := logs[:done]
+	redo := redoDone.FindAllStringSubmatchIndex(closed, -1)
+	timelines := newTimeline.FindAllStringSubmatchIndex(closed, -1)
+	if len(redo) != 1 || len(timelines) != 1 || redo[0][0] <= first || timelines[0][0] <= redo[0][0] {
+		return true, 0, errors.New("missing or misordered replay end and timeline witnesses")
+	}
+	replayed, replayErr := parseLSN(closed[redo[0][2]:redo[0][3]])
+	last, lastErr := parseLSN(proof.FinalRecord)
+	if replayErr != nil || lastErr != nil || replayed != last {
+		return true, 0, errors.New("recovery log stopped at a different WAL record than pg_waldump")
+	}
+	timeline, err := strconv.ParseUint(closed[timelines[0][2]:timelines[0][3]], 10, 32)
+	if err != nil || uint32(timeline) <= sourceTimeline {
+		return true, 0, errors.New("archive replay did not select a new timeline")
+	}
+	if err := checkReplaySegments(closed, sourceTimeline, proof); err != nil {
+		return true, 0, err
+	}
+	return true, uint32(timeline), nil
+}
+
+func checkReplaySegments(logs string, timeline uint32, proof walProof) error {
 	start, startErr := parseLSN(proof.Start)
 	end, endErr := parseLSN(proof.End)
 	if startErr != nil || endErr != nil || end <= start || end%walSegmentBytes != 0 {
 		return errors.New("invalid replay range in WAL verification")
 	}
-	names, err := segmentRange(c.PreSwitch.Timeline, start/walSegmentBytes, (end-1)/walSegmentBytes)
+	names, err := segmentRange(timeline, start/walSegmentBytes, (end-1)/walSegmentBytes)
 	if err != nil {
 		return err
 	}

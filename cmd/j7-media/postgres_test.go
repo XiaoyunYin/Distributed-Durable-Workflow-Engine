@@ -229,12 +229,30 @@ func testPostgresReplay(t *testing.T, ctx context.Context, source mediaSource, c
 		logs, _ := os.ReadFile(log)
 		t.Fatalf("start isolated PostgreSQL fixture: %v\n%s\n%s", err, raw, logs)
 	}
+	now, _, err := restoreledger.HostClock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay := restoreReceipt{WAL: wal}
+	err = awaitArchiveReplay(ctx, cut.PreSwitch.Timeline, now, &replay, func(context.Context) ([]byte, error) {
+		return os.ReadFile(log)
+	}, func(ctx context.Context) error {
+		raw, err := exec.CommandContext(ctx, filepath.Join(source.pgBin, "pg_isready"), "--quiet",
+			"--host="+root, "--port=5432", "--username=j7_fixture", "--dbname=postgres", "--timeout=2").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%w: %s", err, raw)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("wait for isolated PostgreSQL fixture: %v\n%s", err, replay.ReplayLogs)
+	}
 	service := "host=" + quote(root) + " user=j7_fixture dbname=postgres"
 	raw, err := exec.CommandContext(ctx, filepath.Join(source.pgBin, "psql"), "--no-psqlrc",
 		"--no-password", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1", "--dbname="+service,
 		"--command=SELECT pg_last_wal_replay_lsn(), (SELECT timeline_id FROM pg_control_checkpoint()), pg_is_in_recovery(), (SELECT count(*) FROM engine.workflow_executions);").CombinedOutput()
 	if err != nil {
-		t.Fatalf("observe restored fixture: %v\n%s", err, raw)
+		t.Fatalf("observe restored fixture: %v\n%s\n%s", err, raw, replay.ReplayLogs)
 	}
 	fields := strings.Split(strings.TrimSpace(string(raw)), "|")
 	if len(fields) != 4 || fields[1] != "2" || fields[2] != "f" || fields[3] != "12" {
@@ -245,18 +263,17 @@ func testPostgresReplay(t *testing.T, ctx context.Context, source mediaSource, c
 	if replayErr != nil || endErr != nil || replayed != end {
 		t.Fatalf("padded replay LSN %s differs from archive end %s", fields[0], wal.End)
 	}
-	logs, err := os.ReadFile(log)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkReplaySegments(string(logs), cut, wal); err != nil {
-		t.Fatalf("recovery process did not witness sealed archive: %v\n%s", err, logs)
-	}
 	history, err := os.ReadFile(filepath.Join(target, "pg_wal", "00000002.history"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := matchTimelineHistory(string(history), backup.Source.Timeline, end); err != nil {
 		t.Fatal(err)
+	}
+	recovered, err := now()
+	if err != nil || replay.FirstReplayNS <= 0 || replay.FirstReplayNS > replay.ReadyObservedNS ||
+		replay.ReadyObservedNS > recovered {
+		t.Fatalf("invalid replay milestones: first=%d ready=%d recovered=%d, %v",
+			replay.FirstReplayNS, replay.ReadyObservedNS, recovered, err)
 	}
 }
