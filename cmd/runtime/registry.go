@@ -51,7 +51,7 @@ func registryCommand(args []string, output io.Writer) error {
 	if (*freshWorkers && len(survivors) > 0) || (state.K6Enabled() && !*freshWorkers && len(survivors) == 0) {
 		return errors.New("K6 compatibility requires a surviving-worker inventory or a fresh consumer group")
 	}
-	if os.Getenv(state.RecordedLLMMode) == "1" && !*freshWorkers && len(survivors) == 0 {
+	if state.RecordedLLMEnabled() && !*freshWorkers && len(survivors) == 0 {
 		return errors.New("J4 compatibility requires a surviving-worker inventory or a fresh consumer group")
 	}
 	for _, path := range survivors {

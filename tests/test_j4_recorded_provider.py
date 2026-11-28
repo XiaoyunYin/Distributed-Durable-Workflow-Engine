@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from workers import recorded_activity, recorded_wire
 from workers.control import Claim
-from workers.recorded_activity import ProviderConfig
+from workers.recorded_activity import RESILIENCE_MODE, ProviderConfig
 from workers.recorded_stub import ReceiptJournal, StubHandler, StubServer
 from workers.recorded_wire import ACTIVITY, MODE, CallIdentity, canonical_request, request_once
 from workers.registry import default_registry
@@ -215,6 +215,7 @@ def test_core_runner_reports_one_result_through_claim_path(
     stub: Path, monkeypatch: pytest.MonkeyPatch, arm: str, value: dict, expected: str
 ) -> None:
     monkeypatch.setenv(MODE, "1")
+    monkeypatch.delenv(RESILIENCE_MODE, raising=False)
     monkeypatch.setattr(ProviderConfig, "load", lambda: ProviderConfig(HOST, f"{arm}-test"))
     sent: list[CallIdentity] = []
 

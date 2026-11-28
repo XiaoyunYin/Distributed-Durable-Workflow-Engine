@@ -22,14 +22,22 @@ func K6Enabled() bool { return os.Getenv("DUR053_K6_ACTIVITY") == "1" }
 
 const RecordedLLMActivity = "j4.recorded-llm"
 const RecordedLLMMode = "J4_RECORDED_LLM_ACTIVITY"
+const ProviderResilienceMode = "J4_PROVIDER_RESILIENCE"
 
 func ValidateRecordedLLMMode() error {
-	value, present := os.LookupEnv(RecordedLLMMode)
-	if !present || value == "0" || value == "1" {
-		return nil
+	for _, name := range []string{RecordedLLMMode, ProviderResilienceMode} {
+		if value, present := os.LookupEnv(name); present && value != "0" && value != "1" {
+			return fmt.Errorf("%s must be 0 or 1", name)
+		}
 	}
-	return fmt.Errorf("%s must be 0 or 1", RecordedLLMMode)
+	if ProviderResilienceEnabled() && !RecordedLLMEnabled() {
+		return errors.New("J4_PROVIDER_RESILIENCE requires J4_RECORDED_LLM_ACTIVITY=1")
+	}
+	return nil
 }
+
+func RecordedLLMEnabled() bool        { return os.Getenv(RecordedLLMMode) == "1" }
+func ProviderResilienceEnabled() bool { return os.Getenv(ProviderResilienceMode) == "1" }
 
 // RuntimeRegistry is the effective allowlist used by dispatch and image export.
 func RuntimeRegistry() []ActivityVersion {
@@ -43,7 +51,7 @@ func RuntimeRegistry() []ActivityVersion {
 	if K6Enabled() {
 		entries = append(entries, ActivityVersion{K6Activity, "v1", EffectCooperating})
 	}
-	if os.Getenv(RecordedLLMMode) == "1" {
+	if RecordedLLMEnabled() {
 		entries = append(entries, ActivityVersion{RecordedLLMActivity, "v1", ""})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })

@@ -64,6 +64,7 @@ type Server struct {
 	demandRepository DemandRepository
 	demandNamespace  string
 	k6               *K6WorkerControl
+	j4               j4ProviderControl
 }
 
 type K6WorkerControl struct {
@@ -103,6 +104,9 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
+	}
+	if s.routes == RoutesWorkerControl && s.j4 != nil {
+		s.registerJ4Routes(mux)
 	}
 	if s.routes == RoutesCombined || s.routes == RoutesOperator {
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/approval", s.createApproval)
@@ -366,12 +370,19 @@ func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
 		writeRepositoryError(w, state.ErrInvalidAttemptState)
 		return
 	}
-	receipt, err := repository.RecordResultReceipt(r.Context(), state.ResultInput{
+	input := state.ResultInput{
 		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
 		AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
 		AttemptState: request.AttemptState, Payload: request.Payload,
 		EventType: request.EventType, ReconciliationRef: request.ReconciliationRef,
-	})
+	}
+	if s.routes == RoutesWorkerControl && s.j4 != nil && nodeID == state.RecordedLLMActivity {
+		if err := s.j4.CheckResult(r.Context(), input); err != nil {
+			writeJ4Error(w, err)
+			return
+		}
+	}
+	receipt, err := repository.RecordResultReceipt(r.Context(), input)
 	if err != nil {
 		writeRepositoryError(w, err)
 		return

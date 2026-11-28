@@ -35,13 +35,24 @@ from workers.recorded_wire import (
 CORE_TIMEOUT_NS = 10_000_000_000
 CONFIG_PATH = Path("/etc/j4/worker.json")
 EGRESS_PROOF = Path("/run/j4-egress/installed.json")
+RESILIENCE_MODE = "J4_PROVIDER_RESILIENCE"
+
+
+def recorded_provider_modes() -> tuple[bool, bool]:
+    enabled = []
+    for name in (MODE, RESILIENCE_MODE):
+        value = os.getenv(name, "0")
+        if value not in {"0", "1"}:
+            raise ValueError(f"{name} must be 0 or 1")
+        enabled.append(value == "1")
+    activity, resilience = enabled
+    if resilience and not activity:
+        raise ValueError(f"{RESILIENCE_MODE} requires {MODE}=1")
+    return activity, resilience
 
 
 def recorded_activity_enabled() -> bool:
-    mode = os.getenv(MODE, "0")
-    if mode not in {"0", "1"}:
-        raise ValueError(f"{MODE} must be 0 or 1")
-    return mode == "1"
+    return recorded_provider_modes()[0]
 
 
 @dataclass(frozen=True)

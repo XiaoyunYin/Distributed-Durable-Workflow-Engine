@@ -10,12 +10,14 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Protocol
 
 from workers import k6_evidence
 from workers.control import Claim, ControlClient, ControlError
 from workers.k6_effect import EffectAdapter
-from workers.recorded_activity import RecordedActivity, recorded_activity_enabled
+from workers.recorded_activity import RecordedActivity, recorded_provider_modes
+from workers.recorded_retry import complete_resilient
 from workers.registry import K6_ACTIVITY, K6_EFFECT_CLASS, K6_VERSION, ActivityRegistry
 from workers.witness import configured_witness
 
@@ -55,6 +57,10 @@ class WorkerControl(Protocol):
         payload: Any,
         event_type: str = "",
         reconciliation_ref: str = "",
+    ) -> dict[str, Any]: ...
+
+    def provider_exchange(
+        self, workflow_id: str, node_id: str, iteration: int, action: str, body: dict[str, Any]
     ) -> dict[str, Any]: ...
 
 
@@ -106,7 +112,7 @@ class ActivityRunner:
         if cooperating and (self.k6 is None or task.node_id != K6_ACTIVITY):
             raise ControlError(403, "K6_ACTIVITY_DISABLED", "K6 activity unavailable")
         recorded = isinstance(activity, RecordedActivity)
-        j4 = recorded_activity_enabled()
+        j4, resilience = recorded_provider_modes()
         lease_ms = 12_000 if j4 else task.attempt_lease_ms
         heartbeat_interval = 2.0 if j4 else self.heartbeat_interval
         claim_started = time.monotonic_ns() if cooperating else 0
@@ -267,14 +273,31 @@ class ActivityRunner:
                         fields = {key: str(value) for key, value in event.items()}
                         self.deployment_hook("j4_provider", {**hook_fields, **fields})
 
-                attempt_state, payload = activity.complete(
-                    task.input,
-                    workflow_id=task.workflow_id,
-                    node_id=task.node_id,
-                    iteration=task.iteration,
-                    attempt=claim.attempt_number,
-                    trace=record_provider,
-                )
+                if resilience:
+                    attempt_state, payload = complete_resilient(
+                        task.input,
+                        workflow_id=task.workflow_id,
+                        node_id=task.node_id,
+                        iteration=task.iteration,
+                        attempt=claim.attempt_number,
+                        claim_token=claim.claim_token,
+                        exchange=partial(
+                            self.control.provider_exchange,
+                            task.workflow_id,
+                            task.node_id,
+                            task.iteration,
+                        ),
+                        trace=record_provider,
+                    )
+                else:
+                    attempt_state, payload = activity.complete(
+                        task.input,
+                        workflow_id=task.workflow_id,
+                        node_id=task.node_id,
+                        iteration=task.iteration,
+                        attempt=claim.attempt_number,
+                        trace=record_provider,
+                    )
             elif evidence is None or pure_entry is None:
                 payload = activity(task.input)
                 attempt_state = "SUCCEEDED"
@@ -286,6 +309,8 @@ class ActivityRunner:
                 finally:
                     evidence.record_timing("activity", payload_started, invocation=pure_entry[0])
         except Exception as error:
+            if recorded and resilience:
+                raise
             payload = {"error": str(error), "type": type(error).__name__}
             attempt_state = "FAILED_FINAL" if recorded else "FAILED_RETRYABLE"
         finally:
