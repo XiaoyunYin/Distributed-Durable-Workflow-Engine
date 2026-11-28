@@ -2,6 +2,7 @@ import hashlib
 import json
 import sys
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -370,6 +371,106 @@ def test_clean_expiry_retains_unacknowledged_pending_and_missing_identities(tmp_
     assert evidence["pending_lower_bound_ns"]["a"] > 600 * S
     assert retained[-2][0] == "final"
     assert drain.read(tmp_path / "live-checker.json")["status"] == "PASS"
+
+
+@pytest.fixture
+def expiry_driver(tmp_path, monkeypatch):
+    clock = DrainClock()
+    monkeypatch.setattr(step.time, "monotonic", lambda: clock.now() / S)
+    monkeypatch.setattr(step.ObserverEvidence, "__init__", lambda *_: None)
+    driver = step.DrainHarness(tmp_path, tmp_path, None)
+    driver.output = tmp_path
+    driver.deadline = 900
+    driver.deadline_criterion = None
+    return driver, clock
+
+
+@pytest.mark.parametrize("clamped", [False, True])
+def test_cut_edge_read_keeps_watch_running_and_preserves_full_export_reserve(
+    expiry_driver, clamped
+):
+    driver, clock = expiry_driver
+    deadline = 610 * S
+    clock.ns = deadline - S // 4
+    retained = []
+    monitors = []
+
+    def health():
+        try:
+            return driver.time_left(5)
+        except ValueError as error:
+            monitors.append(error)
+
+    def observe():
+        assert driver.time_left(8) == 0.25
+        start = clock.ns
+        clock.sleep(0.5)
+        assert watcher.submit(health).result(timeout=5) == 5
+        if clamped:
+            raise TimeoutError("final state read reached its drain deadline")
+        return {**snapshot(start), "upper_mono_ns": clock.ns, "upper_unix_ns": clock.ns}
+
+    def export():
+        assert not monitors
+        assert driver.time_left(600) == step.EXPIRY_EXPORT_SECONDS
+        state = clock.read(unpublished=8)
+        clock.sleep(step.EXPIRY_EXPORT_SECONDS - 0.2)
+        return state
+
+    with (
+        ThreadPoolExecutor(max_workers=1) as watcher,
+        driver.command_deadline(deadline / S),
+        pytest.raises(drain.DrainExpired) as expired,
+    ):
+        drive(
+            clock,
+            observe,
+            lambda _: pytest.fail("straddling read started quiet"),
+            retained,
+            expiry=lambda: step.checked_expiry_export(driver, deadline, export, now=clock.now),
+        )
+    proof = expired.value.result
+    assert proof["check_status"] == "PASS" and proof["unpublished"] == 8
+    assert proof["last_verified_read"] is None and proof["drain_seconds"] == 600
+    assert ("read-error" in [label for label, _ in retained]) == clamped
+    record = drain.read(driver.output / "expiry-export-budget.json")
+    assert record["start_mono_ns"] == deadline + S // 4
+    assert record["deadline_mono_ns"] == record["start_mono_ns"] + step.EXPIRY_EXPORT_SECONDS * S
+    assert record["status"] == "PASS"
+    assert record["end_mono_ns"] <= record["deadline_mono_ns"]
+    assert driver.deadline == 900
+
+
+@pytest.mark.parametrize("command_timeout", [False, True])
+def test_checked_expiry_export_overrun_fails_closed(expiry_driver, command_timeout):
+    driver, clock = expiry_driver
+    deadline = 610 * S
+    clock.ns = deadline
+    retained = []
+
+    def export():
+        state = clock.read(unpublished=8)
+        clock.sleep(step.EXPIRY_EXPORT_SECONDS)
+        if command_timeout:
+            driver.time_left(600)
+        return state
+
+    with pytest.raises(
+        drain.IntegrityError, match="checked expiry export exceeded its 120 s reserve"
+    ):
+        drive(
+            clock,
+            lambda: pytest.fail("started a read after expiry"),
+            lambda _: None,
+            retained,
+            expiry=lambda: step.checked_expiry_export(driver, deadline, export, now=clock.now),
+        )
+    assert retained[-1][0] == "deadline"
+    assert retained[-1][1]["check_status"] == "failed"
+    assert retained[-1][1]["classification"] == "integrity_stop"
+    budget = drain.read(driver.output / "expiry-export-budget.json")
+    assert budget["status"] == "failed" and budget["end_mono_ns"] > budget["deadline_mono_ns"]
+    assert driver.deadline == 900
 
 
 def test_acknowledged_identity_absent_at_expiry_is_an_integrity_stop():

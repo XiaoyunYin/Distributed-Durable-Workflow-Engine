@@ -7,7 +7,8 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar, copy_context
 from pathlib import Path
 from threading import Event
 
@@ -78,6 +79,9 @@ STEP = 300
 HOLD_RATES = ("1", "4", "8")
 POPULATION_LIMIT = 26678
 WORK_MINUTES = 75
+# The longest completed full-clock expiry took 80.994 s after the drain cut.
+EXPIRY_HANDOFF_SECONDS = 10
+EXPIRY_EXPORT_SECONDS = 120
 TERMINAL_SQL = (
     "SELECT workflow_id FROM engine.workflow_executions "
     "WHERE state IN ('SUCCEEDED','FAILED','CANCELED','REJECTED','ABANDONED') ORDER BY 1;"
@@ -141,10 +145,28 @@ class DrainHarness(ObserverEvidence, Harness):
     app = APP
 
     def __init__(self, output, scratch, checker):
+        self._command_deadline = ContextVar("j2_command_deadline", default=None)
         super().__init__(output, scratch, checker)
         self.deadline = time.monotonic() + 60 * WORK_MINUTES
         self.live_reservation = 100 * 60
         self.pod_imports = (*SCHEDULE_POD_IMPORTS, "resource", "shutil")
+
+    @property
+    def deadline(self):
+        current = self._command_deadline.get()
+        return self._work_deadline if current is None else current
+
+    @deadline.setter
+    def deadline(self, value):
+        self._work_deadline = value
+
+    @contextmanager
+    def command_deadline(self, value):
+        token = self._command_deadline.set(value)
+        try:
+            yield
+        finally:
+            self._command_deadline.reset(token)
 
     def read_database(self, sql, *, timeout=8, statement_timeout="2s", inspect_error=False):
         result = self.command(
@@ -452,10 +474,12 @@ def retain_sender(
         execute = run_continuous if stepped else run_stock
     cancelled = Event()
     with ThreadPoolExecutor(max_workers=2) as pool:
-        sender = pool.submit(execute, driver, schedule, partial=False)
+        sender = pool.submit(copy_context().run, execute, driver, schedule, partial=False)
         if stepped:
             step_mono = stop_mono - (schedule["stop_ns"] - schedule["hold_end_ns"])
-            carry = pool.submit(carry_probe, driver, schedule, step_mono, cancelled)
+            carry = pool.submit(
+                copy_context().run, carry_probe, driver, schedule, step_mono, cancelled
+            )
         try:
             while time.monotonic_ns() < stop_mono:
                 check_monitor(errors)
@@ -588,6 +612,40 @@ def exercise(driver, name, *, stepped, hold_rate):
         raise CarryInUnobserved(f"no natural carry-in observed at engineering hold {hold_rate}/s")
 
 
+def checked_expiry_export(driver, deadline, export, *, now=time.monotonic_ns):
+    started = now()
+    limit = started + EXPIRY_EXPORT_SECONDS * SECOND
+    record = {"start_mono_ns": started, "deadline_mono_ns": limit, "status": "failed"}
+    try:
+        require(
+            deadline <= started <= deadline + EXPIRY_HANDOFF_SECONDS * SECOND,
+            f"checked expiry export missed its {EXPIRY_HANDOFF_SECONDS} s drain handoff",
+        )
+        reason = f"checked expiry export exceeded its {EXPIRY_EXPORT_SECONDS} s reserve"
+        # Give the export its full budget after any clamped read has unwound.
+        with driver.command_deadline(limit / SECOND):
+            try:
+                state = export()
+            except ResourceEvidenceError:
+                raise
+            except (OSError, ValueError, RuntimeError) as error:
+                if now() >= limit:
+                    raise IntegrityError(reason) from error
+                raise
+            finished = now()
+            if finished > limit:
+                raise IntegrityError(reason)
+        record.update(status="PASS", end_mono_ns=finished)
+        return state
+    except Exception as error:
+        record["error"] = str(error)
+        raise
+    finally:
+        if "end_mono_ns" not in record:
+            record["end_mono_ns"] = now()
+        write(driver.output / "expiry-export-budget.json", record)
+
+
 def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visibility_delay=0):
     output = driver.output
     polls = Polls(output)
@@ -597,6 +655,7 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
         observer_resources(driver),
         watch(driver) as (pods, errors),
         ExitStack() as diagnostics,
+        ExitStack() as polling,
     ):
         setup = driver.clock()
         write(output / "setup-clock.json", setup)
@@ -611,20 +670,30 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
         schedule = {**build_schedule(), "state_read_evidence": STATE_READ_SCHEMA}
         anchor_wall, anchor_mono = time.time_ns(), time.monotonic_ns()
         stop_mono = anchor_mono + schedule["stop_ns"] - anchor_wall
+        deadline = stop_mono + DRAIN_SECONDS * SECOND
+        expiry_start_by = deadline + EXPIRY_HANDOFF_SECONDS * SECOND
+        expiry_end_by = expiry_start_by + EXPIRY_EXPORT_SECONDS * SECOND
         write(
             output / "deadline-anchor.json",
             {
                 "anchor_unix_ns": anchor_wall,
                 "anchor_mono_ns": anchor_mono,
                 "stop_mono_ns": stop_mono,
+                "work_deadline_mono_ns": int(work_deadline * SECOND),
+                "expiry_start_by_mono_ns": expiry_start_by,
+                "expiry_end_by_mono_ns": expiry_end_by,
             },
         )
-        deadline = stop_mono + DRAIN_SECONDS * SECOND
-        require(deadline / SECOND < work_deadline, "episode would exceed harness work budget")
+        require(
+            expiry_end_by / SECOND <= work_deadline,
+            "episode work budget cannot reserve the checked expiry export before traffic",
+        )
         diagnostics.enter_context(
             relay_attribution(driver, schedule, stop_mono, work_deadline, relay)
         )
-        driver.deadline = deadline / SECOND
+        # Keep the health thread on the work deadline so a cut-edge poll cannot
+        # leave a stale drain-deadline error for the post-expiry checker.
+        polling.enter_context(driver.command_deadline(deadline / SECOND))
         reads = StateReads(output, stop_mono)
         retain = reads.retain
 
@@ -673,10 +742,9 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
                 )
                 require_checker_resources(sampling)
 
-            def check_expiry():
+            def export_expiry():
                 # The locked checker selects and checks the same repeatable-read cut.
                 # This export uses closeout time and cannot turn expiry into a pass.
-                driver.deadline = work_deadline
                 report, bracket, sampling = capture_checker(driver, pods, errors, terminal=False)
                 inventories = sorted(driver.witness_inventories(), key=lambda row: row["pod_uid"])
                 state = checked_cut(report, bracket, inventories)
@@ -698,6 +766,9 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
                 )
                 require_checker_resources(sampling)
                 return state
+
+            def check_expiry():
+                return checked_expiry_export(driver, deadline, export_expiry)
 
             result = quiet_drain(
                 stop_ns=stop_mono,
@@ -742,7 +813,7 @@ def exercise_drain(driver, build_schedule, *, stepped=False, execute=None, visib
             result = error.result
             final = read(output / "final.json")
         finally:
-            driver.deadline = work_deadline
+            polling.close()
         result["state_read_binding"] = state_read_binding(output)
         write(output / "drain-result.json", result)
         diagnostics.close()
