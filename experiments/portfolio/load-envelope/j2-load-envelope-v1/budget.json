@@ -1,35 +1,55 @@
 {
   "approval_lanes": {
+    "harness_forecast_seconds_with_expiry_reserve": 3970,
+    "harness_work_limit_minutes": 70,
     "historical_prechecks": "replay/verification.json",
     "ids": {
-      "A": "eng-r422-a-final",
-      "AB": "eng-r422-ab-final"
+      "A": "eng-r422-a-final2",
+      "AB": "eng-r422-ab-final2"
     },
-    "job_forecast_margin_minutes": 23,
+    "job_forecast_margin_minutes": 20,
     "job_forecast_minutes": {
       "bootstrap_fresh_state_install_and_precommit": 10,
       "checked_export_teardown_and_verified_retention": 15,
       "checkout_restore_build_and_source_checks": 15,
       "drain": 10,
+      "expiry_evidence_reserve_rounded_up": 3,
       "traffic": 37
     },
     "job_hard_cap_minutes": 110,
-    "job_total_forecast_minutes": 87,
+    "job_total_forecast_minutes": 90,
     "live_step_cap_minutes": 75,
     "matrix_parallelism": 3,
     "replay_hard_cap_minutes": 90,
     "replay_reserved_minutes": 85,
     "replay_upload_reserve_minutes": 9
   },
+  "expiry_evidence_reserve": {
+    "basis": "replay/verification.json",
+    "drain_seconds": 600,
+    "export_seconds_from_actual_start": 120,
+    "full_clock_jobs": 12,
+    "handoff_seconds": 10,
+    "margin_seconds_against_observed_max": 39.006549542000016,
+    "max_seconds_after_drain": 130,
+    "observed_max_seconds_after_drain": 80.99345045799998,
+    "observed_max_source": {
+      "job": 1,
+      "run": 46096357188
+    },
+    "preflight": "Reserve the full handoff and export interval inside existing work limits before traffic.",
+    "successful_exports": 11
+  },
   "fail_fast": false,
   "live": {
     "barrier_max_seconds": 2700,
     "barrier_rule": "verified local grid publication plus 45 minutes, or sooner to preserve the full successor and closeout",
     "basis": "../slice-2-harness.md#slice-3-per-job-re-forecast",
-    "forecast_margin_minutes": 58,
+    "forecast_margin_minutes": 45,
     "forecast_minutes": {
       "barrier": 45,
       "bootstrap": 25,
+      "expiry_evidence_reserve": 13,
       "final_drain": 10,
       "final_export_teardown_upload": 25,
       "grid_arrivals": 60,
@@ -51,7 +71,7 @@
       "episode": 3510
     },
     "serial_ceiling_seconds": 18210,
-    "total_forecast_minutes": 292
+    "total_forecast_minutes": 305
   },
   "matrix_parallelism": 3,
   "paid_runner_budget_usd": 0,
@@ -82,7 +102,7 @@
   },
   "runner": "ubuntu-24.04",
   "short_clock_rehearsal": {
-    "id": "eng-r422-final-<first eight characters of the candidate SHA>",
+    "id": "eng-r422-final-<first eight characters of the new packet commit SHA>",
     "reporter_hard_cap_minutes": 90,
     "runner_stage_limits_seconds": {
       "bootstrap": 1500,
@@ -93,6 +113,6 @@
     },
     "serial_ceiling_seconds": 10795
   },
-  "status": "forecast with A, AB and short-clock approval evidence pending at the packet commit",
-  "verification_tooling_basis": "bb471298a3404da58dd3df160006072c1767c56a"
+  "status": "Conservative forecast includes the expiry reserve for every episode. Existing work and job caps are unchanged.",
+  "verification_tooling_basis": "e9b6a0cc82dcb0a0a3b42de697b5a59b1cf892cc"
 }

@@ -2,9 +2,13 @@
 
 The manifest binds frozen inputs. The candidate SHA is the commit that contains this packet. Record that full SHA in the engineering run, the written approval, and the later reviewer ledger. A commit cannot name its own SHA inside the manifest. The base SHA and committed hashes identify what can be verified before the candidate commit exists.
 
+## Verified supplemental controls
+
+The packet binds the successful attempt-one supplemental `controls-r422` run at `e9b6a0c`, including bundle `15254865823` and receipt `15255325107`. Both verifiers must pass at the packet commit, with the same covered-component digest as the receipt. [Run 46121143979](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46121143979)
+
 ## Candidate engineering dispatches
 
-Use the reviewed commit containing this packet after its PR checks pass. The remote branch must still point to that commit before each dispatch. Confirm that both full-clock runs and the short-clock run report the same full `headSha`, attempt 1, `workflow_dispatch` and workflow name `J2 load-envelope tooling`.
+Run this setup from the reviewed commit containing the packet. Confirm that both full-clock runs and the short-clock run report that same full `headSha`, attempt 1, `workflow_dispatch` and workflow name `J2 load-envelope tooling`.
 
 ```powershell
 $repo = 'XiaoyunYin/Distributed-Durable-Workflow-Engine'
@@ -19,12 +23,12 @@ function Assert-J2CandidateRef {
 }
 
 Assert-J2CandidateRef
-gh workflow run j2-load-envelope.yml --repo $repo --ref $ref -f mode=r422-full-clock -f campaign_id=eng-r422-a-final -f r422_hold=A
+gh workflow run j2-load-envelope.yml --repo $repo --ref $ref -f mode=r422-full-clock -f campaign_id=eng-r422-a-final2 -f r422_hold=A
 Assert-J2CandidateRef
-gh workflow run j2-load-envelope.yml --repo $repo --ref $ref -f mode=r422-full-clock -f campaign_id=eng-r422-ab-final -f r422_hold=AB
+gh workflow run j2-load-envelope.yml --repo $repo --ref $ref -f mode=r422-full-clock -f campaign_id=eng-r422-ab-final2 -f r422_hold=AB
 ```
 
-Leave `authorization_ref` empty for both full-clock runs. Each uses three Ubuntu 24.04 jobs with 120 s warm-up, 1,800 s hold and 300 s at C. The Round 617 [A pre-check](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46096357188) and [AB pre-check](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46096366098) establish the implementation basis. Approval requires the two `-final` runs at the packet commit.
+Leave `authorization_ref` empty for both full-clock runs. Each uses three Ubuntu 24.04 jobs with 120 s warm-up, 1,800 s hold and 300 s at C. Review the Round 617 and Round 625 runs as historical evidence. Approval requires the two `-final2` runs at the packet commit.
 
 After reviewing both full-clock runs, load `Publish-J2EngineeringLedger` from [measurement authorization](../measurement-authorization.md#engineering-dispatches) in the same checkout. The short-clock ID uses the first eight characters of the candidate SHA. Bind the fresh engineering ledger to the exact attempt-one run within the six-minute authorization wait.
 
@@ -42,9 +46,10 @@ Publish-J2EngineeringLedger $campaign $runId
 
 ## Required review before authorizing measurement
 
-1. Match all engineering jobs and their replays to the candidate SHA and attempt. Confirm green candidate PR checks and the three short-clock `pre-dispatch-package.json`, authorization, inventory and exact-head controls receipts. Match the covered-component digest to `bb47129`, check live archive availability and the qualification at 26,678 identities, and verify all four control verdicts and 18 unchanged seed vectors. The engineering runs must produce no measurement claims.
+1. Match all engineering jobs and their replays to the candidate SHA and attempt. Confirm green candidate PR checks and the three short-clock `pre-dispatch-package.json`, authorization, inventory and exact-head controls receipts. Match the covered-component digest to the fresh R425 supplemental receipt, check live archive availability and the qualification at 26,678 identities, and verify all four control verdicts and 18 unchanged seed vectors. The engineering runs must produce no measurement claims.
 2. Check all six full-clock jobs and both independent replays, including concurrent offering, precommit duration, bytes, peak RSS and completion at least 2 s before the first slot. Require complete identity reconciliation and exactly one successful HTTP request-write observation within each half-open slot, with zero skipped, refused, duplicated, missing or out-of-slot writes. Overall and within warm-up, hold and C, require intent-to-write nearest-rank p99.9 ≤ 12 ms and max ≤ 20 ms. Require every slot-to-write ≤ min(20 ms, floor(3 × slot width / 4)). Review the split at transport entry. The registered sender-validity cutoff remains the next same-rate nominal slot, with the last hold slot ending at C's first slot.
 3. Review `state-reads.jsonl`, `drain-polls.jsonl`, `state_read_binding` and the replay in every full-clock job and each short-clock episode that reaches drain. Confirm all state-read durations and brackets, failed-read diagnostics for timeouts, and the first successful in-deadline bracket in both `scheduled-stop-read.json` and `initial.json`. A failed read contributes no quiet. Verify the real quiet interval or the checked export at expiry, with residual IDs and unpublished, outstanding and claimed counts. Where the diagnostic probe fails, require its bracket and error. Persistent read failure must reach the same 600 s checked expiry. A checked R411 expiry remains a drain outcome and is permitted in the full-clock engineering timing lane.
+   For an expired episode, bind `expiry-export-budget.json` to `deadline-anchor.json` and the checked read bracket. Verify that the exporter started within 10 s of the unchanged drain cutoff and had its full 120 s from actual start, within the recorded work deadline. Review measured completion against the reserved cutoff. A clamped final state read and its diagnostic may finish during the handoff. The evidence should show the full export allowance and zero quiet credit for that read.
 4. Review restored image IDs, rendered hashes, readiness, Calico probes, cgroup pressure and fresh state. Confirm the one-second exporter and Prometheus cadences, serialized two-second statement timeout, one exporter DB connection, zero Prometheus connections, 82/100 with reserved/admin and 18 free. Match the candidate-built `cmd/j2-sender` in `precommit-v1` mode and its hash-verified installs for both schedule shapes. Bind the locked checker to its installed digest.
 5. Review all 15 real short-clock grid cells in their registered orders, including schedule bindings, write evidence, identity/cut reconciliation, classifications, samples and any verified recovery or job stop. Check grid publication, the 45-minute-or-earlier barrier cutoff and the three independent decisions. For an eligible soak, check the single sender, worker identity across the step, bracketed carry-in and final drain. For an unperformed soak, review the recorded reason.
 6. Require verified teardown, sealed uploads and finished disposition for all jobs. Confirm independent replay reproduces checkpoints, decisions, sender evidence and attribution fixtures, including `unresolved` where evidence is incomplete. Review the actual timings and disk peaks against [the budget](budget.json). Confirm three concurrent standard public jobs and the nine-minute replay upload reserve. Keep the verified split Release evidence as a recovery route.

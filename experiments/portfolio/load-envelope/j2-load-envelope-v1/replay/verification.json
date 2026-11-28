@@ -1,13 +1,15 @@
 {
   "candidate_approval_evidence": {
     "full_clock_holds": {
-      "A": "eng-r422-a-final",
-      "AB": "eng-r422-ab-final"
+      "A": "eng-r422-a-final2",
+      "AB": "eng-r422-ab-final2"
     },
     "head": "commit containing this packet",
+    "implementation_basis": "e9b6a0cc82dcb0a0a3b42de697b5a59b1cf892cc",
     "review_checklist": "approval.md#required-review-before-authorizing-measurement",
-    "short_clock": "eng-r422-final-<first eight characters of the candidate SHA>",
-    "status": "pending"
+    "short_clock": "eng-r422-final-<first eight characters of the new packet commit SHA>",
+    "status": "pending candidate-head approval lanes and exact-head rehearsal",
+    "supplemental_controls_run": 46121143979
   },
   "engineering_release_index": {
     "browser_download_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/download/eng-inc3-j2-evidence/eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
@@ -536,6 +538,50 @@
       },
       "report_sha256": "c29b8bbd94b00e5bd3c745a37b435f5fd8f620fb9a0cf910e373f24f518507bd",
       "run": 46096366098,
+      "status": "PASS"
+    }
+  },
+  "r425_full_clock_baseline": {
+    "checked_export_max_seconds_after_expiry": 80.99345045799998,
+    "completed_job_checked_export_seconds_from_scheduled_stop": {
+      "46096357188": [
+        680.993450458,
+        633.495970412,
+        633.476434222
+      ],
+      "46096366098": [
+        651.978484587,
+        649.564076965,
+        649.88400014
+      ],
+      "46107783664": [
+        633.231264334,
+        628.251983026,
+        632.275662331
+      ],
+      "46107794162": [
+        649.011478357,
+        652.968232965,
+        null
+      ]
+    },
+    "failed_job": {
+      "attempt": 1,
+      "classification": "integrity_stop",
+      "cutoff_ns": 3156703643727,
+      "head": "c4c5fba2bb7f1f8e0c75213bf3a1449c91de64f6",
+      "job": 3,
+      "killed_checker_wall_seconds": 0.0011755619998439215,
+      "last_state_read_id": 146,
+      "last_state_read_lower_ns": 3155861760889,
+      "last_state_read_upper_ns": 3156713036243,
+      "reason": "expiry check failed: qualification stage deadline exceeded",
+      "run": 46107794162
+    },
+    "historical_short_clock_rehearsal": {
+      "attempt": 1,
+      "head": "c4c5fba2bb7f1f8e0c75213bf3a1449c91de64f6",
+      "run": 46107868766,
       "status": "PASS"
     }
   },
