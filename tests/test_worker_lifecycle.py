@@ -426,6 +426,55 @@ def test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes(
         thread.join(2)
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize(
+    ("generation", "group"),
+    [(None, "runtime-workers-v1"), ("j7-restore", "runtime-workers-v1-j7-restore")],
+)
+def test_worker_consumer_generation_keeps_earliest_and_manual_commit(
+    monkeypatch: pytest.MonkeyPatch, generation: str | None, group: str, legacy: bool
+) -> None:
+    import workers.kafka_worker as worker
+
+    if generation is None:
+        monkeypatch.delenv("RUNTIME_KAFKA_GENERATION", raising=False)
+    else:
+        monkeypatch.setenv("RUNTIME_KAFKA_GENERATION", generation)
+    lifecycle = WorkerLifecycle(legacy=legacy)
+    captured: list[tuple[tuple[str, ...], dict[str, Any]]] = []
+
+    class Consumer:
+        def __init__(self, *topics: str, **kwargs: Any) -> None:
+            captured.append((topics, kwargs))
+            lifecycle.begin_drain()
+
+        def subscribe(self, _topics: list[str], listener: Any) -> None:
+            pass
+
+        def close(self, **_kwargs: Any) -> None:
+            pass
+
+    monkeypatch.setattr(worker, "KafkaConsumer", Consumer)
+    threads = start_pool("unused", "http://unused", "worker", lifecycle.drain, 1, lifecycle)
+    for thread in threads:
+        thread.join(1)
+        assert not thread.is_alive()
+    assert len(captured) == 1
+    topics, options = captured[0]
+    assert topics == ((worker.TASK_TOPIC,) if legacy else ())
+    assert options["group_id"] == group
+    assert options["enable_auto_commit"] is False
+    assert options["auto_offset_reset"] == "earliest"
+
+
+def test_unregistered_worker_generation_fails_before_starting_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUNTIME_KAFKA_GENERATION", "other")
+    with pytest.raises(ValueError, match="RUNTIME_KAFKA_GENERATION"):
+        start_pool("unused", "http://unused", "worker", threading.Event(), 1)
+
+
 def test_legacy_flag_uses_pre_k1_consumer_and_no_result_after_signal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

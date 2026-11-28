@@ -61,6 +61,12 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 		stopObservation()
 		os.Exit(1)
 	}
+	generation, err := transport.ConsumerGenerationFromEnvironment()
+	if err != nil {
+		slog.Error("invalid Kafka consumer generation", "error", err)
+		stopObservation()
+		os.Exit(1)
+	}
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(role)
 	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
@@ -92,7 +98,7 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 		defer store.Close()
 		handler = newHandlerWithMetrics(role, store, metrics, tracing)
 	}
-	handler = lifecycleHandlerWithAPI(role, store, metrics, tracing, nil, api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithTracing(tracing).Handler(), routes == api.RoutesCombined)
+	handler = lifecycleHandlerWithAPI(role, store, metrics, tracing, nil, api.NewServer(store).WithConsumerGeneration(generation).WithRoutes(routes).WithAuthentication(reviewer).WithTracing(tracing).Handler(), routes == api.RoutesCombined)
 	server := &http.Server{
 		Addr:              *addr,
 		Handler:           handler,
@@ -129,7 +135,9 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 		}()
 	}
 	if store != nil && roles["ingestor"] {
-		go func() { _ = runIngestor(ctx, nil, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), wake) }()
+		go func() {
+			_ = runIngestor(ctx, nil, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), wake, generation)
+		}()
 	}
 	var broker transport.Broker
 	if store != nil && roles["relay"] {

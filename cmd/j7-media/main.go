@@ -53,6 +53,10 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 		return runFault(ctx, args, out, diagnostics)
 	case "restore":
 		return runRestore(ctx, args[1:], out, diagnostics)
+	case "kafka-source", "fresh-kafka":
+		return runKafkaLifecycle(ctx, args, out, diagnostics)
+	case "watch-redispatch", "verify-redispatch":
+		return runRedispatchStage(ctx, args, out, diagnostics)
 	case "stage-target":
 		if len(args) != 1 {
 			return errors.New("stage-target uses the sealed mounts")

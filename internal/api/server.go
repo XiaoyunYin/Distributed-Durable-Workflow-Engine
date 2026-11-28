@@ -20,6 +20,7 @@ import (
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
+	"durable-agent-execution-engine/internal/transport"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -79,7 +80,12 @@ func (s *Server) WithK6WorkerControl(control *K6WorkerControl) *Server {
 }
 
 func NewServer(repository Repository) *Server {
-	return &Server{repository: repository, workerConsumerID: "runtime-workers-v1"}
+	return &Server{repository: repository, workerConsumerID: (transport.ConsumerGeneration{}).WorkerID()}
+}
+
+func (s *Server) WithConsumerGeneration(generation transport.ConsumerGeneration) *Server {
+	s.workerConsumerID = generation.WorkerID()
+	return s
 }
 
 func (s *Server) WithDemandAuthentication(authenticator *DemandBearerAuthenticator) *Server {

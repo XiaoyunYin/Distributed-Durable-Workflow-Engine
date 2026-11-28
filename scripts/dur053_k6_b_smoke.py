@@ -62,6 +62,7 @@ def legacy_env(spec: dict) -> dict[str, str]:
             require(not container.get("envFrom"), "K6_LEGACY_OPAQUE_ENV")
             for entry in container.get("env", []):
                 name = entry["name"]
+                require(name != "RUNTIME_KAFKA_GENERATION", "K6_KAFKA_GENERATION")
                 if name in LEGACY_ENV_NAMES:
                     require(
                         entry.get("value") == "0" and "valueFrom" not in entry,

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"durable-agent-execution-engine/internal/transport"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -172,7 +173,9 @@ func TestK1IngestorDrainBeforeReceive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- runIngestor(ctx, drain, nil, []string{"127.0.0.1:1"}, make(chan struct{}, 1)) }()
+	go func() {
+		done <- runIngestor(ctx, drain, nil, []string{"127.0.0.1:1"}, make(chan struct{}, 1), transport.ConsumerGeneration{})
+	}()
 	select {
 	case err := <-done:
 		if err != nil {
