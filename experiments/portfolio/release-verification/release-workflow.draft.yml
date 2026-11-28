@@ -1,0 +1,215 @@
+# J8 slice 0. Keep outside .github/workflows. No job can run in this draft.
+# Activation, dispatch and each outward write require the protocol's separate
+# owner authorization. A dispatch input is a record identifier, never approval.
+name: J8 verifiable release (draft)
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact reviewed protected-branch commit
+        type: string
+        required: true
+      tag:
+        description: Exact unused release version under review
+        type: string
+        required: true
+      authorization_record:
+        description: Identifier of the protected operation-specific authorization record
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j8-release
+  cancel-in-progress: false
+
+env:
+  GOFLAGS: '-p=1'
+  GOMAXPROCS: '2'
+
+jobs:
+  admission:
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      admitted: ${{ steps.gate.outputs.admitted }}
+      workflow_run: ${{ steps.gate.outputs.workflow_run }}
+    steps:
+      - name: Require reviewed candidate, trusted workflow, owner record and runner admission
+        id: gate
+        env:
+          AUTHORIZATION_RECORD: ${{ inputs.authorization_record }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: exit 1
+
+  build_scan:
+    needs: admission
+    if: ${{ false && needs.admission.outputs.admitted == 'true' && needs.admission.outputs.workflow_run == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: j8-candidate-artifacts
+    steps:
+      - name: Seal clean OCI builds, helper assets, SBOMs and pre-push scan verdicts
+        run: exit 1
+      - name: Require the candidate artifact transport grant
+        id: transport_grant
+        run: exit 1
+      - name: Upload the authorized Actions candidate payload
+        if: ${{ steps.transport_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  registry:
+    needs: [admission, build_scan]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: j8-ghcr
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Require GHCR authorization for the sealed digests and review the dispositions
+        id: registry_grant
+        run: exit 1
+      - name: Push the two authorized image digests to GHCR
+        if: ${{ steps.registry_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  provenance:
+    needs: [admission, build_scan, registry]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: j8-provenance
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Require attestation authorization and verify same-run digest binding
+        id: provenance_grant
+        run: exit 1
+      - name: Write the authorized GitHub artifact attestations
+        if: ${{ steps.provenance_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  digest_contract:
+    needs: [admission, build_scan, registry, provenance]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Recheck pulled digests and scan policy, attestations and seeded HTTP contract controls
+        run: exit 1
+
+  cold_quickstart:
+    needs: [admission, build_scan, registry, provenance]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3]
+    steps:
+      - name: Cold release quickstart repeat ${{ matrix.repeat }}
+        run: exit 1
+
+  replay_before_release:
+    needs: [admission, build_scan]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify sealed replay asset and both offline verdicts
+        run: exit 1
+
+  tag:
+    needs: [admission, digest_contract, cold_quickstart, replay_before_release]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: j8-tag
+    permissions:
+      contents: write
+    steps:
+      - name: Require authorization for the exact unused tag and candidate
+        id: tag_create_grant
+        run: exit 1
+      - name: Create the authorized annotated tag locally
+        if: ${{ steps.tag_create_grant.outputs.authorized == 'true' }}
+        run: exit 1
+      - name: Require separate push authorization for the exact tag object
+        id: tag_push_grant
+        run: exit 1
+      - name: Push the authorized tag object
+        if: ${{ steps.tag_create_grant.outputs.authorized == 'true' && steps.tag_push_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  release_draft:
+    needs: [admission, tag]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: j8-release-draft
+    permissions:
+      contents: write
+    steps:
+      - name: Require draft-creation authorization and check the existing peeled tag
+        id: draft_grant
+        run: exit 1
+      - name: Create the authorized GitHub draft release
+        if: ${{ steps.draft_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  release_assets:
+    needs: [admission, build_scan, release_draft]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: j8-release-assets
+    permissions:
+      contents: write
+    steps:
+      - name: Require asset-upload authorization for this draft and exact checksum inventory
+        id: asset_grant
+        run: exit 1
+      - name: Upload the authorized GitHub release assets
+        if: ${{ steps.asset_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  release_publish:
+    needs: [admission, tag, release_draft, release_assets]
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: j8-release-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Require publication authorization for this draft and attached evidence
+        id: publish_grant
+        run: exit 1
+      - name: Publish the authorized GitHub release draft
+        if: ${{ steps.publish_grant.outputs.authorized == 'true' }}
+        run: exit 1
+
+  public_readback:
+    needs: release_publish
+    if: ${{ false && success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Fetch public assets anonymously and repeat both replay verdicts offline
+        run: exit 1
+      - name: Require the separately scoped Actions evidence-upload grant
+        id: evidence_grant
+        run: exit 1
+      - name: Upload the authorized public readback evidence to Actions artifacts
+        if: ${{ steps.evidence_grant.outputs.authorized == 'true' }}
+        run: exit 1
