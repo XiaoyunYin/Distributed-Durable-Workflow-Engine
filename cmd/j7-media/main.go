@@ -1,4 +1,4 @@
-// j7-media prepares the source media for the J7 PostgreSQL restore drill.
+// j7-media prepares source media and witnesses source loss for the J7 drill.
 package main
 
 import (
@@ -17,7 +17,7 @@ import (
 
 func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: j7-media archive ARCHIVE_DIR SOURCE FILE or j7-media prepare [flags]")
+		return errors.New("usage: j7-media archive ARCHIVE_DIR SOURCE FILE, prepare [flags], or {source-preflight|cut|source-loss} --config FILE")
 	}
 	switch args[0] {
 	case "archive":
@@ -49,6 +49,8 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 			return err
 		}
 		return json.NewEncoder(out).Encode(receipt)
+	case "source-preflight", "cut", "source-loss":
+		return runFault(ctx, args, out, diagnostics)
 	default:
 		return fmt.Errorf("unknown j7-media command %q", args[0])
 	}

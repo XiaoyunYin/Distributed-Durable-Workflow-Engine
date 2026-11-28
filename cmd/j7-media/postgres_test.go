@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"durable-agent-execution-engine/internal/restoreledger"
 )
 
 func TestPostgres18Media(t *testing.T) {
@@ -102,5 +105,59 @@ full_page_writes = on
 	if len(receipt.Anchors) != 2 || len(receipt.Archive) < 2 ||
 		receipt.Anchors[0].Segment == receipt.Anchors[1].Segment || receipt.VerifyBackupText == "" {
 		t.Fatalf("incomplete real media evidence: %+v", receipt)
+	}
+	t.Run("final_archive_cut", func(t *testing.T) {
+		testPostgresBoundary(t, ctx, pgBin, archive, receipt)
+	})
+}
+
+func testPostgresBoundary(t *testing.T, ctx context.Context, pgBin, archive string, backup backupReceipt) {
+	t.Helper()
+	f := fixtureForFault(t, 12)
+	source := f.source
+	source.pgBin, source.archive, source.service = pgBin, archive, "fixture-source"
+	source.run, source.syncDir = execTool, syncDirectory
+	markers, err := json.Marshal(ledgerMarkers(f.plan, f.report))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup := fmt.Sprintf(`
+CREATE SCHEMA engine;
+CREATE TABLE engine.workflow_executions (
+    workflow_id text PRIMARY KEY, namespace text, submission_key text,
+    definition_id text, definition_version int, submission_payload_hash text, state text);
+CREATE TABLE engine.node_instances (
+    workflow_id text, node_id text, iteration int, input jsonb, state text, accepted_result jsonb);
+CREATE TABLE engine.activity_attempts (
+    workflow_id text, node_id text, iteration int, attempt_number int, is_current bool,
+    effect_class text, state text, outcome_disposition text);
+INSERT INTO engine.workflow_executions
+SELECT fixture->>'id', fixture->>'namespace', fixture->>'submission_key',
+       fixture->>'definition_id', 1, fixture->>'submission_payload_hash', 'SUCCEEDED'
+FROM jsonb_array_elements(%[1]s) AS fixture;
+INSERT INTO engine.node_instances
+SELECT fixture->>'id', 'pure.echo', 0, fixture->'input', 'SUCCEEDED', fixture->'input'
+FROM jsonb_array_elements(%[1]s) AS fixture;`, sqlJSON(markers))
+	if _, err := source.psql(ctx, setup); err != nil {
+		t.Fatalf("seed pinned PostgreSQL readback fixture: %v", err)
+	}
+	cut, err := closeBoundary(ctx, source, backup, testDigest, f.plan, f.report, testOrigin)
+	if err != nil || len(cut.Inventory) < 3 || cut.Point.Segment == backup.Anchors[1].Segment ||
+		cut.EndLSN == "" || len(cut.PreSwitch.Markers) != 12 {
+		t.Fatalf("witness pinned PostgreSQL archive cut: %+v, %v", cut, err)
+	}
+	if _, err := source.psql(ctx, `
+INSERT INTO engine.workflow_executions VALUES ('e1', 'j7', 'e1', 'effect', 1, 'test', 'SUCCEEDED');
+INSERT INTO engine.node_instances VALUES ('e1', 'effect', 0, '{}', 'SUCCEEDED', '{"receipt":"fixture"}');
+INSERT INTO engine.activity_attempts VALUES ('e1', 'effect', 0, 1, true, 'COOPERATING_EFFECT', 'SUCCEEDED', 'KNOWN_SUCCESS');
+`); err != nil {
+		t.Fatal(err)
+	}
+	sample, err := source.sample(ctx, ledgerMarkers(f.plan, f.report), "e1")
+	flush, flushErr := parseLSN(sample.FlushLSN)
+	end, endErr := parseLSN(cut.EndLSN)
+	if err != nil || flushErr != nil || endErr != nil || flush <= end || flush-end >= walSegmentBytes ||
+		!restoreledger.IsSHA256(sample.EffectSHA256) {
+		t.Fatalf("pinned PostgreSQL did not expose the unarchived tail: %+v, %v", sample, err)
 	}
 }
