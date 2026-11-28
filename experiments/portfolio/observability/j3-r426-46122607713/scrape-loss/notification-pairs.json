@@ -1,0 +1,40 @@
+[
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "5a97b427445080ac",
+      "labels": {
+        "alertname": "ScrapeAbsent",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-scrape-loss"
+      },
+      "received_ns": 1795862372269447225,
+      "startsAt": "2026-11-28T10:39:32.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "ScrapeAbsent",
+      "at_ns": 1795862372246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-28T10:40:27.246Z",
+      "fingerprint": "5a97b427445080ac",
+      "labels": {
+        "alertname": "ScrapeAbsent",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-scrape-loss"
+      },
+      "received_ns": 1795862427315094195,
+      "startsAt": "2026-11-28T10:39:32.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "ScrapeAbsent",
+      "at_ns": 1795862427246000000,
+      "firing": false
+    }
+  }
+]

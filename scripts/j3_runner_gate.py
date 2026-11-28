@@ -36,7 +36,7 @@ def runner_cpu(cpuinfo=Path("/proc/cpuinfo")):
 
 
 def campaign_id():
-    return f"j3-r421-{os.environ['GITHUB_RUN_ID']}"
+    return f"j3-r426-{os.environ['GITHUB_RUN_ID']}"
 
 
 def save(path, record):

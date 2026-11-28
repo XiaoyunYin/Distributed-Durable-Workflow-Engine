@@ -1,0 +1,101 @@
+{
+  "campaign": "j3-r426-46122607713",
+  "episodes": {
+    "foreign": {
+      "ambiguous_evaluations": 0,
+      "committed_timeouts": 0,
+      "paired_deliveries": 0,
+      "published_attainment": {
+        "attainment": 1.0,
+        "closing_width_ns": 85368209,
+        "eligible": 8564,
+        "incomplete": 0,
+        "on_time": 8564,
+        "setup_width_ns": 74640184,
+        "width_sensitivity": 0
+      },
+      "status": "PASS",
+      "transitions": []
+    },
+    "matched-healthy": {
+      "ambiguous_evaluations": 0,
+      "committed_timeouts": 0,
+      "paired_deliveries": 0,
+      "published_attainment": {
+        "attainment": 1.0,
+        "closing_width_ns": 95350656,
+        "eligible": 19268,
+        "incomplete": 0,
+        "on_time": 19268,
+        "setup_width_ns": 76313424,
+        "width_sensitivity": 0
+      },
+      "status": "PASS",
+      "transitions": []
+    },
+    "primary": {
+      "ambiguous_evaluations": 0,
+      "committed_timeouts": 0,
+      "paired_deliveries": 4,
+      "published_attainment": {
+        "attainment": 0.6903674486194727,
+        "closing_width_ns": 84457916,
+        "eligible": 19268,
+        "incomplete": 0,
+        "on_time": 13302,
+        "setup_width_ns": 75120084,
+        "width_sensitivity": 0
+      },
+      "status": "PASS",
+      "transitions": [
+        {
+          "alert": "OldestClaimable",
+          "at_ns": 1795853087246000000,
+          "firing": true
+        },
+        {
+          "alert": "DeadlineBudgetBurn",
+          "at_ns": 1795853152246000000,
+          "firing": true
+        },
+        {
+          "alert": "OldestClaimable",
+          "at_ns": 1795853932246000000,
+          "firing": false
+        },
+        {
+          "alert": "DeadlineBudgetBurn",
+          "at_ns": 1795854002246000000,
+          "firing": false
+        }
+      ]
+    },
+    "scrape-loss": {
+      "ambiguous_evaluations": 0,
+      "committed_timeouts": 0,
+      "paired_deliveries": 2,
+      "published_attainment": {
+        "attainment": 1.0,
+        "closing_width_ns": 87768049,
+        "eligible": 5138,
+        "incomplete": 0,
+        "on_time": 5138,
+        "setup_width_ns": 78271387,
+        "width_sensitivity": 0
+      },
+      "status": "PASS",
+      "transitions": [
+        {
+          "alert": "ScrapeAbsent",
+          "at_ns": 1795862372246000000,
+          "firing": true
+        },
+        {
+          "alert": "ScrapeAbsent",
+          "at_ns": 1795862427246000000,
+          "firing": false
+        }
+      ]
+    }
+  }
+}

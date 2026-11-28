@@ -11,6 +11,7 @@ WINDOWS = {"all": None, "10m": 600 * SECOND, "2m": 120 * SECOND}
 DOMAIN = ("OldestClaimable", "DeadlineBudgetBurn")
 ALERTS = (*DOMAIN, "ScrapeAbsent")
 OLDEST_CLEAR_EVALUATIONS = 24
+SCRAPE_TIMESTAMP_RESOLUTION_NS = 1_000_000
 
 
 class EpisodeFailure(ValueError):
@@ -251,13 +252,16 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
             active.discard(DOMAIN[0])
         if ev["valid"]:
             source, scrape = ev["sample_ns"], ev["scrape_ns"]
+            # The scrape stamp records the first nanosecond of its millisecond.
+            scrape_end = scrape + SCRAPE_TIMESTAMP_RESOLUTION_NS
             require(source in inputs, f"missing visibility evidence: {source}")
             band, demand, counts = inputs[source]
             require(
                 demand is not None
                 and ev["windows"] == counts
-                and at - 5 * SECOND <= source <= scrape <= at
-                and at - 5 * SECOND <= ev["demand_ns"] <= scrape,
+                and scrape <= at
+                and at - 5 * SECOND <= source < scrape_end
+                and at - 5 * SECOND <= ev["demand_ns"] < scrape_end,
                 f"incoherent live input: {at}",
             )
             require(
@@ -299,6 +303,7 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
         for name in sorted(before ^ active):
             transitions.append({"at_ns": at, "alert": name, "firing": name in active})
     return {
+        "scrape_timestamp_resolution_ns": SCRAPE_TIMESTAMP_RESOLUTION_NS,
         "ambiguous_evaluations": ambiguous,
         "ambiguous_count": len(ambiguous),
         "transitions": transitions,
@@ -320,6 +325,15 @@ def replay(data, visibility):
         "published_attainment": attainment(rows, setup, closing, data["end_ns"]),
         "committed_timeout_keys": timeouts,
     }
+
+
+def replay_matches(result, recorded, *, legacy=False):
+    """Legacy receipts omit only the new timestamp-resolution metadata."""
+    key = "scrape_timestamp_resolution_ns"
+    if legacy and key not in recorded["alert_inputs"]:
+        alerts = {k: v for k, v in result["alert_inputs"].items() if k != key}
+        result = {**result, "alert_inputs": alerts}
+    return result == recorded
 
 
 if __name__ == "__main__":

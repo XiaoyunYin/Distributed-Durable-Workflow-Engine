@@ -1,0 +1,100 @@
+{
+  "artifact_digest": "sha256:0b6234659285790064d3d3d78855e34d3b3485deb13c4aefa65ec481df26ff79",
+  "artifact_id": 15235825154,
+  "forecast": {
+    "forecast_allowance_seconds": {
+      "bootstrap": 1500,
+      "final_evidence": 1500,
+      "foreign": 1801,
+      "foreign_export_reset": 600,
+      "matched_healthy": 2821,
+      "matched_healthy_export_reset": 600,
+      "primary": 2821,
+      "primary_export_reset": 600,
+      "scrape_loss": 1321
+    },
+    "forecast_base_minutes": 242,
+    "forecast_extended_arm_seconds": {
+      "matched_healthy": 3301,
+      "primary": 3301
+    },
+    "forecast_measured_seconds": {
+      "bootstrap": 354,
+      "final_evidence": 182,
+      "foreign": 1801,
+      "foreign_export_reset": 129,
+      "matched_healthy": 2821,
+      "matched_healthy_export_reset": 221,
+      "primary": 2821,
+      "primary_export_reset": 221,
+      "scrape_loss": 1321
+    },
+    "forecast_minutes": 242.06666666666666,
+    "forecast_seconds": 14524
+  },
+  "qualification_review_round": 607,
+  "qualification_run": 46050616178,
+  "schedule": {
+    "R_ns": [
+      479245852399,
+      476245847862,
+      469245908436
+    ],
+    "T_ratio": "5112116110403578342634585700/22990862965321405524551381",
+    "T_s": 222.35425082192484,
+    "arrival_rate_per_second": 7.136100570066256,
+    "arrival_volume": 19268,
+    "baseline_arrivals": 15843,
+    "delta_s": 480,
+    "matched_healthy": {
+      "drain_and_observation_end_s": 3300,
+      "final_healthy_window_s": [
+        2100,
+        2700
+      ],
+      "quiet_drain_s": 30,
+      "stop_s": 2700
+    },
+    "mu_per_second": 16.764116059342363,
+    "mu_ratio": "640500000000/38206607359",
+    "primary": {
+      "burn_clear_by_s": 2050,
+      "burn_fire_by_s": 765,
+      "catchup_before_s": 1920,
+      "drain_and_observation_end_s": 3300,
+      "final_healthy_window_s": [
+        2100,
+        2700
+      ],
+      "oldest_clear_by_s": 1930,
+      "oldest_fire_by_s": 700,
+      "quiet_drain_s": 30,
+      "ready_and_first_progress_by_s": 960,
+      "restore_s": 900,
+      "scale_down_s": 600,
+      "stop_s": 2700,
+      "zero_workers_by_s": 660
+    },
+    "restored_rates_per_second": [
+      16.75215122708786,
+      16.885696841290432,
+      16.764116059342363
+    ],
+    "status": "SEALED"
+  },
+  "seal": {
+    "campaign": "j3-r421-46050616178",
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "inputs": {
+      "forecast-measurements.json": "08d8de4ae6d0d08908682657d61d77eda3a6ce0ccc85f341683bfe25879f86a0",
+      "outage-1/calibration-recovery.json": "25fbba121699fcf59acc1b26bd4894ffd89ffe6a09c7e9a70fac648ebd0737f5",
+      "outage-1/outage.json": "19f9e48b657bce2d5e0bf4249cfa9397b246e690e7260c3cd28ae818a5cb1900",
+      "outage-2/calibration-recovery.json": "bdb5a3781e2afb8210dbada2a12ab4b54083b3952d49393c35e15dfd98f66f9c",
+      "outage-2/outage.json": "e8f109f8907b9024158a861887d14d83adcc5d32832b208a39abc64f0a2325a9",
+      "outage-3/calibration-recovery.json": "22d3801bae4903a20a7f8420ec77e8925d09355699d833cca25de3ae090e87dd",
+      "outage-3/outage.json": "eb7e1f18e6a88431fa46db7088a9256d2209d807ab0e4b3da02d2194015a4735"
+    },
+    "sealed_ns": 1795818086309700319,
+    "sha256": "83a4219d82f3ee1099ce619b9488a2c405aa7cfb95a4feb2a2df1222de614db9"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "setup_incidents": [
+    {
+      "firing": [
+        {
+          "endsAt": "0001-01-01T00:00:00Z",
+          "fingerprint": "9c738d35d9dd8610",
+          "labels": {
+            "alertname": "ScrapeAbsent",
+            "campaign": "j3-r426-46122607713",
+            "namespace": "j3-target-foreign"
+          },
+          "received_ns": 1795859722253949815,
+          "startsAt": "2026-11-28T09:55:22.246Z",
+          "status": "firing"
+        }
+      ],
+      "resolved": [
+        {
+          "endsAt": "2026-11-28T09:55:27.246Z",
+          "fingerprint": "9c738d35d9dd8610",
+          "labels": {
+            "alertname": "ScrapeAbsent",
+            "campaign": "j3-r426-46122607713",
+            "namespace": "j3-target-foreign"
+          },
+          "received_ns": 1795859732258014597,
+          "startsAt": "2026-11-28T09:55:22.246Z",
+          "status": "resolved"
+        }
+      ]
+    }
+  ]
+}

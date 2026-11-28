@@ -1,0 +1,52 @@
+{
+  "campaign": "j3-r421-46109429112",
+  "episodes": {
+    "foreign": {
+      "status": "UNPERFORMED"
+    },
+    "matched-healthy": {
+      "error": "incoherent live input: 1795847022246000000",
+      "status": "INVALID"
+    },
+    "primary": {
+      "ambiguous_evaluations": 0,
+      "committed_timeouts": 0,
+      "paired_deliveries": 4,
+      "published_attainment": {
+        "attainment": 0.7344301432426822,
+        "closing_width_ns": 72782832,
+        "eligible": 19268,
+        "incomplete": 0,
+        "on_time": 14151,
+        "setup_width_ns": 60902570,
+        "width_sensitivity": 0
+      },
+      "status": "PASS",
+      "transitions": [
+        {
+          "alert": "OldestClaimable",
+          "at_ns": 1795843957246000000,
+          "firing": true
+        },
+        {
+          "alert": "DeadlineBudgetBurn",
+          "at_ns": 1795844017246000000,
+          "firing": true
+        },
+        {
+          "alert": "OldestClaimable",
+          "at_ns": 1795844697246000000,
+          "firing": false
+        },
+        {
+          "alert": "DeadlineBudgetBurn",
+          "at_ns": 1795844747246000000,
+          "firing": false
+        }
+      ]
+    },
+    "scrape-loss": {
+      "status": "UNPERFORMED"
+    }
+  }
+}

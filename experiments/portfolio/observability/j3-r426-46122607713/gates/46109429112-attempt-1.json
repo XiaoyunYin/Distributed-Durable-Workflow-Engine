@@ -1,0 +1,22 @@
+{
+  "run": "46109429112",
+  "head": "fbe10d1f6aadfe788c2182a3faabe241a65b6fbe",
+  "workflow_attempt": 1,
+  "stage": "measurement",
+  "window_seconds": 120,
+  "runner": {
+    "cpu_models": [
+      "Intel(R) Xeon(R) 6975P-C"
+    ],
+    "online_cores": 4,
+    "image_version": "20261122.23.1"
+  },
+  "stage_attempt": 1,
+  "prior_rejections": 0,
+  "io_full_share_pct": 0.004985828116328987,
+  "io_full_share_ratio": "149575000/30000031391",
+  "x_pct": 0.5,
+  "decision": "admitted",
+  "reason": null,
+  "campaign": "j3-r421-46109429112"
+}

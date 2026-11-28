@@ -1,0 +1,49 @@
+{
+  "attempt": "1",
+  "campaign": "j3-r421-46109429112",
+  "cleanup": "PASS",
+  "episodes": {
+    "foreign": {
+      "status": "UNPERFORMED"
+    },
+    "matched-healthy": {
+      "behavior": {
+        "status": "UNPERFORMED"
+      },
+      "delivery": {
+        "status": "UNPERFORMED"
+      },
+      "error": "incoherent live input: 1795847022246000000",
+      "status": "INVALID",
+      "target": {
+        "campaign": "j3-r421-46109429112",
+        "namespace": "j3-target-matched-healthy"
+      }
+    },
+    "primary": {
+      "arm_seconds": 3301,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 228,
+      "setup_seconds": 68,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46109429112",
+        "namespace": "j3-target-primary"
+      }
+    },
+    "scrape-loss": {
+      "status": "UNPERFORMED"
+    }
+  },
+  "head": "fbe10d1f6aadfe788c2182a3faabe241a65b6fbe",
+  "offline_replay": "INCOMPLETE",
+  "reason": "incoherent live input: 1795847022246000000",
+  "run": "46109429112",
+  "stage": "measurement",
+  "status": "INVALID"
+}

@@ -181,3 +181,5 @@ This amendment follows review Round 590 and was informed by run 45993299758. Use
 6. **Diagnostic replay.** After commit, replay the amended rule over the retained outages of runs 45915019609, 45942670753 and 45993299758. Label the results diagnostic. They cannot change any verdict.
 
 **2026-11-27 replay clarification (review Round 597).** Match each valid evaluation to the successful scrape carrying its exporter sample timestamp, and record any later-stamped failed scrape as possibly in flight only if it started within the rendered scrape timeout before that evaluation.
+
+**2026-11-27 replay clarification (review Round 630).** Interpret the Prometheus scrape timestamp as the half-open millisecond `[scrape_ns, scrape_ns + 1 ms)` and require both exporter and demand source times to fall before its exclusive upper edge. Keep the five-second freshness window, scrape-to-evaluation ordering, and count equality, and record the timestamp resolution in replay evidence. Use `j3-r426-<run>` for new campaigns and preserve run 46109429112's recorded outcomes.

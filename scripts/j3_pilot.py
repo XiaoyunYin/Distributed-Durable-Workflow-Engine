@@ -519,7 +519,7 @@ print(json.dumps((root / sys.argv[2]).read_text()))
     return accepted
 
 
-def dashboard_evidence(driver, target, accepted):
+def dashboard_evidence(driver, target, accepted, *, interval=None):
     board = json_request(13000, "/api/dashboards/uid/j3-observability")["dashboard"]
     datasource = json_request(13000, "/api/datasources/uid/j3-prometheus")
     require(
@@ -532,10 +532,11 @@ def dashboard_evidence(driver, target, accepted):
     )
     kind.save(driver.output / "dashboard-api.json", {"dashboard": board, "datasource": datasource})
     end = int(time.time())
+    start, end = interval if interval is not None else (end - 45, end)
     proxy = "/api/datasources/proxy/uid/j3-prometheus/api/v1/query_range"
 
     def series(expr):
-        return json_request(13000, proxy, query=expr, start=end - 45, end=end, step=1)["data"][
+        return json_request(13000, proxy, query=expr, start=start, end=end, step=1)["data"][
             "result"
         ]
 
@@ -816,7 +817,9 @@ def hosted_arguments(description, *, with_checker=False):
         parser.add_argument(name, type=Path)
     if with_checker:
         parser.add_argument("checker", type=Path)
-        parser.add_argument("--stage", choices=("calibration", "confirmation"), required=True)
+        parser.add_argument(
+            "--stage", choices=("calibration", "confirmation", "measurement"), required=True
+        )
         parser.add_argument("--seal", type=Path)
         parser.add_argument("--seal-digest")
     args = parser.parse_args()

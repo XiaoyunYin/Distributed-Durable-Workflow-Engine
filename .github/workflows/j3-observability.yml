@@ -18,9 +18,16 @@ on:
         options:
           - pilot
           - qualification
+          - measurement
           - sql-benchmark
           - runner-baseline
         default: pilot
+      reviewed_head:
+        description: Exact Claude-reviewed commit for measurement
+        type: string
+      review_round:
+        description: Claude review round authorizing that measurement head
+        type: string
 
 permissions:
   contents: read
@@ -203,8 +210,8 @@ jobs:
           exec > >(tee "$RUNNER_TEMP/j3-confirmation/seal-verification.log") 2>&1
           [[ "$SEAL_ID" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEAL_ID/zip" > "$seal"
-          PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), *sys.argv[2:]); print("Verified calibration artifact and its forecast")' \
-            "$seal" "$SEAL_DIGEST" "j3-r421-$GITHUB_RUN_ID" "$GITHUB_SHA"
+          PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_runner_gate import campaign_id; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), sys.argv[2], campaign_id(), sys.argv[3]); print("Verified calibration artifact and its forecast")' \
+            "$seal" "$SEAL_DIGEST" "$GITHUB_SHA"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.4'
@@ -231,6 +238,79 @@ jobs:
           name: j3-confirmation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-confirmation/
           if-no-files-found: warn
+  measurement:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'measurement'
+    name: Registered J3 measurement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+      J3_REVIEWED_HEAD: ${{ inputs.reviewed_head }}
+      J3_REVIEW_ROUND: ${{ inputs.review_round }}
+    steps:
+      - name: Record job start
+        run: echo "J3_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - name: Bind the reviewed dispatch head before arming
+        run: python3 scripts/j3_measurement.py review "$RUNNER_TEMP/j3-measurement"
+      - name: Observe the idle runner gate before bootstrap
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/j3_runner_gate.py measurement "$RUNNER_TEMP/j3-measurement/runner-gate"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.gate.outputs.decision != ''
+        with:
+          name: j3-runner-gate-measurement-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.gate.outputs.decision }}
+          path: ${{ runner.temp }}/j3-measurement/runner-gate/
+          if-no-files-found: error
+      - name: Stop a measurement stage that was not armed
+        if: steps.gate.outputs.decision != 'admitted'
+        run: exit 1
+      - name: Restore and verify the reviewed qualification seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/j3-measurement"
+          exec > >(tee "$evidence/seal-verification.log") 2>&1
+          asset=j3-schedule-seal-46050616178-1.zip
+          gh release download j3-r421-46050616178-evidence -R "$GITHUB_REPOSITORY" \
+            -p "$asset" -D "$evidence"
+          python3 scripts/j3_measurement.py seal "$evidence/$asset" "$evidence"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Reproduce the locked J2 checker
+        run: |
+          set -euo pipefail
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-measurement/checker-build.log"
+      - name: Restore locked OCI artifacts and test the pinned rules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j3_prepare_hosted.sh "$RUNNER_TEMP/j3-measurement" measurement
+      - name: Run the sealed primary and three controls on one runner
+        run: |
+          evidence="$RUNNER_TEMP/j3-measurement"
+          python3 scripts/j3_qualification.py "$evidence" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
+            "$RUNNER_TEMP/j3-tooling/checker" --stage measurement \
+            --seal "$evidence/j3-schedule-seal-46050616178-1.zip"
+      - name: Replay and index complete or partial measurement evidence
+        if: always()
+        run: python3 scripts/j3_measurement.py finalize "$RUNNER_TEMP/j3-measurement"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-measurement-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-measurement/
+          if-no-files-found: error
   runner-baseline:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-baseline'
     runs-on: ubuntu-24.04

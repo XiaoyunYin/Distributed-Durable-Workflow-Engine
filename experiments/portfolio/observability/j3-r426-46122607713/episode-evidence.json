@@ -1,0 +1,166 @@
+{
+  "foreign": {
+    "attempt": "1",
+    "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+    "pressure_covariate": {
+      "cpu_some_share_pct": 20.699423853751462,
+      "first_ns": 1795859757331324060,
+      "io_full_share_pct": 0.732224213647565,
+      "last_ns": 1795860956883706767,
+      "sample_count": 1200
+    },
+    "quiet_drain": {
+      "active_claims": 0,
+      "admitted": 8564,
+      "bound_ns": 1795861557000000000,
+      "quiet_end_ns": 1795860989041431000,
+      "quiet_seconds": 30.390088,
+      "quiet_start_ns": 1795860958651343000,
+      "unpublished": 0
+    },
+    "receiver": {
+      "continuous_sequence": true,
+      "delivery_batches": 2,
+      "end_heartbeat_ns": 1795861588585172127,
+      "periodic_heartbeats": 374,
+      "sequenced_rows": 377,
+      "setup_incidents": 1,
+      "start_heartbeat_ns": 1795859717982833679
+    },
+    "run": "46122607713",
+    "scrape_timestamp_resolution_ns": 1000000,
+    "target": {
+      "campaign": "j3-r426-46122607713",
+      "namespace": "j3-target-foreign"
+    },
+    "timing": {
+      "arrival_count": 8564,
+      "observe_end_ns": 1795861557000000000,
+      "origin_ns": 1795859757000000000,
+      "stop_ns": 1795860957000000000
+    }
+  },
+  "matched-healthy": {
+    "attempt": "1",
+    "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+    "pressure_covariate": {
+      "cpu_some_share_pct": 26.141167156956953,
+      "first_ns": 1795856113079329650,
+      "io_full_share_pct": 0.6245356715008565,
+      "last_ns": 1795858812493593728,
+      "sample_count": 2699
+    },
+    "quiet_drain": {
+      "active_claims": 0,
+      "admitted": 19268,
+      "bound_ns": 1795859413000000000,
+      "quiet_end_ns": 1795858845025376000,
+      "quiet_seconds": 30.189557,
+      "quiet_start_ns": 1795858814835819000,
+      "unpublished": 0
+    },
+    "receiver": {
+      "continuous_sequence": true,
+      "delivery_batches": 0,
+      "end_heartbeat_ns": 1795859579652878537,
+      "periodic_heartbeats": 699,
+      "sequenced_rows": 700,
+      "setup_incidents": 0,
+      "start_heartbeat_ns": 1795856074837948588
+    },
+    "run": "46122607713",
+    "scrape_timestamp_resolution_ns": 1000000,
+    "target": {
+      "campaign": "j3-r426-46122607713",
+      "namespace": "j3-target-matched-healthy"
+    },
+    "timing": {
+      "arrival_count": 19268,
+      "observe_end_ns": 1795859413000000000,
+      "origin_ns": 1795856113000000000,
+      "stop_ns": 1795858813000000000
+    }
+  },
+  "primary": {
+    "attempt": "1",
+    "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+    "pressure_covariate": {
+      "cpu_some_share_pct": 30.50510773827811,
+      "first_ns": 1795852457705610878,
+      "io_full_share_pct": 0.7943174776921764,
+      "last_ns": 1795855156081588100,
+      "sample_count": 2698
+    },
+    "quiet_drain": {
+      "active_claims": 0,
+      "admitted": 19268,
+      "bound_ns": 1795855757000000000,
+      "quiet_end_ns": 1795855189272220000,
+      "quiet_seconds": 30.492707,
+      "quiet_start_ns": 1795855158779513000,
+      "unpublished": 0
+    },
+    "receiver": {
+      "continuous_sequence": true,
+      "delivery_batches": 4,
+      "end_heartbeat_ns": 1795855936349079015,
+      "periodic_heartbeats": 703,
+      "sequenced_rows": 708,
+      "setup_incidents": 0,
+      "start_heartbeat_ns": 1795852410424642748
+    },
+    "run": "46122607713",
+    "scrape_timestamp_resolution_ns": 1000000,
+    "target": {
+      "campaign": "j3-r426-46122607713",
+      "namespace": "j3-target-primary"
+    },
+    "timing": {
+      "arrival_count": 19268,
+      "observe_end_ns": 1795855757000000000,
+      "origin_ns": 1795852457000000000,
+      "stop_ns": 1795855157000000000
+    }
+  },
+  "scrape-loss": {
+    "attempt": "1",
+    "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+    "pressure_covariate": {
+      "cpu_some_share_pct": 17.221887222582062,
+      "first_ns": 1795861764317242800,
+      "io_full_share_pct": 0.7540012307552536,
+      "last_ns": 1795862483626546219,
+      "sample_count": 720
+    },
+    "quiet_drain": {
+      "active_claims": 0,
+      "admitted": 5138,
+      "bound_ns": 1795863084000000000,
+      "quiet_end_ns": 1795862516120094000,
+      "quiet_seconds": 30.63827,
+      "quiet_start_ns": 1795862485481824000,
+      "unpublished": 0
+    },
+    "receiver": {
+      "continuous_sequence": true,
+      "delivery_batches": 2,
+      "end_heartbeat_ns": 1795863099857042029,
+      "periodic_heartbeats": 274,
+      "sequenced_rows": 277,
+      "setup_incidents": 0,
+      "start_heartbeat_ns": 1795861726150592679
+    },
+    "run": "46122607713",
+    "scrape_timestamp_resolution_ns": 1000000,
+    "target": {
+      "campaign": "j3-r426-46122607713",
+      "namespace": "j3-target-scrape-loss"
+    },
+    "timing": {
+      "arrival_count": 5138,
+      "observe_end_ns": 1795863084000000000,
+      "origin_ns": 1795861764000000000,
+      "stop_ns": 1795862484000000000
+    }
+  }
+}

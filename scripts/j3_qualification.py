@@ -1,4 +1,4 @@
-"""Qualify the J3 harness on a disposable hosted kind cluster."""
+"""Run J3 qualification or measurement on a disposable hosted kind cluster."""
 
 import hashlib
 import json
@@ -45,6 +45,17 @@ from j3_evidence import (
     slot_occupancy,
     target_only_attainment,
 )
+from j3_measurement import (
+    EPISODES as MEASUREMENT_EPISODES,
+)
+from j3_measurement import (
+    measurement_arms,
+    primary_timing,
+    remaining_forecast,
+    reviewed_candidate,
+    seal_arm_inputs,
+    verified_schedule,
+)
 from j3_overlay import ALERTMANAGER, APP, EXPORTER, FOREIGN, GRAFANA, J3, NS, PROM
 from j3_pilot import (
     DB,
@@ -90,6 +101,8 @@ ALERT_SETUP_SECONDS = 30
 
 
 class Qualification(Pilot):
+    measurement = False
+
     def __init__(self, output, scratch, checker):
         super().__init__(output, scratch)
         self.job_scratch = scratch
@@ -332,13 +345,27 @@ def verify_scrape(evaluations, transitions, origin, cut, restored):
         "missing or extra scrape-loss transitions",
     )
     fire, clear = (row["at_ns"] for row in transitions)
+    fire_window = (
+        max(cut + 5 * SECOND, origin + 604 * SECOND),
+        min(cut + 20 * SECOND, origin + 621 * SECOND),
+    )
+    clear_window = (
+        max(restored, origin + 659 * SECOND),
+        min(restored + 15 * SECOND, origin + 676 * SECOND),
+    )
     require_behavior(
-        cut + 5 * SECOND <= fire <= cut + 20 * SECOND
-        and restored <= clear <= restored + 15 * SECOND
-        and origin + 604 * SECOND <= fire <= origin + 621 * SECOND
-        and origin + 659 * SECOND <= clear <= origin + 676 * SECOND,
+        fire_window[0] <= fire <= fire_window[1] and clear_window[0] <= clear <= clear_window[1],
         "scrape-loss transition exceeded its registered bound",
     )
+    return {
+        "cut_ns": cut,
+        "reopen_ns": restored,
+        "fire_ns": fire,
+        "clear_ns": clear,
+        "fire_window_ns": fire_window,
+        "clear_window_ns": clear_window,
+        "invalid_evaluations": len(invalid),
+    }
 
 
 def check_slot_witness(sample, initial_workers):
@@ -566,6 +593,8 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                 "arrival_count": len(rows),
             },
         )
+        if driver.measurement:
+            seal_arm_inputs(driver.output, origin)
         end = None
         try:
             quiet, fault = load_and_observe(
@@ -574,7 +603,27 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
             end = time.time_ns()
             closing = clock(driver)
             accepted, sender_plan = sender.completed()
-            if arm == "foreign":
+            if driver.measurement and arm == "outage":
+                dashboard_evidence(
+                    driver,
+                    target,
+                    {r["workflow_id"] for r in accepted},
+                    interval=(origin // SECOND, end // SECOND),
+                )
+                kind.save(
+                    driver.output / "dashboard-annotations.json",
+                    [
+                        {
+                            "dashboardUID": "j3-observability",
+                            "time": fault[event] // 1_000_000,
+                            "at_ns": fault[event],
+                            "tags": [tag, target["campaign"]],
+                            "text": f"Worker {event} command",
+                        }
+                        for event, tag in (("down", "j3-fault"), ("restore", "j3-restore"))
+                    ],
+                )
+            elif arm == "foreign":
                 dashboard_evidence(driver, target, {r["workflow_id"] for r in accepted})
             evaluations = collect_replay_inputs(driver, target, origin, end)
             if arm != "scrape_loss":
@@ -655,14 +704,21 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                     restored_rate(evidence)
                     if bounds:
                         check_final_window(evaluations, transitions, origin, bounds)
+                    if driver.measurement:
+                        kind.save(
+                            driver.output / "timing-verdict.json",
+                            primary_timing(data, evidence, result, bounds, witness),
+                        )
                 else:
                     require_behavior(
                         attainment["attainment"] >= 0.99, "healthy attainment below 99%"
                     )
                     if arm == "scrape_loss":
-                        verify_scrape(
+                        scrape_timing = verify_scrape(
                             evaluations, transitions, origin, fault["cut"], fault["reopen"]
                         )
+                        if driver.measurement:
+                            kind.save(driver.output / "timing-verdict.json", scrape_timing)
                     else:
                         require_behavior(not transitions, "unexpected healthy control alert")
                 events = worker_ledgers(
@@ -692,7 +748,7 @@ def run_episode(driver, pins, target, arm, run, setup, observer, binary, duratio
                     collect_replay_inputs(driver, target, origin, end or time.time_ns())
 
 
-def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
+def run_qualification(driver, args, addresses, pins, campaign, sealed=None, forecast=None):
     root = args.evidence
     stage = args.stage
     runs = {}
@@ -753,6 +809,9 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
                 retain_postgres_log(driver, start, required=True)
             finally:
                 retain_monitor_logs(driver, required=True)
+        if stage == "measurement" and bounds:
+            quiet = json.loads((out / "identity-drain.json").read_bytes())
+            require(quiet["admitted"] == sealed["arrival_volume"], "sealed arrival volume differs")
         if reset:
             driver.reset()
         runs[name].update(
@@ -817,7 +876,7 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
                 },
             )
             verdict.update(status="PASS")
-        else:
+        elif stage == "confirmation":
             episode("matched-healthy", "matched_healthy", sealed["matched_healthy"]["stop_s"])
             episode(
                 "full-volume", "outage", sealed["primary"]["stop_s"], sealed["primary"], reset=False
@@ -831,18 +890,42 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
             verdict.update(status="PASS", full_volume="PASS")
             if forecast["forecast_seconds"] > FORECAST_CAP * 60:
                 verdict.update(status="HALT", reason="measurement_forecast_over_cap")
+        else:
+            schedule = measurement_arms(sealed)
+            for i, (name, arm, duration, bounds) in enumerate(schedule):
+                remaining = remaining_forecast(forecast, MEASUREMENT_EPISODES[i:])
+                elapsed = ceil(time.time() - started)
+                kind.save(
+                    root / f"budget-before-{name}.json",
+                    {
+                        "elapsed_seconds": elapsed,
+                        "remaining_forecast_seconds": remaining,
+                        "cap_seconds": FORECAST_CAP * 60,
+                    },
+                )
+                if elapsed + remaining > FORECAST_CAP * 60:
+                    verdict.update(status="HALT", reason="remaining measurement forecast over cap")
+                    return verdict
+                episode(name, arm, duration, bounds, reset=i < len(schedule) - 1)
+            verdict.update(status="PASS")
     except Exception as error:
         verdict.update(
             status=episode_error_status(error),
             reason=str(error),
-            full_volume="UNPERFORMED" if "full-volume" not in runs else "FAILED",
         )
+        if stage != "measurement":
+            verdict["full_volume"] = "UNPERFORMED" if "full-volume" not in runs else "FAILED"
         for row in runs.values():
             if row["status"] == "RUNNING":
                 row.update(status=verdict["status"], error=str(error))
         raise
     finally:
-        for name in CALIBRATION_ARMS if stage == "calibration" else CONFIRMATION_ARMS:
+        expected = {
+            "calibration": CALIBRATION_ARMS,
+            "confirmation": CONFIRMATION_ARMS,
+            "measurement": MEASUREMENT_EPISODES,
+        }
+        for name in expected[stage]:
             runs.setdefault(name, {"status": "UNPERFORMED"})
         save_verdict()
     return verdict
@@ -851,7 +934,7 @@ def run_qualification(driver, args, addresses, pins, campaign, sealed=None):
 def main():
     args = hosted_arguments(__doc__, with_checker=True)
     campaign = campaign_id()
-    sealed = None
+    sealed, forecast = None, None
     try:
         admission = verify_admission(args.evidence, args.stage)
         if args.stage == "confirmation":
@@ -869,6 +952,30 @@ def main():
                     "schedule": sealed,
                 },
             )
+        elif args.stage == "measurement":
+            require(args.seal is not None, "measurement requires the reviewed qualification seal")
+            review = reviewed_candidate()
+            require(
+                json.loads((args.evidence / "review.json").read_bytes()) == review,
+                "missing matching measurement review receipt",
+            )
+            verified = verified_schedule(args.seal)
+            sealed, forecast = verified["schedule"], verified["forecast"]
+            kind.save(args.evidence / "verified-schedule.json", verified)
+            elapsed = ceil(time.time() - int(os.environ["J3_JOB_STARTED"]))
+            bootstrap_allowance = max(elapsed, forecast["forecast_allowance_seconds"]["bootstrap"])
+            if (
+                bootstrap_allowance + remaining_forecast(forecast, MEASUREMENT_EPISODES)
+                > FORECAST_CAP * 60
+            ):
+                kind.save(
+                    args.evidence / "verdict.json",
+                    {
+                        "status": "HALT",
+                        "reason": "measurement forecast over cap before bootstrap",
+                    },
+                )
+                return 1
         else:
             forecast = qualification_forecast(0)["calibration"]
             require(
@@ -889,13 +996,14 @@ def main():
         raise
     kind.CLUSTER, kind.LABEL = "j3-qualification", "j3.qualification=owned"
     driver = Qualification(args.evidence, args.scratch, args.checker)
+    driver.measurement = args.stage == "measurement"
     # Reserve the last 15 minutes for failure evidence, cleanup and upload.
     driver.live_reservation = FORECAST_CAP * 60 - (time.time() - int(os.environ["J3_JOB_STARTED"]))
     runtime, pins = locked_images(driver)
     kind.save(
         args.evidence / "run.json",
         {
-            "scope": "harness qualification",
+            "scope": "registered measurement" if driver.measurement else "harness qualification",
             "stage": args.stage,
             "campaign": campaign,
             "run": os.environ["GITHUB_RUN_ID"],
@@ -911,11 +1019,11 @@ def main():
             "runner": runner_cpu(),
         },
     )
-    verdict = {"status": "INVALID", "reason": "qualification bootstrap did not complete"}
+    verdict = {"status": "INVALID", "reason": "bootstrap did not complete"}
     try:
         addresses = bootstrap(driver, args, pins)
         driver.enable_commit_timestamps()
-        verdict = run_qualification(driver, args, addresses, pins, campaign, sealed)
+        verdict = run_qualification(driver, args, addresses, pins, campaign, sealed, forecast)
     finally:
         path = args.evidence / "verdict.json"
         if path.exists():
@@ -938,11 +1046,14 @@ def main():
                 kind.save(args.evidence / "cleanup.json", driver.cleanup())
             except Exception as error:
                 kind.save(args.evidence / "cleanup.json", {"status": "FAIL", "error": str(error)})
-                verdict.update(status="INVALID", cleanup_error=str(error))
+                if not driver.measurement or verdict["status"] not in {"FAIL", "CAPACITY"}:
+                    verdict["status"] = "INVALID"
+                verdict["cleanup_error"] = str(error)
                 raise
             finally:
                 kind.save(path, verdict)
-                kind.save(args.evidence / "sha256.json", kind.artifact_hashes(args.evidence))
+                if not driver.measurement:
+                    kind.save(args.evidence / "sha256.json", kind.artifact_hashes(args.evidence))
     return 0 if verdict["status"] == "PASS" else 1
 
 

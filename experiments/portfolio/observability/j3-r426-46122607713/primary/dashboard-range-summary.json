@@ -1,0 +1,404 @@
+{
+  "queries": {
+    "1A": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_oldest_claimable_age_seconds",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "2A": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_claimable_attempts",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "2B": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_active_claims",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "2C": [
+      {
+        "first": [
+          1795852457,
+          "4"
+        ],
+        "labels": {
+          "__name__": "j3_ready_slots",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-receiver:8082",
+          "job": "j3-observer",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "4"
+        ],
+        "samples": 3301
+      }
+    ],
+    "3A": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_outstanding",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "3B": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_unpublished",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "4A": [],
+    "4B": [],
+    "5A": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_eligible",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "10m"
+        },
+        "last": [
+          1795855757,
+          "33"
+        ],
+        "samples": 3301
+      },
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_eligible",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "2m"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "5B": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_bad",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "10m"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      },
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "__name__": "j3_bad",
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "2m"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ],
+    "6A": [
+      {
+        "first": [
+          1795852461,
+          "0"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "10m"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3297
+      },
+      {
+        "first": [
+          1795852461,
+          "0"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary",
+          "window": "2m"
+        },
+        "last": [
+          1795855281,
+          "0"
+        ],
+        "samples": 2821
+      }
+    ],
+    "7A": [
+      {
+        "first": [
+          1795852457,
+          "0.789247989654541"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "1.7873730659484863"
+        ],
+        "samples": 3301
+      }
+    ],
+    "7B": [
+      {
+        "first": [
+          1795852457,
+          "0.7885680198669434"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "1.566999912261963"
+        ],
+        "samples": 3301
+      }
+    ],
+    "7C": [
+      {
+        "first": [
+          1795852457,
+          "0.7030000686645508"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "instance": "j3-exporter:9187",
+          "job": "j3",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0.7030000686645508"
+        ],
+        "samples": 3301
+      }
+    ],
+    "8A": [
+      {
+        "first": [
+          1795853088,
+          "2"
+        ],
+        "labels": {
+          "alertname": "OldestClaimable",
+          "alertstate": "firing",
+          "campaign": "j3-r426-46122607713",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795853932,
+          "2"
+        ],
+        "samples": 845
+      },
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 2456
+      }
+    ],
+    "8B": [
+      {
+        "first": [
+          1795853153,
+          "2"
+        ],
+        "labels": {
+          "alertname": "DeadlineBudgetBurn",
+          "alertstate": "firing",
+          "campaign": "j3-r426-46122607713",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795854002,
+          "2"
+        ],
+        "samples": 850
+      },
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 2451
+      }
+    ],
+    "8C": [
+      {
+        "first": [
+          1795852457,
+          "0"
+        ],
+        "labels": {
+          "campaign": "j3-r426-46122607713",
+          "namespace": "j3-target-primary"
+        },
+        "last": [
+          1795855757,
+          "0"
+        ],
+        "samples": 3301
+      }
+    ]
+  },
+  "source_times": {
+    "first": [
+      1795852457,
+      "1795852456.210752"
+    ],
+    "labels": {
+      "__name__": "j3_sample_timestamp_seconds",
+      "campaign": "j3-r426-46122607713",
+      "instance": "j3-exporter:9187",
+      "job": "j3",
+      "namespace": "j3-target-primary"
+    },
+    "last": [
+      1795855757,
+      "1795855755.212627"
+    ],
+    "samples": 3301
+  }
+}

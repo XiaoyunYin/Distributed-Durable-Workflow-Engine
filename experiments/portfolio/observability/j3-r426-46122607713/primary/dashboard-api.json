@@ -1,0 +1,397 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "iconColor": "#E02F44",
+          "name": "Worker scale-down",
+          "target": {
+            "matchAny": false,
+            "tags": [
+              "j3-fault",
+              "$campaign"
+            ],
+            "type": "tags"
+          }
+        },
+        {
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "iconColor": "#299C46",
+          "name": "Worker restore",
+          "target": {
+            "matchAny": false,
+            "tags": [
+              "j3-restore",
+              "$campaign"
+            ],
+            "type": "tags"
+          }
+        }
+      ]
+    },
+    "editable": false,
+    "id": 886279097237504,
+    "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "spanNulls": false,
+              "thresholdsStyle": {
+                "mode": "line"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 28.54
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "targets": [
+          {
+            "expr": "j3_oldest_claimable_age_seconds{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid",
+            "legendFormat": "Demand age",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest claimable attempt",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "id": 2,
+        "targets": [
+          {
+            "expr": "j3_claimable_attempts{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid",
+            "legendFormat": "Claimable",
+            "refId": "A"
+          },
+          {
+            "expr": "j3_active_claims{campaign=\"$campaign\",namespace=\"$namespace\"} and on(campaign,namespace) j3:valid",
+            "legendFormat": "Active claims",
+            "refId": "B"
+          },
+          {
+            "expr": "j3_ready_slots{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Ready slots",
+            "refId": "C"
+          }
+        ],
+        "title": "Claimable attempts and worker slots",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "targets": [
+          {
+            "expr": "j3_outstanding{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Outstanding workflows",
+            "refId": "A"
+          },
+          {
+            "expr": "j3_unpublished{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Unpublished outbox events",
+            "refId": "B"
+          }
+        ],
+        "title": "Target backlog",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "description": "Takeovers are ownership changes in the dedicated database lease ledger. Stale rejections are observed stale worker-control responses in this deployment. Both series require observer evidence.",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "id": 4,
+        "targets": [
+          {
+            "expr": "j3_lease_takeovers_total{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Lease takeovers (database)",
+            "refId": "A"
+          },
+          {
+            "expr": "j3_stale_rejections_total{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Stale rejections (worker-control)",
+            "refId": "B"
+          }
+        ],
+        "title": "Lease takeovers and stale rejections",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "id": 5,
+        "targets": [
+          {
+            "expr": "j3_eligible{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"}",
+            "legendFormat": "{{window}} eligible",
+            "refId": "A"
+          },
+          {
+            "expr": "j3_bad{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"}",
+            "legendFormat": "{{window}} bad",
+            "refId": "B"
+          }
+        ],
+        "title": "Matured deadline cohorts",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "spanNulls": false,
+              "thresholdsStyle": {
+                "mode": "line"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 14.4
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "id": 6,
+        "targets": [
+          {
+            "expr": "100 * j3_bad{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"} / (j3_eligible{campaign=\"$campaign\",namespace=\"$namespace\",window=~\"2m|10m\"} > 0)",
+            "legendFormat": "{{window}} burn",
+            "refId": "A"
+          }
+        ],
+        "title": "Deadline error-budget burn",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "id": 7,
+        "targets": [
+          {
+            "expr": "time() - j3_sample_timestamp_seconds{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "SQL age (s)",
+            "refId": "A"
+          },
+          {
+            "expr": "time() - j3_demand_timestamp_seconds{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "Demand age (s)",
+            "refId": "B"
+          },
+          {
+            "expr": "time() - timestamp(up{job=\"j3\",campaign=\"$campaign\",namespace=\"$namespace\"})",
+            "legendFormat": "Scrape age (s)",
+            "refId": "C"
+          }
+        ],
+        "title": "Source and scrape age",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "j3-prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "spanNulls": false
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "text": "Inactive"
+                  },
+                  "1": {
+                    "text": "Pending"
+                  },
+                  "2": {
+                    "text": "Firing"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
+        "id": 8,
+        "targets": [
+          {
+            "expr": "2 * ALERTS{alertname=\"OldestClaimable\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:valid{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "OldestClaimable",
+            "refId": "A"
+          },
+          {
+            "expr": "2 * ALERTS{alertname=\"DeadlineBudgetBurn\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:valid{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "DeadlineBudgetBurn",
+            "refId": "B"
+          },
+          {
+            "expr": "2 * ALERTS{alertname=\"ScrapeAbsent\",alertstate=\"firing\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) ALERTS{alertname=\"ScrapeAbsent\",alertstate=\"pending\",campaign=\"$campaign\",namespace=\"$namespace\"} or on(campaign,namespace) 0 * j3:expected{campaign=\"$campaign\",namespace=\"$namespace\"}",
+            "legendFormat": "ScrapeAbsent",
+            "refId": "C"
+          }
+        ],
+        "title": "Alert state",
+        "type": "state-timeline"
+      }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 41,
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "text": "j3-r426-46122607713",
+            "value": "j3-r426-46122607713"
+          },
+          "label": "Run",
+          "name": "campaign",
+          "query": "j3-r426-46122607713",
+          "type": "constant"
+        },
+        {
+          "current": {
+            "text": "j3-target-primary",
+            "value": "j3-target-primary"
+          },
+          "label": "Workflow namespace",
+          "name": "namespace",
+          "query": "j3-target-primary",
+          "type": "constant"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "title": "J3 workflow observability",
+    "uid": "j3-observability",
+    "version": 1
+  },
+  "datasource": {
+    "access": "proxy",
+    "apiVersion": "",
+    "basicAuth": false,
+    "basicAuthUser": "",
+    "database": "",
+    "id": 1,
+    "isDefault": true,
+    "jsonData": {
+      "timeInterval": "1s"
+    },
+    "name": "J3 Prometheus",
+    "orgId": 1,
+    "readOnly": true,
+    "secureJsonFields": {},
+    "type": "prometheus",
+    "typeLogoUrl": "public/plugins/prometheus/img/prometheus_logo.svg",
+    "uid": "j3-prometheus",
+    "url": "http://j3-prometheus:9090",
+    "user": "",
+    "version": 1,
+    "withCredentials": false
+  }
+}

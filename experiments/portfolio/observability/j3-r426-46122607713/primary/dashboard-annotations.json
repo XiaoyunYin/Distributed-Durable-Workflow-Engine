@@ -1,0 +1,22 @@
+[
+  {
+    "at_ns": 1795853057000153880,
+    "dashboardUID": "j3-observability",
+    "tags": [
+      "j3-fault",
+      "j3-r426-46122607713"
+    ],
+    "text": "Worker down command",
+    "time": 1795853057000
+  },
+  {
+    "at_ns": 1795853357000144153,
+    "dashboardUID": "j3-observability",
+    "tags": [
+      "j3-restore",
+      "j3-r426-46122607713"
+    ],
+    "text": "Worker restore command",
+    "time": 1795853357000
+  }
+]
