@@ -77,6 +77,7 @@ const (
 	Submit       = "submit"
 	AcquireLease = "acquire_lease"
 	RenewLease   = "renew_lease"
+	ReleaseLease = "release_lease"
 	OwnerWrite   = "owner_write"
 	Claim        = "claim"
 	Result       = "result"
@@ -108,7 +109,7 @@ func (o Operation) valid(h Header) bool {
 		return identifier(o.WorkflowID) && identifier(o.Namespace) && identifier(o.SubmissionKey)
 	case AcquireLease:
 		return true
-	case RenewLease:
+	case RenewLease, ReleaseLease:
 		return o.Lease != nil
 	case OwnerWrite:
 		return o.Lease != nil && identifier(o.WorkflowID)

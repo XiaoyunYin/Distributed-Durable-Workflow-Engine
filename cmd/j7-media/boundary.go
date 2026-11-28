@@ -127,9 +127,9 @@ WITH fixture AS (SELECT %s AS inputs),
         JOIN engine.activity_attempts a ON a.workflow_id = n.workflow_id
             AND a.node_id = n.node_id AND a.iteration = n.iteration
         WHERE w.state = 'SUCCEEDED' AND n.state = 'SUCCEEDED'
-          AND a.attempt_number = 1 AND a.is_current AND a.effect_class = 'COOPERATING_EFFECT'
+          AND a.attempt_number = 1 AND NOT a.is_current AND a.effect_class = 'COOPERATING_EFFECT'
           AND a.state = 'SUCCEEDED' AND a.outcome_disposition = 'KNOWN_SUCCESS'
-          AND n.accepted_result IS NOT NULL
+          AND n.current_attempt_number IS NULL AND n.accepted_result IS NOT NULL
     )
 SELECT json_build_object(
     'system_identifier', (SELECT system_identifier FROM pg_control_system()),

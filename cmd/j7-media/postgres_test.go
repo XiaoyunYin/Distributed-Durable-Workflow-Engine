@@ -127,7 +127,8 @@ CREATE TABLE engine.workflow_executions (
     workflow_id text PRIMARY KEY, namespace text, submission_key text,
     definition_id text, definition_version int, submission_payload_hash text, state text);
 CREATE TABLE engine.node_instances (
-    workflow_id text, node_id text, iteration int, input jsonb, state text, accepted_result jsonb);
+    workflow_id text, node_id text, iteration int, input jsonb, state text, accepted_result jsonb,
+    current_attempt_number bigint);
 CREATE TABLE engine.activity_attempts (
     workflow_id text, node_id text, iteration int, attempt_number int, is_current bool,
     effect_class text, state text, outcome_disposition text);
@@ -135,7 +136,7 @@ INSERT INTO engine.workflow_executions
 SELECT fixture->>'id', fixture->>'namespace', fixture->>'submission_key',
        fixture->>'definition_id', 1, fixture->>'submission_payload_hash', 'SUCCEEDED'
 FROM jsonb_array_elements(%[1]s) AS fixture;
-INSERT INTO engine.node_instances
+INSERT INTO engine.node_instances (workflow_id, node_id, iteration, input, state, accepted_result)
 SELECT fixture->>'id', 'pure.echo', 0, fixture->'input', 'SUCCEEDED', fixture->'input'
 FROM jsonb_array_elements(%[1]s) AS fixture;`, sqlJSON(markers))
 	if _, err := source.psql(ctx, setup); err != nil {
@@ -148,9 +149,15 @@ FROM jsonb_array_elements(%[1]s) AS fixture;`, sqlJSON(markers))
 	}
 	if _, err := source.psql(ctx, `
 INSERT INTO engine.workflow_executions VALUES ('e1', 'j7', 'e1', 'effect', 1, 'test', 'SUCCEEDED');
-INSERT INTO engine.node_instances VALUES ('e1', 'effect', 0, '{}', 'SUCCEEDED', '{"receipt":"fixture"}');
+INSERT INTO engine.node_instances VALUES ('e1', 'effect', 0, '{}', 'SUCCEEDED', '{"receipt":"fixture"}', 1);
 INSERT INTO engine.activity_attempts VALUES ('e1', 'effect', 0, 1, true, 'COOPERATING_EFFECT', 'SUCCEEDED', 'KNOWN_SUCCESS');
 `); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := source.sample(ctx, ledgerMarkers(f.plan, f.report), "e1"); err != nil || pending.EffectSHA256 != "" {
+		t.Fatalf("current effect attempt must not count as a consumed source result: %+v, %v", pending, err)
+	}
+	if _, err := source.psql(ctx, "UPDATE engine.activity_attempts SET is_current=false; UPDATE engine.node_instances SET current_attempt_number=NULL WHERE workflow_id='e1';"); err != nil {
 		t.Fatal(err)
 	}
 	sample, err := source.sample(ctx, ledgerMarkers(f.plan, f.report), "e1")
