@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext, suppress
 from datetime import UTC, datetime, timedelta
@@ -35,12 +36,14 @@ from dur053_k6_join import digest, identity, load_records, receipt_bytes, verify
 NETWORK_DENIAL = {"TCP_DIAL_TIMEOUT", "TCP_CONNECTION_REFUSED", "TCP_UNREACHABLE"}
 DENIED = digest(b"K6_AUTH_DENIED\n")
 PARALLEL = 6
+SINK_ROLLOUT = "f-sink-rollout-surge"
+GRANT_READER = ("k6_sink_grant_reader", "dur053-k6-sink-grant-reader")
 ENGINE_CLIENTS = {
     ("durable", "dur053-k6-c-admin"): 5,
     ("durable", "dur053-k6-c-monitor"): 2,
     ("durable", "dur053-k6-c-fixture"): 2,
     ("durable", "dur053-migrate"): 2,
-    ("k6_sink_grant_reader", "dur053-k6-sink-grant-reader"): 4,
+    GRANT_READER: 4,
     ("k6_decision_writer", "dur053-k6-c-decision"): 2,
 }
 SINK_CLIENTS = {
@@ -103,6 +106,7 @@ class PhaseCEvidence(Evidence):
                 "rejections": [],
                 "startups": [],
                 "denial_probes": [],
+                "sink_rollout_window_us": None,
             },
         )
 
@@ -111,7 +115,7 @@ def is_starting(user: str | None, application: str | None) -> bool:
     return user is None and application == ""
 
 
-def trace_count(server: str, sample: dict[str, Any]) -> int:
+def trace_count(server: str, sample: dict[str, Any], rollout_readers: int = 0) -> int:
     sink = server == "sink"
     limits = SINK_CLIENTS if sink else ENGINE_CLIENTS
     require(
@@ -119,12 +123,28 @@ def trace_count(server: str, sample: dict[str, Any]) -> int:
         "DB_CONNECTION_SETTINGS_" + server.upper(),
     )
     application_count = 0
+    grant_readers = rollout_readers
     for user, application, count in sample["clients"]:
         application_count += count
         if is_starting(user, application):
             continue
+        if (
+            not sink
+            and rollout_readers
+            and (user, application, count)
+            == (
+                None,
+                GRANT_READER[1],
+                rollout_readers,
+            )
+        ):
+            continue
         require((user, application) in limits, "DB_UNACCOUNTED_CLIENT_" + server.upper())
         require(0 < count <= limits[user, application], "DB_CLIENT_BUDGET_" + server.upper())
+        if (user, application) == GRANT_READER:
+            grant_readers += count
+    if rollout_readers:
+        require(grant_readers <= ENGINE_CLIENTS[GRANT_READER], "DB_CLIENT_BUDGET_ENGINE")
     require(
         application_count + sample["reserved"] <= (19 if sink else 82),
         "DB_TOTAL_BUDGET_" + server.upper(),
@@ -140,10 +160,33 @@ class Trace:
         self.rejections: list[dict[str, Any]] = []
         self.startups: list[dict[str, Any]] = []
         self.denial_probes: dict[str, tuple[int, Future[dict[str, Any]]]] = {}
+        self.rollout_window: tuple[int, int | None] | None = None
         self.stop = threading.Event()
         self.initial = threading.Event()
         self.failure: str | None = None
         self.thread = threading.Thread(target=self.sample, daemon=True)
+
+    @contextmanager
+    def sink_rollout(self) -> Iterator[None]:
+        started_us = time.time_ns() // 1000
+        self.rollout_window = (started_us, None)
+        try:
+            yield
+        finally:
+            self.rollout_window = (started_us, time.time_ns() // 1000)
+
+    def rollout_reader(self, server: str, captured_us: int, backend: dict[str, Any]) -> bool:
+        window = self.rollout_window
+        if server != "engine" or window is None or not backend["backend_start"]:
+            return False
+        started_us, ended_us = window
+        backend_us = round(datetime.fromisoformat(backend["backend_start"]).timestamp() * 1_000_000)
+        return (
+            started_us <= min(captured_us, backend_us)
+            and (ended_us is None or max(captured_us, backend_us) <= ended_us)
+            and bool(backend["client_addr"])
+            and 0 < (backend["client_port"] or 0) <= 65535
+        )
 
     def client_pods(self) -> dict[str, dict[str, str]]:
         pods = json.loads(
@@ -222,6 +265,7 @@ class Trace:
         pods: Future[dict[str, dict[str, str]]],
         attributed: list[dict[str, Any]],
         terminal: list[dict[str, Any]],
+        rollout_sources: dict[tuple[int, str], dict[str, Any]],
     ) -> None:
         logs = None
         unresolved = []
@@ -238,28 +282,55 @@ class Trace:
             if outcome is None:
                 unresolved.append(backend)
             else:
+                if (backend["pid"], backend["backend_start"]) in rollout_sources:
+                    require(
+                        (outcome["role"], outcome["application"]) == GRANT_READER,
+                        "DB_UNACCOUNTED_CLIENT_" + server.upper(),
+                    )
                 terminal.append({**backend, **outcome})
         if not unresolved:
             return
         require(
             len(unresolved) <= STARTUP_VANISH_LIMIT, "DB_STARTUP_VANISH_BUDGET_" + server.upper()
         )
+        other_backends = [
+            b for b in unresolved if (b["pid"], b["backend_start"]) not in rollout_sources
+        ]
+        sources = {**rollout_sources, **self.sink_sources(server, other_backends, pods)}
+        for backend in unresolved:
+            source = sources.get((backend["pid"], backend["backend_start"]))
+            if source is None:
+                require(False, "DB_STARTUP_VANISHED_" + server.upper())
+            else:
+                attributed.append({**backend, **source})
+
+    def sink_sources(
+        self,
+        server: str,
+        backends: list[dict[str, Any]],
+        pods: Future[dict[str, dict[str, str]]],
+    ) -> dict[tuple[int, str], dict[str, Any]]:
+        if not backends:
+            return {}
         clients = {}
         with suppress(Exception):
             clients = pods.result()
         translated = {}
         if clients and any(
-            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in unresolved
+            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in backends
         ):
             with suppress(SmokeFailure):
                 translated = self.translated_clients(server, {p["node"] for p in clients.values()})
-        for backend in unresolved:
+        sources = {}
+        for backend in backends:
             addr, port = backend["client_addr"], backend["client_port"]
             ip = translated.get((addr, port), addr)
-            if ip not in clients or not (0 < (port or 0) <= 65535):
-                require(False, "DB_STARTUP_VANISHED_" + server.upper())
-            else:
-                attributed.append({**backend, "pod_ip": ip, "pod": clients[ip]})
+            if ip in clients and 0 < (port or 0) <= 65535:
+                sources[(backend["pid"], backend["backend_start"])] = {
+                    "pod_ip": ip,
+                    "pod": clients[ip],
+                }
+        return sources
 
     def logged_startup(
         self, server: str, backend: dict[str, Any], logs: str
@@ -365,10 +436,14 @@ class Trace:
         row = self.rows[index]
         suffix = "_" + server.upper()
         unresolved = "DB_STARTUP_UNRESOLVED" + suffix
+        unaccounted = "DB_UNACCOUNTED_CLIENT_" + server.upper()
         pending: dict[tuple[int, str], tuple[int, float, dict[str, Any]]] = {}
         vanished: list[dict[str, Any]] = []
         attributed: list[dict[str, Any]] = []
         terminal: list[dict[str, Any]] = []
+        rollout_readers: dict[tuple[int, str], dict[str, Any]] = {}
+        rollout_sources: dict[tuple[int, str], dict[str, Any]] = {}
+        source_checks: list[Future[dict[tuple[int, str], dict[str, Any]]]] = []
         observations = []
         pods = None
         followups: list[dict[str, Any]] = []
@@ -406,6 +481,14 @@ class Trace:
                         for key, b in current.items()
                         if is_starting(b["usename"], b["application_name"])
                     }
+                    named = {
+                        key: b
+                        for key, b in current.items()
+                        if (b["state"], b["usename"], b["application_name"])
+                        == ("starting", None, GRANT_READER[1])
+                        and (key in rollout_readers or self.rollout_reader(server, captured_us, b))
+                    }
+                    starting.update(named)
                     if pending or starting:
                         if pods is None:
                             pods = executor.submit(self.client_pods)
@@ -419,8 +502,7 @@ class Trace:
                                 ],
                             }
                         )
-
-                    total = trace_count(server, sample)
+                    total = trace_count(server, sample, len(named))
                     sample["total"] = total
                     self.peaks[server] = max(total, self.peaks[server])
                     if previous_us is not None:
@@ -428,11 +510,42 @@ class Trace:
                             0 < captured_us - previous_us <= STARTUP_GAP_US,
                             "DB_STARTUP_SAMPLE_GAP" + suffix,
                         )
+                    new_readers = {key: b for key, b in named.items() if key not in rollout_readers}
+                    if new_readers:
+                        assert pods is not None
+                        # Take the socket witness concurrently with the bounded SQL follow-ups.
+                        source_checks.append(
+                            executor.submit(
+                                self.sink_sources,
+                                server,
+                                list(new_readers.values()),
+                                pods,
+                            )
+                        )
+                        rollout_readers.update(new_readers)
+
                     for key, (first_us, _, backend) in tuple(pending.items()):
                         elapsed_us = captured_us - first_us
                         require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
                         if key not in current:
+                            backend = rollout_readers.get(key, backend)
                             vanished.append(backend)
+                        elif key in rollout_readers:
+                            observed = current[key]
+                            original = rollout_readers[key]
+                            require(
+                                (observed["client_addr"], observed["client_port"])
+                                == (original["client_addr"], original["client_port"])
+                                and (
+                                    key in named
+                                    or (
+                                        observed["state"] != "starting"
+                                        and (observed["usename"], observed["application_name"])
+                                        == GRANT_READER
+                                    )
+                                ),
+                                unaccounted,
+                            )
                         if key not in starting:
                             del pending[key]
                         else:
@@ -441,9 +554,14 @@ class Trace:
                         require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
                         pending[key] = (captured_us, received + STARTUP_SECONDS, current[key])
                     if not pending:
+                        for check in source_checks:
+                            rollout_sources.update(check.result())
+                        require(rollout_sources.keys() == rollout_readers.keys(), unaccounted)
                         if vanished:
                             assert pods is not None
-                            self.attribute_vanishes(server, vanished, pods, attributed, terminal)
+                            self.attribute_vanishes(
+                                server, vanished, pods, attributed, terminal, rollout_sources
+                            )
                         return
                     previous_us = captured_us
                     next_poll = min(
@@ -470,6 +588,10 @@ class Trace:
                         "outcome": outcome,
                         "attributed_vanishes": attributed,
                         "terminal_startups": terminal,
+                        "rollout_readers": [
+                            {**rollout_readers[key], **source}
+                            for key, source in rollout_sources.items()
+                        ],
                         "observations": [self.record_backends(item, pods) for item in observations],
                     }
                 )
@@ -516,6 +638,7 @@ class Trace:
                 "peaks": self.peaks,
                 "rejections": self.rejections,
                 "startups": self.startups,
+                "sink_rollout_window_us": self.rollout_window,
                 "denial_probes": [
                     completed.result()
                     for _, completed in self.denial_probes.values()
@@ -900,7 +1023,7 @@ class Matrix(Deployment):
                     "LOOKUP_COMMITTED_RECEIPT_MISMATCH",
                 )
                 row.update(result)
-            with evidence.step("f-sink-rollout-surge"):
+            with evidence.step(SINK_ROLLOUT), trace.sink_rollout():
                 before = self.export_sink()["relations"]
                 self.k("SINK_RESTART", "-n", NS, "rollout", "restart", f"deployment/{SINK}")
                 self.ready(SINK)

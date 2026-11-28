@@ -1853,3 +1853,17 @@ publishing a decision from the retained defective `busy_removals` field.
 
 These CI reliability changes preserve the registered K values, verdict rules,
 and evidence semantics apart from the precise Phase C attribution above.
+
+### B.10 Phase C rollout startup disclosure (pending review)
+
+During `f-sink-rollout-surge`, an engine backend in `starting` can publish
+`dur053-k6-sink-grant-reader` before its role appears in `pg_stat_activity`.
+The harness follows that specific partial identity only within the recorded
+rollout window. The socket must map to a registered sink pod by pod address
+or by a matching conntrack tuple. Both pending and authenticated grant-reader
+connections count against the registered client and total connection budgets.
+The same backend must resolve to `k6_sink_grant_reader` with that application
+within the existing sample bounds or satisfy the existing rules for a vanished
+startup. Missing source or terminal proof and unrelated identities fail the
+guard. This CI reliability change preserves registered K values and verdict
+rules, with evidence semantics extended only for this specific attribution.

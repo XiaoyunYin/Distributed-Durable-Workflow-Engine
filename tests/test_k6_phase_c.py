@@ -551,6 +551,110 @@ def registered_sink() -> str:
     )
 
 
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "direct",
+        "translated",
+        "vanished",
+        "unresolved",
+        "unknown_application",
+        "wrong_source",
+        "wrong_step",
+        "wrong_server",
+        "wrong_state",
+        "wrong_pair",
+        "wrong_socket",
+        "over_budget",
+        "authorization_mismatch",
+    ],
+)
+def test_phase_c_rollout_named_startup_requires_source_and_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    server = "sink" if variant == "wrong_server" else "engine"
+    role, app = phase_c.GRANT_READER
+    address = "172.18.0.2" if variant in {"translated", "wrong_source"} else "10.7.0.1"
+    backend = {
+        **trace_backend(630, app=app, start="1970-01-01T00:01:39.996000Z"),
+        "client_addr": address,
+        "client_port": 34396,
+    }
+    if variant == "unknown_application":
+        backend["application_name"] = "other"
+    if variant == "wrong_state":
+        backend["state"] = "idle"
+    resolved = {**backend, "usename": role, "state": "idle"}
+    if variant == "wrong_pair":
+        resolved.update(usename="durable", application_name="dur053-k6-c-monitor")
+    if variant == "wrong_socket":
+        resolved["client_port"] += 1
+
+    existing = (
+        [trace_backend(pid, role, app) for pid in range(4)] if variant == "over_budget" else []
+    )
+    if variant == "unresolved":
+        followups = [
+            trace_snapshot(us, backend, server=server) for us in range(100_000, 2_000_001, 100_000)
+        ]
+    elif variant in {"vanished", "authorization_mismatch"}:
+        followups = [trace_snapshot(100_000, server=server)]
+    else:
+        followups = [trace_snapshot(100_000, resolved, server=server)]
+    trace, query = synthetic_trace(
+        tmp_path, monkeypatch, trace_snapshot(0, backend, *existing, server=server), *followups
+    )
+    smoke: Any = trace.smoke
+    if variant in {"translated", "wrong_source"}:
+        source = "10.7.0.1" if variant == "translated" else "10.7.0.9"
+        smoke.command.return_value = (
+            f"tcp 6 9 ESTABLISHED src={source} dst={ENDPOINTS['engine_db']} sport=34396 dport=5432 "
+            f"src={ENDPOINTS['engine_db']} dst={address} sport=5432 dport=34396 [ASSURED]\n"
+        ).encode()
+    if variant == "authorization_mismatch":
+        smoke.startup_logs.return_value = (
+            f"dur053-k6 {99:x}.{630:x} {address}(34396) 00000 100.010|"
+            "LOG:  connection authorized: user=durable database=engine "
+            "application_name=dur053-k6-c-monitor"
+        )
+    monkeypatch.setattr(
+        phase_c.time, "time_ns", Mock(side_effect=[99_900_000_000, 104_000_000_000]), raising=False
+    )
+    rollout = nullcontext() if variant == "wrong_step" else trace.sink_rollout()
+    with rollout:
+        if variant in {"direct", "translated", "vanished"}:
+            sample_synthetic(trace, server)
+        else:
+            expected = {
+                "unresolved": "DB_STARTUP_UNRESOLVED_ENGINE",
+                "over_budget": "DB_CLIENT_BUDGET_ENGINE",
+            }.get(variant, "DB_UNACCOUNTED_CLIENT_" + server.upper())
+            with pytest.raises(SmokeFailure, match=f"^{expected}$"):
+                sample_synthetic(trace, server)
+            if variant in {"unknown_application", "wrong_step", "wrong_server", "wrong_state"}:
+                assert query.call_count == 1
+            return
+
+    assert query.call_count == 2
+    assert trace.rows[0][server]["total"] == 1
+    trace.finish()
+    artifact = json.loads((tmp_path / phase_c.TRACE_FILE).read_bytes())
+    assert artifact["sink_rollout_window_us"] == [99_900_000, 104_000_000]
+    assert artifact["rejections"] == []
+    [record] = artifact["startups"]
+    [witness] = record["rollout_readers"]
+    assert (witness["pid"], witness["pod_ip"], witness["pod"]["uid"]) == (
+        630,
+        "10.7.0.1",
+        "sink-uid",
+    )
+    if variant == "vanished":
+        assert record["attributed_vanishes"] == [witness]
+    else:
+        [final] = record["observations"][-1]["backends"]
+        assert (final["usename"], final["application_name"]) == (role, app)
+
+
 @pytest.mark.parametrize("translated", [False, True])
 def test_phase_c_attributed_startup_can_vanish(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, translated: bool

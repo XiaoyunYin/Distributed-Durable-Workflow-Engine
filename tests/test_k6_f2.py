@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import time
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
@@ -28,7 +31,7 @@ from dur053_k6_f2_inputs import (  # noqa: E402
     quiet_digest,
     runtime_start,
 )
-from dur053_k6_f2_smoke import F2Smoke  # noqa: E402
+from dur053_k6_f2_smoke import F2Evidence, F2Smoke  # noqa: E402
 from dur053_k6_hook import Receiver, encode  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
 
@@ -428,6 +431,43 @@ def test_kafka_low_high_water(tmp_path, monkeypatch):
     inputs = make_cell("medium-7", tmp_path, monkeypatch)
     inputs["fault"]["marks"][1] = topic_samples(T0 + 7 * SECOND)
     reject(inputs, "F2_KAFKA_HIGH_WATER_REGRESSED", "F2_KAFKA_LOST_HIGH_WATER_ACCEPTED")
+
+
+def test_kafka_restart_verdict_read_is_single_shot_and_retains_failure(tmp_path, monkeypatch):
+    smoke = F2Smoke.__new__(F2Smoke)
+    smoke.evidence = F2Evidence(tmp_path)
+    smoke.env = {}
+    smoke.deadline = datetime.now(UTC) + timedelta(seconds=30)
+    smoke.broker = "192.0.2.2"
+    smoke.kafka_probe = tmp_path / "kafka-read"
+    ranges = json.dumps(topic_samples(T0)[EVENTS]["value"]).encode()
+    stderr = b"K6E1_KAFKA_READ: Leader Not Available\n"
+    run = Mock(
+        side_effect=[
+            subprocess.CompletedProcess([], 0, ranges, b""),
+            subprocess.CompletedProcess([], 1, b"", stderr),
+        ]
+    )
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with (
+        pytest.raises(SmokeFailure, match="^E1_KAFKA_DIRECT_READ_EXIT_1$"),
+        smoke.evidence.step("medium-7"),
+    ):
+        smoke.engine_topics()
+
+    assert run.call_count == 2
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "kafka-direct-read-attempts.jsonl").read_bytes().splitlines()
+    ]
+    assert [(row["topic"], row["exit_status"], row["stderr"]) for row in rows] == [
+        (EVENTS, 0, ""),
+        (TASKS, 1, stderr.decode()),
+    ]
+    assert all(
+        row["step"] == "medium-7" and row["attempt"] == 1 and not row["setup"] for row in rows
+    )
 
 
 def test_coverage_derived_from_witnesses():
