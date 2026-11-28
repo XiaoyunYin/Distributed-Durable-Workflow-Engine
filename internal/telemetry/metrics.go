@@ -15,11 +15,11 @@ import (
 	"time"
 )
 
-// Metrics is a bounded-cardinality process registry.  Labels are fixed to the
-// process role; incident IDs, workflow IDs, prompts, evidence text, and other
-// unbounded values are deliberately not accepted.
+// Metrics is a bounded-cardinality process registry with a fixed role label.
+// J9a timing adds fixed stages and bucket bounds.
 type Metrics struct {
-	role string
+	role         string
+	stageTimings *stageTimings
 
 	startedUnix            atomic.Int64
 	durableReadyUnix       atomic.Int64
@@ -50,6 +50,15 @@ func New(role string) *Metrics {
 	metrics := &Metrics{role: role}
 	metrics.startedUnix.Store(time.Now().Unix())
 	return metrics
+}
+
+// NewWithStageTimings opts a process or an offline renderer into J9a timing.
+func NewWithStageTimings(role string, enabled bool) *Metrics {
+	m := New(role)
+	if enabled {
+		m.stageTimings = &stageTimings{}
+	}
+	return m
 }
 
 func (m *Metrics) roleLabel() string {
@@ -228,6 +237,9 @@ func (m *Metrics) Render() string {
 	writeCounter("durable_db_query_seconds_total", "Cumulative database query seconds.", s.QuerySeconds)
 	writeCounter("durable_db_lock_wait_seconds_total", "Cumulative database lock-wait seconds.", s.LockWaitSeconds)
 	writeCounter("durable_db_lock_waits_total", "Database lock waits observed.", s.LockWaitCount)
+	if m != nil && m.stageTimings != nil {
+		m.stageTimings.render(&b, s.Role, relayStageFamily)
+	}
 	return b.String()
 }
 

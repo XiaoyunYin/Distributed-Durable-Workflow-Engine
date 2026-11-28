@@ -17,7 +17,7 @@ from deploy.j4.qualification import (
     require_clock_continuity,
     require_probe_evidence,
 )
-from deploy.j4.relay_preflight import RelaySelection
+from deploy.j4.relay_preflight import RelaySelection, relay_selection
 
 PIN = "postgres@sha256:" + "e" * 64
 KAFKA = "kafka@sha256:" + "f" * 64
@@ -56,6 +56,31 @@ def test_j4_runtime_switches_match_the_registered_profiles() -> None:
     assert {"j4-core", "j4-b2"} <= set(
         switches["RUNTIME_TIMEOUT_RETRY_POLICY"]["required_unset_profiles"]
     )
+
+
+def test_j9a_runtime_switch_is_admitted_by_j4_and_j7() -> None:
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / "deploy/runtime-switches.json").read_bytes())
+    rows = {name: row for name, row in registry["switches"].items() if row["task"] == "J9a"}
+    name = "RUNTIME_RELAY_FULL_BATCH_LOOP"
+    assert set(rows) == {name}
+    row = rows[name]
+    assert row["unset_default"] == "0" and set(row["values"]) == {"0", "1"}
+    assert {"J7_source", "J7_target", "j4-core", "j4-b2"} <= set(row["permitted_enabled_profiles"])
+    assert set(row["required_unset_profiles"]) == {
+        "K5",
+        "K6_before_Phase_G",
+        "K6_Phase_G",
+        "J5a",
+        "J5b",
+    }
+    assert row["routes_added"] == row["migrations_added"] == []
+    assert relay_selection(registry, name, "1").environment() == {name: "1"}
+    timing = registry["switches"]["RUNTIME_J9A_STAGE_TIMINGS"]
+    assert timing["unset_default"] == "0" and set(timing["values"]) == {"0", "1"}
+    assert timing["permitted_enabled_profiles"] == ["J9a"]
+    assert timing["required_unset_profiles"] == row["required_unset_profiles"]
+    assert timing["routes_added"] == timing["migrations_added"] == []
 
 
 def overlay(arm: str = "C2") -> Overlay:

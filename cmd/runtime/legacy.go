@@ -23,6 +23,12 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 	if len(observationStops) != 0 {
 		stopObservation = observationStops[0]
 	}
+	relayConfig, err := runtimeRelayConfigFromEnvironment()
+	if err != nil {
+		slog.Error("invalid runtime relay configuration", "error", err)
+		stopObservation()
+		os.Exit(1)
+	}
 	flagMode := flag.ExitOnError
 	if os.Getenv("DUR053_K4_CAMPAIGN") == "1" {
 		flagMode = flag.ContinueOnError
@@ -47,7 +53,7 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 	// Demand did not exist before K2; it has one identical read-only process
 	// in both campaign arms. Legacy lifecycle flags affect the application roles.
 	if roles["demand"] {
-		if err := serveLifecycle(ctx); err != nil {
+		if err := serveLifecycleWithRelayConfig(ctx, relayConfig); err != nil {
 			slog.Error("demand stopped", "error", err)
 			stopObservation()
 			os.Exit(1)
@@ -62,7 +68,7 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 		os.Exit(1)
 	}
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
-	metrics := telemetry.New(role)
+	metrics := telemetry.NewWithStageTimings(role, relayConfig.stageTimings)
 	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 	if tracingErr != nil {
 		slog.Error("runtime tracing initialization failed", "error", tracingErr)
@@ -143,7 +149,9 @@ func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
 				os.Exit(1)
 			}
 			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
-				Tracing: tracing,
+				FullBatchLoop: relayConfig.fullBatchLoop,
+				Tracing:       tracing,
+				Metrics:       metrics,
 				OnError: func(err error) {
 					metrics.RecordRelayFailure()
 					slog.Warn("runtime Kafka relay pass failed", "error", err)

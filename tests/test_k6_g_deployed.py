@@ -49,6 +49,20 @@ def test_k6_j4_modes_require_literal_legacy_evidence() -> None:
         legacy_env({"containers": [{"envFrom": [{"configMapRef": {"name": "mode"}}]}]})
 
 
+@pytest.mark.parametrize("field", ["containers", "initContainers", "ephemeralContainers"])
+@pytest.mark.parametrize("name", ["RUNTIME_RELAY_FULL_BATCH_LOOP", "RUNTIME_J9A_STAGE_TIMINGS"])
+def test_k6_j9a_mode_requires_literal_legacy_evidence(field: str, name: str) -> None:
+    assert legacy_env({field: [{"env": []}]}) == {}
+    assert legacy_env({field: [{"env": [{"name": name, "value": "0"}]}]}) == {name: "0"}
+    for entry in (
+        {"name": name, "value": "1"},
+        {"name": name, "value": ""},
+        {"name": name, "valueFrom": {"secretKeyRef": {"name": "mode", "key": "mode"}}},
+    ):
+        with pytest.raises(SmokeFailure, match="K6_LEGACY_ENV_VALUE"):
+            legacy_env({field: [{"env": [entry]}]})
+
+
 def test_stale_call_and_continuity_use_predecessor_after_peer_registration(tmp_path: Path) -> None:
     predecessor = Target(
         "ns",

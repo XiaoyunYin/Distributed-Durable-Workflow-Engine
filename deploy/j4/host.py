@@ -529,14 +529,9 @@ class Topology:
         report = self.http_ready("runtime")
         # These fields must be reported by the running J9a relay. The
         # desired PodSpec environment cannot prove which mode was selected.
-        relay = {
-            "source_revision": revision,
-            "runtime_image_id": self.image_id("runtime"),
-            "switch": report.get("relay_switch"),
-            "value": report.get("relay_value"),
-            "effective_relay_mode": report.get("effective_relay_mode"),
-        }
-        selection.confirm(relay, revision, self.host.images["runtime"]["id"])
+        relay = selection.confirm_health(
+            report, revision, self.image_id("runtime"), self.host.images["runtime"]["id"]
+        )
         if (report.get("recorded_activity"), report.get("provider_resilience")) != (
             True,
             self.overlay.b2,

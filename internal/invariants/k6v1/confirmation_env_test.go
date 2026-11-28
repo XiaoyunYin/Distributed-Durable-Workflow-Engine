@@ -199,8 +199,10 @@ func goEnvReads(path string, raw []byte) ([]string, error) {
 var pythonEnvReader = regexp.MustCompile(`\b(?:os\.)?(?:(?:getenv|environ\.get)\s*\(|environ\s*\[)\s*["']([^"'\r\n]+)["']`)
 
 func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
-	t.Run("RecordedProviderLegacyOnly", func(t *testing.T) {
-		for _, name := range []string{"J4_RECORDED_LLM_ACTIVITY", "J4_PROVIDER_RESILIENCE"} {
+	t.Run("RuntimeSwitchesLegacyOnly", func(t *testing.T) {
+		for _, name := range []string{
+			"J4_RECORDED_LLM_ACTIVITY", "J4_PROVIDER_RESILIENCE", "RUNTIME_RELAY_FULL_BATCH_LOOP", "RUNTIME_J9A_STAGE_TIMINGS",
+		} {
 			for _, tc := range []struct {
 				names []string
 				proof map[string]string

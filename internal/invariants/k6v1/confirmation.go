@@ -35,9 +35,11 @@ type ControlPod struct {
 
 // These switches may be present only with a witnessed literal legacy value.
 var controlLegacyEnv = map[string]string{
-	"J4_PROVIDER_RESILIENCE":       "0",
-	"J4_RECORDED_LLM_ACTIVITY":     "0",
-	"RUNTIME_TIMEOUT_RETRY_POLICY": "0",
+	"RUNTIME_J9A_STAGE_TIMINGS":     "0",
+	"J4_PROVIDER_RESILIENCE":        "0",
+	"J4_RECORDED_LLM_ACTIVITY":      "0",
+	"RUNTIME_RELAY_FULL_BATCH_LOOP": "0",
+	"RUNTIME_TIMEOUT_RETRY_POLICY":  "0",
 }
 
 // Reviewed PodSpec env names from the medium-16 inventories in runs

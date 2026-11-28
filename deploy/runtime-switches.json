@@ -2,12 +2,33 @@
   "schema_version": 1,
   "scope": "D037 and D038 runtime changes introduced after the registered K profiles",
   "switches": {
+    "RUNTIME_RELAY_FULL_BATCH_LOOP": {
+      "task": "J9a",
+      "unset_default": "0",
+      "values": {"0": "one relay pass per wakeup", "1": "continue after each full failure-free relay pass"},
+      "permitted_enabled_profiles": [
+        "J9a", "J9b", "j4-core", "j4-b2", "J19", "J7_source", "J7_target",
+        "J10", "J12", "J8", "J6", "J11", "J13", "J14", "J15", "J16"
+      ],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
+      "routes_added": [],
+      "migrations_added": []
+    },
     "RUNTIME_TIMEOUT_RETRY_POLICY": {
       "task": "J19",
       "unset_default": "0",
       "values": {"0": "legacy timeout recovery", "1": "bound claimed expiry replacements"},
       "permitted_enabled_profiles": ["J19", "J8"],
       "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b", "j4-core", "j4-b2"],
+      "routes_added": [],
+      "migrations_added": []
+    },
+    "RUNTIME_J9A_STAGE_TIMINGS": {
+      "task": "J9a stage timings",
+      "unset_default": "0",
+      "values": {"0": "legacy scrape contract", "1": "expose J9a relay stage histograms"},
+      "permitted_enabled_profiles": ["J9a"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
       "routes_added": [],
       "migrations_added": []
     },
@@ -56,6 +77,7 @@
       "versions": "000001-000004 inclusive"
     },
     "J19": {"base": "runtime_base", "additional": []},
+    "J9a": {"base": "runtime_base", "additional": []},
     "j4-core": {"base": "runtime_base", "additional": []},
     "j4-b2": {
       "base": "runtime_base",

@@ -1,0 +1,54 @@
+# HELP durable_runtime_started_timestamp_seconds Unix time when the runtime started.
+# TYPE durable_runtime_started_timestamp_seconds gauge
+durable_runtime_started_timestamp_seconds{role="relay"} 1760000000
+# HELP durable_runtime_durable_ready_timestamp_seconds Unix time when durable dependencies became ready.
+# TYPE durable_runtime_durable_ready_timestamp_seconds gauge
+durable_runtime_durable_ready_timestamp_seconds{role="relay"} 1760000001
+# HELP durable_runtime_last_accepted_claim_timestamp_seconds Unix time of the last accepted worker claim.
+# TYPE durable_runtime_last_accepted_claim_timestamp_seconds gauge
+durable_runtime_last_accepted_claim_timestamp_seconds{role="relay"} 1760000002
+# HELP durable_scheduler_lease_acquisitions_total Accepted scheduler lease acquisitions.
+# TYPE durable_scheduler_lease_acquisitions_total counter
+durable_scheduler_lease_acquisitions_total{role="relay"} 1
+# HELP durable_scheduler_lease_renewals_total Scheduler lease renewals.
+# TYPE durable_scheduler_lease_renewals_total counter
+durable_scheduler_lease_renewals_total{role="relay"} 1
+# HELP durable_scheduler_fenced_writes_total Writes rejected by ownership fencing.
+# TYPE durable_scheduler_fenced_writes_total counter
+durable_scheduler_fenced_writes_total{role="relay"} 1
+# HELP durable_worker_claims_accepted_total Accepted worker claims.
+# TYPE durable_worker_claims_accepted_total counter
+durable_worker_claims_accepted_total{role="relay"} 1
+# HELP durable_worker_results_accepted_total Accepted worker results.
+# TYPE durable_worker_results_accepted_total counter
+durable_worker_results_accepted_total{role="relay"} 1
+# HELP durable_reconciliation_items_total Reconciliation obligations observed.
+# TYPE durable_reconciliation_items_total counter
+durable_reconciliation_items_total{role="relay"} 1
+# HELP durable_outbox_publications_total Outbox publications observed.
+# TYPE durable_outbox_publications_total counter
+durable_outbox_publications_total{role="relay"} 1
+# HELP durable_outbox_relay_failures_total Outbox relay failures observed.
+# TYPE durable_outbox_relay_failures_total counter
+durable_outbox_relay_failures_total{role="relay"} 1
+# HELP durable_db_transactions_total Database transactions observed.
+# TYPE durable_db_transactions_total counter
+durable_db_transactions_total{role="relay"} 1
+# HELP durable_db_queries_total Database queries observed.
+# TYPE durable_db_queries_total counter
+durable_db_queries_total{role="relay"} 1
+# HELP durable_worker_active Active worker executions.
+# TYPE durable_worker_active gauge
+durable_worker_active{role="relay"} 0
+# HELP durable_worker_completed_total Completed worker executions.
+# TYPE durable_worker_completed_total counter
+durable_worker_completed_total{role="relay"} 1
+# HELP durable_db_query_seconds_total Cumulative database query seconds.
+# TYPE durable_db_query_seconds_total counter
+durable_db_query_seconds_total{role="relay"} 0.002
+# HELP durable_db_lock_wait_seconds_total Cumulative database lock-wait seconds.
+# TYPE durable_db_lock_wait_seconds_total counter
+durable_db_lock_wait_seconds_total{role="relay"} 0.001
+# HELP durable_db_lock_waits_total Database lock waits observed.
+# TYPE durable_db_lock_waits_total counter
+durable_db_lock_waits_total{role="relay"} 1
