@@ -29,6 +29,8 @@ from j2_drain import (
     quiet_drain,
     read_polls,
     readiness,
+    verify_state_reads,
+    with_state_read_schema,
 )
 from j2_offline import (
     SECOND,
@@ -203,7 +205,7 @@ def read_episode(root, campaign, namespace, *, phase_parity=False):
         expected_schedule["dispatch_journal"] = DISPATCH_JOURNAL
     binding = file_record(root / "schedule.json")
     require(
-        schedule == expected_schedule
+        schedule == with_state_read_schema(expected_schedule, schedule)
         and binding == read(root / "schedule-binding.json")
         and schedule["request_timeout"] == REQUEST_TIMEOUT,
         "control schedule or journal binding differs",
@@ -228,6 +230,10 @@ def read_episode(root, campaign, namespace, *, phase_parity=False):
         raise IntegrityError(f"locked checker cut is invalid: {error}") from error
     admitted = [row["id"] for row in state["db"]["submissions"]]
     sender = sender_report(raw, schedule, admitted, schedule_sha256=binding["sha256"])
+    if "state_read_evidence" in schedule:
+        verify_state_reads(
+            root, schedule, read(root / "drain-result.json"), final, expected, sender
+        )
     polls = read_polls(root / "terminal-polls.jsonl")
     width = clock_bounds(read(root / "clock.json"), schedule["origin_ns"], final["upper_unix_ns"])
     try:

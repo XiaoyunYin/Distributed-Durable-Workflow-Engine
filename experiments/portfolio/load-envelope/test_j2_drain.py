@@ -130,6 +130,214 @@ def test_quiet_restarts_on_evidence_change_or_unavailable_read(disruption):
     assert result["drain_seconds"] >= 37
 
 
+@pytest.fixture
+def state_reads(tmp_path, monkeypatch):
+    clock = DrainClock()
+    monkeypatch.setattr(step.time, "monotonic_ns", clock.now)
+    monkeypatch.setattr(step.time, "time_ns", clock.now)
+    schedule = {"stop_ns": clock.ns, "state_read_evidence": drain.STATE_READ_SCHEMA}
+    drain.write(
+        tmp_path / "deadline-anchor.json",
+        {
+            "stop_mono_ns": clock.ns,
+            "anchor_mono_ns": clock.ns,
+            "anchor_unix_ns": clock.ns,
+        },
+    )
+    reads = step.StateReads(tmp_path, clock.ns)
+    polls = step.Polls(tmp_path)
+    commands = []
+    contention = {
+        "pg_stat_activity": [{"pid": 17, "wait_event_type": "Lock", "wait_event": "relation"}],
+        "pg_locks": [
+            {"pid": 17, "locktype": "relation", "mode": "AccessShareLock", "granted": False}
+        ],
+    }
+    fixture = SimpleNamespace(
+        clock=clock,
+        schedule=schedule,
+        root=tmp_path,
+        reads=reads,
+        polls=polls,
+        commands=commands,
+        fail=lambda: False,
+        capture_error=False,
+        content=contention,
+    )
+
+    def command(argv, *, data, timeout, allowed, record):
+        assert "psql" in argv and allowed and not record
+        commands.append((data, timeout))
+        if "pg_stat_activity" in data:
+            clock.sleep(0.05)
+            if fixture.capture_error:
+                raise TimeoutError("diagnostic could not connect")
+            return SimpleNamespace(returncode=0, stdout=json.dumps(contention), stderr="")
+        clock.sleep(0.1)
+        if fixture.fail():
+            return SimpleNamespace(
+                returncode=3,
+                stdout="",
+                stderr="ERROR: canceling statement due to statement timeout",
+            )
+        return SimpleNamespace(
+            returncode=0, stdout=json.dumps(snapshot(clock.now())["db"]), stderr=""
+        )
+
+    sql = SimpleNamespace(command=command)
+    driver = SimpleNamespace(
+        read_database=lambda query, **kw: step.DrainHarness.read_database(sql, query, **kw),
+        witness_inventories=lambda: [{"pod_uid": "stable"}],
+    )
+    fixture.observe = lambda phase: step.observation(driver, polls, reads, phase)
+    return fixture
+
+
+def run_stop_reads(fixture, *, done=lambda: True):
+    step.retain_stop_reads(
+        fixture.reads.stop,
+        done,
+        lambda: fixture.observe("sender"),
+        fixture.reads.retain,
+        now=fixture.clock.now,
+        sleep=fixture.clock.sleep,
+    )
+
+
+def run_state_drain(fixture, *, check=lambda _: None, expiry=None):
+    return drain.quiet_drain(
+        stop_ns=fixture.reads.stop,
+        observe=lambda: fixture.observe("drain"),
+        observe_after=lambda: fixture.observe("post-check"),
+        check=check,
+        check_expiry=expiry,
+        initial=fixture.reads.initial,
+        expected=expected("a"),
+        sender={"acknowledged": ["a"], "explicitly_unsent": []},
+        retain=fixture.reads.retain,
+        now=fixture.clock.now,
+        sleep=fixture.clock.sleep,
+    )
+
+
+def verify_state_drain(fixture, result):
+    root = fixture.root
+    drain.verify_state_reads(
+        root,
+        fixture.schedule,
+        {**result, "state_read_binding": drain.state_read_binding(root)},
+        drain.read(root / "final.json"),
+        expected("a"),
+        {"acknowledged": ["a"], "explicitly_unsent": []},
+    )
+
+
+@pytest.mark.parametrize("capture_error", [False, True])
+def test_scheduled_stop_and_sender_return_reads_retry(state_reads, capture_error):
+    fixture = state_reads
+    fixture.capture_error = capture_error
+    fixture.fail = lambda: len(fixture.commands) in {1, 4}
+    run_stop_reads(fixture, done=lambda: len(fixture.commands) >= 5)
+    result = run_state_drain(fixture)
+    verify_state_drain(fixture, result)
+    log = drain.read_jsonl(fixture.root / drain.STATE_READ_LOG)
+    errors = [row for row in log if row["status"] == "error"]
+    events = drain.read_jsonl(fixture.root / drain.DRAIN_POLL_LOG)
+    assert [row["read_id"] for row in errors] == [1, 3]
+    assert [row["read_id"] for row in events if row["event"] == "read-error"] == [1, 3]
+    initial = drain.read(fixture.root / drain.STOP_READ)
+    assert initial == drain.read(fixture.root / "initial.json")
+    assert initial["read_id"] == 2 and initial["lower_mono_ns"] == 12 * S + 150_000_000
+    assert all(row["duration_ns"] == 100_000_000 for row in errors)
+    assert fixture.commands[0][1] == 8 and "statement_timeout = '2s'" in fixture.commands[0][0]
+    assert fixture.commands[1][1] == 1 and "statement_timeout = '250ms'" in fixture.commands[1][0]
+    for row in errors:
+        contention = row["contention"]
+        assert contention["duration_ns"] == 50_000_000
+        if capture_error:
+            assert contention["status"] == "error" and "could not connect" in contention["error"]
+        else:
+            assert contention["status"] == "ok"
+            assert {name: contention[name] for name in fixture.content} == fixture.content
+
+
+@pytest.mark.parametrize("late_dispatch", [False, True])
+def test_persistent_stop_read_timeout_reaches_original_checked_expiry(state_reads, late_dispatch):
+    fixture = state_reads
+    fixture.fail = lambda: True
+    if late_dispatch:
+        observe = fixture.observe
+
+        def with_scheduling_delay(phase):
+            if fixture.clock.now() >= 609 * S:
+                fixture.clock.ns = 610 * S
+            return observe(phase)
+
+        fixture.observe = with_scheduling_delay
+    run_stop_reads(fixture)
+
+    def check_expiry():
+        assert fixture.clock.now() == 610 * S + (150_000_000 if late_dispatch else 0)
+        state = fixture.clock.read(unpublished=9)
+        fixture.polls.retain(
+            state["db"]["succeeded"], {key: state[key] for key in drain.BRACKET_FIELDS}
+        )
+        return state
+
+    with pytest.raises(drain.DrainExpired) as expired:
+        run_state_drain(fixture, check=lambda _: pytest.fail("started quiet"), expiry=check_expiry)
+
+    outcome = expired.value.result
+    assert outcome["check_status"] == "PASS" and outcome["unpublished"] == 9
+    assert outcome["drain_seconds"] == 600 and outcome["last_verified_read"] is None
+    assert not (fixture.root / drain.STOP_READ).exists()
+    assert not (fixture.root / "initial.json").exists()
+    verify_state_drain(fixture, outcome)
+
+
+@pytest.mark.parametrize("change", ["duration", "initial", "read-error", "contention", "quiet"])
+def test_replay_rejects_state_read_tampering_without_crediting_failed_interval(state_reads, change):
+    fixture = state_reads
+    run_stop_reads(fixture)
+    failed = False
+
+    def fails_after_quiet_start():
+        nonlocal failed
+        if fixture.clock.now() >= 18 * S and not failed:
+            failed = True
+            return True
+        return False
+
+    fixture.fail = fails_after_quiet_start
+    result = run_state_drain(fixture)
+    assert result["quiet_start_upper_mono_ns"] >= 18 * S and result["drain_seconds"] >= 38
+    verify_state_drain(fixture, result)
+    root = fixture.root
+    path = root / drain.STATE_READ_LOG
+    rows = drain.read_jsonl(path)
+    if change == "duration":
+        rows[0]["duration_ns"] += 1
+    elif change == "initial":
+        initial = drain.read(root / drain.STOP_READ)
+        initial["read_id"] += 1
+        drain.write(root / drain.STOP_READ, initial)
+        drain.write(root / "initial.json", initial)
+    elif change == "read-error":
+        path = root / drain.DRAIN_POLL_LOG
+        rows = [row for row in drain.read_jsonl(path) if row["event"] != "read-error"]
+    elif change == "contention":
+        next(row for row in rows if row["status"] == "error").pop("contention")
+    else:
+        result["quiet_start_upper_mono_ns"] = next(
+            row["upper_mono_ns"]
+            for row in drain.read_jsonl(root / drain.DRAIN_POLL_LOG)
+            if row["event"] == "quiet-start"
+        )
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    with pytest.raises(ValueError):
+        verify_state_drain(fixture, result)
+
+
 def test_clean_expiry_retains_unacknowledged_pending_and_missing_identities(tmp_path):
     clock = DrainClock()
     retained = []

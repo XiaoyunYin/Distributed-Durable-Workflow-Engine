@@ -10,7 +10,7 @@ from pathlib import Path
 import dur053_k3 as kind
 from j2_barrier import JOBS, Campaign, RetryLater, canonical
 from j2_barrier_rehearsal import client
-from j2_drain import DrainExpired
+from j2_drain import DrainExpired, with_state_read_schema
 from j2_harness import APP, DB, hosted_dispatch, run
 from j2_integrated_diagnostics import attribution_samples
 from j2_integrated_evidence import summarize_episode
@@ -276,7 +276,12 @@ def verify_lane_episode(evidence, campaign, job, hold, checker, budget, api):
     root = evidence / "soak"
     expected = read(root / "schedule.json")
     require(
-        expected == schedule_for(campaign.campaign, hold, job, expected["origin_ns"]),
+        expected
+        == with_state_read_schema(
+            schedule_for(campaign.campaign, hold, job, expected["origin_ns"]),
+            expected,
+            required=True,
+        ),
         "archived engineering schedule differs",
     )
     verify_precommit_install(root, evidence / "dispatch-build.json", campaign.head)

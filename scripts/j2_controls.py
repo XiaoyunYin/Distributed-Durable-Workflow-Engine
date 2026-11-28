@@ -34,7 +34,7 @@ from j2_control_evidence import (
     worker_spec,
 )
 from j2_control_proxy import PORT
-from j2_drain import REPLAY_FILES
+from j2_drain import REPLAY_FILES, STATE_READ_LOG, STOP_READ
 from j2_harness import APP, hosted_dispatch, run
 from j2_measure_authorization import control_identity
 from j2_offline import SECOND
@@ -376,6 +376,12 @@ def replay_archive(archive, output, *, supplemental=False, source=None):
         root = Path(temp)
         names = SUPPLEMENTAL_EPISODES if supplemental else EPISODES
         files = [f"{name}/{member}" for name in names for member in REPLAY_INPUTS]
+        for name in names:
+            files.extend(
+                f"{name}/{member}"
+                for member in (STATE_READ_LOG, STOP_READ, "initial.json", "drain-result.json")
+                if f"{name}/{member}" in index["files"]
+            )
         if supplemental:
             files.extend(
                 f"{name}/{member}"

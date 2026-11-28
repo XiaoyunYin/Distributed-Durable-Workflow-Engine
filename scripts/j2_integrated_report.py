@@ -22,6 +22,7 @@ from j2_barrier import JOBS, BarrierStop, Campaign, RetryLater, canonical, decod
 from j2_barrier_rehearsal import client, context, report_round
 from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, verify_binary
 from j2_checker_report import IntegrityError, indexed_report, require_checker_pass
+from j2_drain import with_state_read_schema
 from j2_harness import hosted_dispatch, verify_new_identity
 from j2_harness_evidence import safe_name
 from j2_integrated_evidence import engineering_boundary, summarize_episode
@@ -528,7 +529,10 @@ def verify_episode(root, job, cell, previous, checker, timeout):
     )
     schedule = read(root / "schedule.json")
     require(
-        schedule == episode_schedule(job, cell, rate, schedule["origin_ns"]),
+        schedule
+        == with_state_read_schema(
+            episode_schedule(job, cell, rate, schedule["origin_ns"]), schedule
+        ),
         "engineering clock drift",
     )
     identity = read(root / "identity.json")

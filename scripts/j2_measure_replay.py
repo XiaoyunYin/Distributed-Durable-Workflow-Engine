@@ -28,6 +28,7 @@ from j2_barrier import (
 )
 from j2_barrier_rehearsal import client
 from j2_checker_report import IntegrityError
+from j2_drain import with_state_read_schema
 from j2_harness import APP, DB, NS, OTHER, hosted_dispatch, verify_new_identity
 from j2_harness_evidence import seal
 from j2_integrated_evidence import registered_boundary
@@ -297,7 +298,7 @@ def verify_checkpoint(
             "checkpoint sender installation does not bind the candidate build or schedule",
         )
     require(
-        schedule == expected_schedule,
+        schedule == with_state_read_schema(expected_schedule, schedule),
         "verified schedule differs from the source clock",
     )
     released = read(root / "sender-release.json")
