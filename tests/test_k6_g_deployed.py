@@ -12,6 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
+from dur053_k6_b_smoke import Smoke  # noqa: E402
 from dur053_k6_chaos import Target  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
     CONTROL_PATH,
@@ -213,9 +214,11 @@ def test_registration_intake_rejects_another_pod() -> None:
         bind_registration(observation, observation, incorrect, "sa-uid", session)
 
 
-@pytest.mark.parametrize("sidecar", [None, "regular", "restartable-init", "ephemeral"])
+@pytest.mark.parametrize(
+    "scenario", [None, "regular", "restartable-init", "ephemeral", "legacy", "enabled", "opaque"]
+)
 def test_control_snapshot_reads_apiserver_lists(
-    monkeypatch: pytest.MonkeyPatch, sidecar: str | None
+    monkeypatch: pytest.MonkeyPatch, scenario: str | None
 ) -> None:
     episode = object.__new__(Episode)
     episode.namespace = "g-arm"
@@ -226,12 +229,18 @@ def test_control_snapshot_reads_apiserver_lists(
         "containers": [{"name": "worker", "env": [{"name": "POD_UID"}]}],
         "initContainers": [{"name": "setup", "env": [{"name": "DUR053_K6_CONTROL_CA_FILE"}]}],
     }
-    if sidecar == "regular":
+    if scenario == "regular":
         pod["spec"]["containers"].append({"name": "sidecar"})
-    elif sidecar == "restartable-init":
+    elif scenario == "restartable-init":
         pod["spec"]["initContainers"].append({"name": "sidecar", "restartPolicy": "Always"})
-    elif sidecar == "ephemeral":
+    elif scenario == "ephemeral":
         pod["spec"]["ephemeralContainers"] = [{"name": "sidecar"}]
+    elif scenario in ("legacy", "enabled"):
+        pod["spec"]["containers"][0]["env"].append(
+            {"name": "RUNTIME_TIMEOUT_RETRY_POLICY", "value": "0" if scenario == "legacy" else "1"}
+        )
+    elif scenario == "opaque":
+        pod["spec"]["containers"][0]["envFrom"] = [{"configMapRef": {"name": "settings"}}]
     lists = {
         "/apis/apiextensions.k8s.io/v1/customresourcedefinitions": {
             "metadata": {"resourceVersion": "17"},
@@ -248,8 +257,12 @@ def test_control_snapshot_reads_apiserver_lists(
         return canonical(lists[args[2]])
 
     monkeypatch.setattr(episode, "k", kubernetes)
-    if sidecar is not None:
-        with pytest.raises(SmokeFailure, match="G_CONTROL_CONTAINER_COUNT"):
+    if scenario not in (None, "legacy"):
+        code = {
+            "enabled": "K6_TIMEOUT_RETRY_POLICY",
+            "opaque": "K6_TIMEOUT_RETRY_OPAQUE_ENV",
+        }.get(scenario, "G_CONTROL_CONTAINER_COUNT")
+        with pytest.raises(SmokeFailure, match=code):
             episode.control_snapshot()
         return
     snapshot = episode.control_snapshot()
@@ -264,10 +277,50 @@ def test_control_snapshot_reads_apiserver_lists(
                 "restart": 0,
                 "started_utc": "2026-11-22T08:00:01.000000000Z",
             },
-            "env_names": ["DUR053_K6_CONTROL_CA_FILE", "POD_UID"],
+            "env_names": [
+                "DUR053_K6_CONTROL_CA_FILE",
+                "POD_UID",
+                *(["RUNTIME_TIMEOUT_RETRY_POLICY"] if scenario == "legacy" else []),
+            ],
             "env_from": False,
+            **(
+                {"legacy_env": {"RUNTIME_TIMEOUT_RETRY_POLICY": "0"}}
+                if scenario == "legacy"
+                else {}
+            ),
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("entry", "allowed"),
+    [
+        (None, True),
+        ({"value": "0"}, True),
+        ({"value": "1"}, False),
+        ({"value": ""}, False),
+        ({"value": "false"}, False),
+        ({"valueFrom": {"secretKeyRef": {"name": "settings", "key": "mode"}}}, False),
+    ],
+)
+def test_k6_creation_requires_legacy_timeout_retry(
+    monkeypatch: pytest.MonkeyPatch, entry: dict | None, allowed: bool
+) -> None:
+    smoke = object.__new__(Smoke)
+    create = Mock()
+    monkeypatch.setattr(smoke, "k", create)
+    env = [] if entry is None else [{"name": "RUNTIME_TIMEOUT_RETRY_POLICY", **entry}]
+    manifest = {
+        "kind": "Deployment",
+        "spec": {"template": {"spec": {"containers": [{"name": "scheduler", "env": env}]}}},
+    }
+    if allowed:
+        smoke.create("test", manifest)
+        create.assert_called_once()
+    else:
+        with pytest.raises(SmokeFailure, match="K6_TIMEOUT_RETRY_POLICY"):
+            smoke.create("test", manifest)
+        create.assert_not_called()
 
 
 def test_fence_requires_all_admission_stops(tmp_path: Path) -> None:

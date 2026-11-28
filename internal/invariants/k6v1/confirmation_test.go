@@ -47,6 +47,10 @@ func TestK6ConfirmationControl(t *testing.T) {
 		reason string
 	}{
 		{"Clean", "confirmed", "cell_predicate_satisfied"},
+		{"LegacyTimeoutRetry", "confirmed", "cell_predicate_satisfied"},
+		{"EnabledTimeoutRetry", "missing", "required_proof_missing:control_fault_inventory"},
+		{"UnprovenTimeoutRetry", "missing", "required_proof_missing:control_fault_inventory"},
+		{"EmptyTimeoutRetry", "missing", "required_proof_missing:control_fault_inventory"},
 		{"Idle", "pending", "no_positive_population"},
 		{"UnprovenProgress", "pending", "no_positive_population"},
 		{"FaultCell", "pending", "cell_not_exercised"},
@@ -119,6 +123,16 @@ func TestK6ConfirmationControl(t *testing.T) {
 			}
 			var issues []Finding
 			switch tc.name {
+			case "LegacyTimeoutRetry", "EnabledTimeoutRetry", "UnprovenTimeoutRetry", "EmptyTimeoutRetry":
+				const setting = "RUNTIME_TIMEOUT_RETRY_POLICY"
+				c.After.Pods[2].EnvNames = append(slices.Clone(c.After.Pods[2].EnvNames), setting)
+				if tc.name != "UnprovenTimeoutRetry" {
+					value := map[string]string{"LegacyTimeoutRetry": "0", "EnabledTimeoutRetry": "1"}[tc.name]
+					c.After.Pods[2].LegacyEnv = map[string]string{setting: value}
+				}
+				if tc.name == "LegacyTimeoutRetry" {
+					c.Before.Pods[2] = c.After.Pods[2]
+				}
 			case "Idle":
 				r.Namespace.TerminalExecutions = 0
 			case "UnprovenProgress":

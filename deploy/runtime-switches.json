@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "scope": "D037 and D038 runtime changes introduced after the registered K profiles",
+  "switches": {
+    "RUNTIME_TIMEOUT_RETRY_POLICY": {
+      "task": "J19",
+      "unset_default": "0",
+      "values": {"0": "legacy timeout recovery", "1": "bound claimed expiry replacements"},
+      "permitted_enabled_profiles": ["J19", "J8"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
+      "routes_added": [],
+      "migrations_added": []
+    }
+  },
+  "migration_inventories": {
+    "runtime_base": {
+      "database": "engine",
+      "source": "migrations/*.up.sql",
+      "versions": "000001-000023 inclusive"
+    },
+    "K5": {"base": "runtime_base", "additional": []},
+    "J5a": {"base": "K5", "additional": []},
+    "J5b": {"base": "K5", "additional": []},
+    "K6_before_Phase_G": {"base": "runtime_base", "additional": []},
+    "K6_Phase_G": {
+      "base": "runtime_base",
+      "additional": ["migrations/k6_capture/000024_k6_capture.up.sql"]
+    },
+    "K6_effect_sink": {
+      "database": "separate sink",
+      "source": "sink-migrations/*.up.sql",
+      "versions": "000001-000004 inclusive"
+    },
+    "J19": {"base": "runtime_base", "additional": []},
+    "dur055": {
+      "database": "separate retrieval fixture",
+      "source": [
+        "migrations/000001_bootstrap.up.sql",
+        "migrations/000014_m6_incident_source_corpus.up.sql",
+        "migrations/dur055/000019_real_embeddings.up.sql"
+      ]
+    },
+    "dur056": {
+      "database": "separate retrieval fixture",
+      "source": [
+        "migrations/dur056/000056_solvable_evidence.up.sql",
+        "migrations/dur056/000057_version_v2_support.up.sql",
+        "migrations/dur056/000058_version_v3_support.up.sql"
+      ]
+    }
+  }
+}

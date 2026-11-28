@@ -43,11 +43,27 @@ DECISION_ROLE = "k6_decision_writer"
 DATABASE = "dur053_k6_b"
 TWO_L = timedelta(milliseconds=104082)
 SAFE_CODE = re.compile(r"[A-Z][A-Z_0-9]{2,95}")
+TIMEOUT_RETRY_POLICY = "RUNTIME_TIMEOUT_RETRY_POLICY"
 
 
 def require(condition: bool, code: str) -> None:
     if not condition:
         raise SmokeFailure(code)
+
+
+def legacy_timeout_retry_env(spec: dict) -> dict[str, str]:
+    legacy = {}
+    for field in ("containers", "initContainers", "ephemeralContainers"):
+        for container in spec.get(field, []):
+            require(not container.get("envFrom"), "K6_TIMEOUT_RETRY_OPAQUE_ENV")
+            for entry in container.get("env", []):
+                if entry["name"] == TIMEOUT_RETRY_POLICY:
+                    require(
+                        entry.get("value") == "0" and "valueFrom" not in entry,
+                        "K6_TIMEOUT_RETRY_POLICY",
+                    )
+                    legacy[TIMEOUT_RETRY_POLICY] = "0"
+    return legacy
 
 
 def private_file(path: Path, data: bytes) -> None:
@@ -167,6 +183,10 @@ class Smoke:
         return self.command(stage, "kubectl", "--context", f"kind-{CLUSTER}", *args, **kwargs)
 
     def create(self, stage: str, manifest: dict) -> None:
+        if manifest["kind"] == "Pod":
+            legacy_timeout_retry_env(manifest["spec"])
+        elif manifest["kind"] in {"Deployment", "Job", "StatefulSet", "DaemonSet"}:
+            legacy_timeout_retry_env(manifest["spec"]["template"]["spec"])
         self.k(stage, "create", "-f", "-", data=json_data(manifest))
 
     def sql(self, stage: str, query: str) -> str:

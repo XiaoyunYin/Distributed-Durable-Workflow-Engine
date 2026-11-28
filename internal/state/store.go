@@ -90,6 +90,10 @@ func newFromURLConfig(ctx context.Context, databaseURL string, maxConns int32, r
 	if err != nil {
 		return nil, err
 	}
+	timeoutRetryPolicy, err := timeoutRetryPolicyFromEnvironment()
+	if err != nil {
+		return nil, err
+	}
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database URL: %w", err)
@@ -134,7 +138,8 @@ func newFromURLConfig(ctx context.Context, databaseURL string, maxConns int32, r
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 	return NewWithOptions(pool, StoreOptions{RecordLeaseAcquisitions: ledgerSetting == "1",
-		DUR050Admission: admissionConfig, DUR050TransactionTimings: dur050TransactionTimings}), nil
+		DUR050Admission: admissionConfig, DUR050TransactionTimings: dur050TransactionTimings,
+		TimeoutRetryPolicy: timeoutRetryPolicy}), nil
 }
 
 func NewID() string {
@@ -1843,12 +1848,28 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		}
 		return TimeoutResult{AttemptNumber: input.AttemptNumber, Reconciliation: true}, nil
 	}
+	var failureReason string
+	if s.timeoutRetryPolicy {
+		failureReason, err = timeoutReplacementFailureTx(ctx, tx, input)
+		if err != nil {
+			return TimeoutResult{}, err
+		}
+	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE engine.activity_attempts
 		SET state = 'TIMED_OUT', is_current = false, updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4`,
 		input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber); err != nil {
 		return TimeoutResult{}, err
+	}
+	if failureReason != "" {
+		if err := s.failExpiredAttemptTx(ctx, tx, input, workflowState, newRevision, failureReason); err != nil {
+			return TimeoutResult{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return TimeoutResult{}, err
+		}
+		return TimeoutResult{AttemptNumber: input.AttemptNumber}, nil
 	}
 	newAttempt := input.AttemptNumber + 1
 	if _, err := tx.Exec(ctx, `

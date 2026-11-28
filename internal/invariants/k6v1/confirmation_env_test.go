@@ -95,7 +95,8 @@ var envOutsideK6Deployment = map[string]string{
 func unclassifiedControlEnv(names []string) []string {
 	var unknown []string
 	for _, name := range names {
-		classes := []bool{controlConfigEnv[name], controlActuatorEnv[name], envOutsideK6Deployment[name] != ""}
+		_, legacy := controlLegacyEnv[name]
+		classes := []bool{controlConfigEnv[name], controlActuatorEnv[name], envOutsideK6Deployment[name] != "", legacy}
 		count := 0
 		for _, classified := range classes {
 			if classified {

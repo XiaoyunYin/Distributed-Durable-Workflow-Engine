@@ -111,9 +111,10 @@ type Store struct {
 	dur050Admission          AdmissionGateConfig
 	dur050TransactionTimings bool
 	k6Approval               bool
+	timeoutRetryPolicy       bool
 }
 
-// StoreOptions contains campaign-specific runtime behavior and optional
+// StoreOptions contains opt-in runtime behavior and optional
 // instrumentation. The DUR-049 acquisition ledger is enabled only by the
 // campaign deployment; the DUR-050 admission gate is separately opt-in and
 // namespace-scoped.
@@ -122,6 +123,7 @@ type StoreOptions struct {
 	DUR050Admission          AdmissionGateConfig
 	DUR050TransactionTimings bool
 	K6Approval               bool
+	TimeoutRetryPolicy       bool
 }
 
 // AdmissionGateConfig is opt-in and applies only to dur050-* namespaces.
@@ -621,7 +623,7 @@ func New(pool *pgxpool.Pool) *Store {
 func NewWithOptions(pool *pgxpool.Pool, options StoreOptions) *Store {
 	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions,
 		dur050Admission: options.DUR050Admission, dur050TransactionTimings: options.DUR050TransactionTimings,
-		k6Approval: options.K6Approval}
+		k6Approval: options.K6Approval, timeoutRetryPolicy: options.TimeoutRetryPolicy}
 }
 
 // SetTelemetry attaches the bounded process registry used for operational
