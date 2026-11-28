@@ -1,8 +1,8 @@
 # J8 verifiable release registration
 
-Slice 0 is pending Claude review. The registration base is
-`bd5664f660a4f23a1b239edc4bd484c6ea1c54d8`. J8 uses the scoped DUR-054
-pull-forward in PLAN §18 and the D037 B4 amendment. D036 preserves the release
+Slice 0 incorporates Claude's Round 687 review and is pending re-review.
+The registration base is `bd5664f660a4f23a1b239edc4bd484c6ea1c54d8`. J8 uses
+the scoped DUR-054 pull-forward in PLAN §18 and the D037 B4 amendment. D036 preserves the release
 tier, DUR-046, scan disposition and owner authorization gates. D037 and D038
 set the hosted-only budget and opt-in profile rules. J13 owns the later second
 release and the cross-release contract check.
@@ -16,26 +16,31 @@ runner per repeat.
 
 ## Eligible tier and reviewed evidence
 
-**Full v1 is the highest evidenced candidate tier under PLAN §10.** The table
-maps the completed historical requirements and their review basis. Eligibility
-for the J8 tag still depends on Claude reviewing this mapping, the exact
-release SHA and its current claims. Use the historical scope on each result.
-If a tier requirement lacks evidence or its reproduction is missing from the
-candidate package, stop and review the eligible lower tier before tagging.
-The reviewed D036 pull-forward keeps full DUR-045 refresh and accepted DUR-050,
-DUR-052 or DUR-053 results as prerequisites for claims that depend on them.
+**Full v1 is the eligible candidate tier.** Main-checkout `PLAN.md:426–434`
+enumerates all three tiers. `docs/DECISIONS.md:1645,1673–1681` lifts the old
+publication order for J8, and `PLAN.md:3866–3871` retains each dependency for
+claims relying on it. Rows T1–T7 cover the tier criteria using completed,
+separately reviewed evidence. Gate the tag on Claude's review of the exact
+release SHA, its reproduction package and its claims.
 
-| Tier requirement | Reviewed evidence and scope |
+| Row | Tier requirement | Reviewed evidence and scope |
+| --- | --- | --- |
+| T1 | Core Engine MVP deployment, transport and bounded throughput smoke | M5/DUR-025, `REVIEW.md:1012` (Round 23 at `acb28ba`), covers the [real dependency outages](../../m5/outage-recovery.json) and [four-workflow two-owner smoke](../../../internal/engine/m5_smoke_test.go). `PLAN.md:1593–1606` and `REVIEW.md:1844` (DUR-032, Round 49) record the two-scheduler deployed Python/Kafka validation. The separately reviewed [DUR-048 pilot](../../m8/dur042-pilot/) covers a pure deployed path on one host (`REVIEW.md:11981`, Round 75). |
+| T2 | Core Engine MVP durable correctness | The [M5 case manifest and checker evidence](../../m5/README.md#L3-L12) cover 48 F01–F11 cases, including retries, checkpoints, fencing, both effect classes and approval boundaries. `REVIEW.md:1880` (Round 50) verified the corrected snapshots at `0002e75`. The [approval and effect integration fixture](../../../internal/incident/production_integration_test.go) is DUR-033A (`REVIEW.md:1718`, Round 45), with a synthetic incident and a sandbox action. |
+| T3 | Portfolio MVP deterministic incident, tool and retrieval paths | `PLAN.md:1244–1259` and [M6's fixture and benchmark scope](../../m6/README.md#L3-L26) record the deterministic workflow, frozen gates and separate retrieval benchmark accepted in Round 26 at `1048ad0`. [DUR-055's PostgreSQL FTS/pgvector and official SDK MCP integration](../../m8/dur055-applied-ai-upgrade/README.md#L122-L131) supplies the real retrieval and tool evidence. `REVIEW.md:23411–23433,23470–23471` records DUR-055 acceptance (Round 132 at `f18b210`). Preserve the distinction between M6's SQLite continuity fixture and the PostgreSQL integration. |
+| T4 | Portfolio MVP approval walkthrough, F12, adversarial controls and observability | `REVIEW.md:1110` (Round 26) covers [continuity and F12](../../m6/continuity.json), [adversarial/redaction](../../m6/adversarial.json), [citation checks](../../m6/citation-check.json) and the [M6 model-behavior dashboard](../../m6/dashboard.json). Use the deterministic approval walkthrough and the separate DUR-033A integration from T2. |
+| T5 | Full v1 frozen engine studies | `PLAN.md:1350–1435` records the separately reviewed M7 [scheduler throughput](../../m7/dur026/results.json), [safeguard cost](../../m7/dur034/results.json), [dispatch decomposition](../../m7/dur035/results.json), [lease recovery](../../m7/dur027/results.json) and [checkpoint tradeoff](../../m7/dur028/results.json). Preserve the unresolved safeguard effect, unresolved dispatch increment and historical topology limits. |
+| T6 | Full v1 retrieval and bounded live/adversarial studies | `PLAN.md:1444–1465` and `REVIEW.md:1685` (DUR-029, Round 44 at `5b9d65c`) cover [development-frozen held-out retrieval](../../m7/dur029/retrieval-final.json), [live retrieval with the document-dependent subset](../../m7/dur029/live-evaluation.json) and the [defended-versus-plain ablation](../../m7/dur029/live-adversarial.json). Use the recorded model, workload and sample limits on all three arms. |
+| T7 | Full v1 report and interview evidence | `PLAN.md:1525–1557` records the DUR-030 report (`docs/TECHNICAL_REPORT.md:77–324`, Round 46). `PLAN.md:1559–1585` records the DUR-031 Codex walkthroughs under D019 (Round 47). `PLAN.md:1593–1609` records the DUR-032 reproduction review (Rounds 49–51 in `REVIEW.md:1844–1916`). Tracked reader entry points are [DESIGN.md](../../../DESIGN.md), the [public claim map](../recruiter/claim-evidence.md) and the [failure case study](../recruiter/failure-case-study.md). The historical report and walkthroughs supply the tier evidence. |
+
+| Retained prerequisite for dependent claims | Evidence boundary for this release |
 | --- | --- |
-| Core Engine MVP deployment, transport and bounded throughput smoke | M5/DUR-025, Claude Round 23 at `acb28ba`, covers the [real dependency outages](../../m5/outage-recovery.json) and [four-workflow two-owner smoke](../../../internal/engine/m5_smoke_test.go). DUR-032 Round 49 covers two schedulers and the deployed Python/Kafka path. The [DUR-048 pilot](../../m8/dur042-pilot/) was accepted in Round 75 and covers a pure deployed path through one host. |
-| Core Engine MVP durable correctness | M5 [48 F01–F11 cases and checker evidence](../../m5/README.md), including retries, checkpoints, fencing, both effect classes and approval boundaries. Round 50 verified the corrected snapshots at `0002e75`. The [production-path approval and effect fixture](../../../internal/incident/production_integration_test.go) is DUR-033A, Round 45, with a synthetic incident and a sandbox action. |
-| Portfolio MVP deterministic incident, tool and retrieval paths | M6 Round 26 at `1048ad0` covers the [deterministic incident workflow, separate retrieval benchmark, frozen gates and provenance checks](../../m6/README.md). DUR-055 Rounds 136 and 138 cover the later [real PostgreSQL FTS/pgvector and official SDK MCP evidence](../../m8/dur055-applied-ai-upgrade/README.md). Preserve the distinction between the SQLite continuity fixture and the PostgreSQL retrieval and integration cases. |
-| Portfolio MVP approval walkthrough, F12, adversarial controls and observability | M6 Round 26 accepts the [continuity and F12 record](../../m6/continuity.json), [adversarial/redaction results](../../m6/adversarial.json), [citation checks](../../m6/citation-check.json) and [model-behavior dashboard](../../m6/dashboard.json). Link the deterministic approval walkthrough and the separate DUR-033A integration from the release claim map. |
-| Full v1 frozen engine studies | Reviewed M7 [scheduler throughput](../../m7/dur026/results.json), [safeguard cost](../../m7/dur034/results.json), [dispatch decomposition](../../m7/dur035/results.json), [lease recovery](../../m7/dur027/results.json) and [checkpoint tradeoff](../../m7/dur028/results.json). Use PLAN's M7 closeouts and the [reviewed public claim map](../recruiter/claim-evidence.md). Retain the unresolved safeguard effect, unresolved dispatch increment and historical topology limits. |
-| Full v1 retrieval and bounded live/adversarial studies | DUR-029 Round 44 at `5b9d65c` covers the [development-frozen held-out retrieval comparison](../../m7/dur029/retrieval-final.json), [live retrieval-arm results with the document-dependent subset](../../m7/dur029/live-evaluation.json) and defended-versus-plain injection ablation. The release can link these historical results at their recorded limits. |
-| Full v1 report and interview evidence | DUR-030 Round 46 at `51e1957`, DUR-031/M8 under D019 and DUR-032 Rounds 49–51 cover the report, evidence reproduction and engineering walkthroughs. The tracked reader entry points are [DESIGN.md](../../../DESIGN.md), the [public claim map](../recruiter/claim-evidence.md) and the [failure case study](../recruiter/failure-case-study.md). The walkthroughs are Codex-performed engineering evidence. |
+| Full DUR-045 refresh | `PLAN.md:2059–2067` distinguishes the accepted pre-refresh package from the pending D026 refresh. T7 uses the older DUR-030/031/032 closeouts. The public claim map is a reader index. The tier decision uses the original study artifacts and closeouts in T1–T7. |
+| Accepted DUR-050 | `PLAN.md:2351–2359` identifies the deferred AWS campaign. T1 and T5 use local deployment and M7 records. The HTTP admission controls below witness the shipped HTTP branches with disposable fixtures. Their scope is response compatibility. |
+| Accepted DUR-052 | `PLAN.md:2625–2635` identifies the deferred operations dashboard and oldest-work alert. T4 uses M6's historical model-behavior dashboard, which C1 links through the historical evidence package. |
+| Accepted DUR-053 | `PLAN.md:2677–2685` identifies the Kubernetes campaign and K8 transfer. J8 release tests use Compose. The separate J12 hosted TokenReview result covers J12's identity controls. T1–T7 and the release-note inventory use no K results. |
 
-Before any release write, bind the tier, claim map, scan and workflow policy,
+Before any outward publication stage, bind the tier, claim map, scan and workflow policy,
 and `DUR-046` CI receipt to one reviewed protected-branch commit. Require green
 exact-SHA hosted Go/Python/service checks and the registered DUR-046 gates,
 including passing restored baselines and named mutation detections, fuzz,
@@ -47,6 +52,22 @@ the J12 implementation and harness have a nonblocking review (Round 681).
 The current checkout lacks the J9a reader and registry row. The existing
 `v0.1.0` tag at `7e4137d` is a historical fixture source. This registration
 chooses no tag value and supplies no publication authority.
+
+### Planned release-note claims
+
+This is the complete claim inventory. Historical results retain their source
+scope. Each release result needs reviewed evidence bound to the exact
+candidate; include measured values only after the corresponding gate passes.
+
+| Claim | Planned release-note statement | Required evidence row and scope |
+| --- | --- | --- |
+| C1 | The release meets the Full v1 criteria and links the historical evidence package. | T1–T7 plus the exact-commit review and DUR-046 receipt. The notes link the studies and their limits without asserting new performance, model or recovery results. |
+| C2 | The reviewed source tag identifies the stock Linux/amd64 runtime and worker images by GHCR digest. Digest-bound SBOMs, scans with dispositions and GitHub build provenance are available. | [Release image checks](#release-images-modes-and-migration-inventory), [supply-chain checks](#supply-chain-policy) and public readback. Require tag resolution, matching image and report digests and the substituted-digest rejection. The scan statement is scoped to its frozen database and policy. |
+| C3 | The release profile enables J12 tenant auth and namespace authorisation, the J19 expired-attempt policy and J9a repaired relay, with the registered migration inventory. | [Release profile and migration table](#release-images-modes-and-migration-inventory), exact running mode and ledger evidence, J19 Round 639 and the reviewed J12 hosted qualification. Cite J12's hosted run for real Kubernetes TokenReview evidence. |
+| C4 | The documented Compose quickstart reaches an independently checked terminal workflow in three cold Linux runs. The notes report pull and start-to-check times and spreads. | [B4 quickstart clocks and cutoff table](#b4-cold-release-quickstart), three reconciled checker, digest and timing records. Label worker identity in every quickstart result **Compose-only TokenReview fixture**. |
+| C5 | The OpenAPI document matches the shipped authenticated HTTP contract. The frozen J8 client detected the three registered breaking changes and accepted the additive change. | [HTTP route, response and change tables](#shipped-http-contract-and-seeded-controls). Include namespace and idempotency checks, and HTTP 429 only with its registered admission configuration. Cross-release compatibility remains a J13 claim. |
+| C6 | The checksummed public replay asset reproduces the registered historical F01 verdict offline and rejects the failing control. | [Offline replay checks](#offline-replay-and-public-repository-controls) and public readback receipts for both commands in the isolated Linux network namespace. Scope to the shipped bundle and verifier. |
+| C7 | The repository supplies private vulnerability-reporting instructions and dependency-update configuration for the registered ecosystems. | [Public repository controls](#offline-replay-and-public-repository-controls) and the reporting-route and manifest coverage checks. |
 
 ## Release images, modes and migration inventory
 
@@ -165,14 +186,16 @@ and mounts. Generate fixture RSA-2048 tenant keys locally, publish only the
 public JWKS to the API, and use issuer `https://j8-fixture.invalid`, audience
 `durable-j8-api`, subject `requester` and namespace `j8-quickstart`. Destroy key
 material and credentials during teardown. Use loopback for tenant traffic.
-The Compose-only private worker setup uses a separate TLS fixture TokenReview
+The private worker setup uses a separate TLS Compose-only TokenReview fixture
 service, trust root, issuer, signing key, reviewer credential and bound caller
 token for a dedicated worker audience. The fixture verifies the signature,
 issuer, audience, expiry and expected service account and returns the fixture
 pod identity. Mount the worker token through the existing `WORKER_TOKEN_FILE`
 seam. Verify both a valid worker credential and a denied tenant token on the
-worker listener. J12's separate qualification is the real Kubernetes
-TokenReview evidence.
+worker listener. Label it **Compose-only TokenReview fixture** in the
+quickstart docs and every artifact that references it, including transcripts,
+evidence manifests and release notes. J12's separate hosted qualification is
+the sole source for real Kubernetes TokenReview evidence.
 
 Seed exactly one workflow definition version in the migrated store before
 submission, named `j8-quickstart` version `1`, running `pure.add@v1` then
@@ -328,51 +351,48 @@ checksum assets are immutable. [Dependabot options](https://docs.github.com/en/c
 ## Publication authorization and permissions
 
 The [workflow draft](release-workflow.draft.yml) stays outside the Actions
-workflow directory. Its jobs are disabled and its gate steps deliberately
-fail. A later reviewed implementation must install a protected workflow and
-owner-controlled environments, validate their existence and protection before
-use, and supply the reviewed gate implementation. An input, tag event,
-passing job, Claude review or prior release authorization is insufficient.
-Each outward-facing operation below requires its own explicit owner
-authorization recorded in main-checkout `REVIEW.md` before the operation.
+workflow directory, with every job disabled and each step deliberately
+failing. Claude reviews its implementation and the protected workflow and
+environment setup before activation.
 
-Bind each authorization to operation, exact candidate and workflow SHA,
-repository and target ref/package/tag/release, evidence manifest and digests
-where applicable, approved runner/time limits, and a one-use run/attempt scope.
-The owner and reviewer reconcile the private REVIEW entry with a minimal
-protected authorization record and the action's protected environment approval.
-CI must verify the record against the active run and target, including the
-reviewed evidence and previous gate results. A dispatch input may point to
-that record. Gates must evaluate the applicable grant at the time of each
-stage, so grants for digests, tag objects or draft IDs can bind to the actual
-objects produced during the approved run. Use required owner review, restricted deployment refs, no
-self-review and no admin bypass for write jobs. Pre-create and audit the
-environments, since an implicitly created environment has no protections.
-Keep ordinary candidate verification read-only and avoid persisted checkout
-credentials. [GitHub environment protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+Request **one owner grant** covering exactly the three outward publication
+stages in the table below. Claude records that grant in main-checkout
+`REVIEW.md` and makes a matching record available to the protected workflow.
+Bind it to the repository, exact candidate SHA and workflow SHA, release
+tag name, the GHCR destinations and image digests or their derivation rule,
+and the release asset inventory. The inventory fixes each asset name and its
+expected source in the reviewed workflow. Bind known hashes at grant time.
+For outputs such as the same-run provenance bundles, bind the producer and
+output in the inventory and verify the resulting SHA-256 in the sealed asset
+manifest before publication. When the grant uses a digest derivation rule,
+derive the image digests from the sealed Linux/amd64 runtime and worker OCI
+manifests built by the reviewed workflow from that candidate and its pinned
+inputs. Keep the candidate and artifact identities tied to the same run.
 
-| Owner authorization per operation | Publication scope and permissions |
+An optional dispatch input identifies the protected record. Immediately before
+writing, each outward job loads the same Claude-recorded grant, compares the
+running workflow SHA, sealed candidate SHA and tag to the grant, and verifies
+the actual object and applicable preceding evidence. A missing record,
+mismatch or missing evidence fails the job and stops subsequent publication.
+Pre-create and audit the protected environments, restrict deployment refs
+and keep credential scopes job-local. Require Claude review for internal
+gates without another owner approval prompt. [GitHub environment protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+
+| Stage | Handling and permissions |
 | --- | --- |
-| Enable release workflow or modify its gates, repository policy, package visibility or security report settings | Owner changes reviewed settings or merges the reviewed enablement change. Record activation separately from permission to write release objects. Package visibility changes are separately recorded before use. |
-| Dispatch the exact hosted release workflow | Authorize the run identity and $0 budget. Default token is `contents: read`. This authorizes ordinary scrubbed run logs, without any release write. |
-| Upload Actions candidate transport | Authorize the named channel and sealed candidate payload. Use GitHub's per-run artifact mechanism with short retention. Exclude credentials and private keys. |
-| Publish release evidence to Actions artifacts | Authorize the named evidence and upload scope separately from candidate transport, GHCR and release assets. Keep verification read-only apart from the approved upload. Exclude credentials and private keys. |
-| Push images/aliases to GHCR | Dedicated registry environment and `packages: write` with `contents: read`. Allowlist the two package names and sealed digests. A pre-push scan disposition is required because registry publication is itself external. |
-| Publish provenance attestations | Dedicated provenance environment, `contents: read`, `id-token: write`, `attestations: write`. GitHub attestation store only. Any optional OCI registry attestation/referrer write needs a separate registry authorization and permission. |
-| Create the annotated tag | Separate authorization for the exact unused tag and reviewed SHA. Verify peeled identity, conflicts and the pre-tag evidence first. |
-| Push the annotated tag | Separate authorization for the exact tag object and remote ref. Use `contents: write` only in the protected tag job, enabled after both tag approvals. No force, overwrite or implicit tag creation by a release tool. |
-| Create a GitHub draft release | Separate authorization with `contents: write` in the draft environment. Bind to the existing verified tag. |
-| Upload or replace GitHub release assets | Separate authorization for the draft ID and named SHA-256 asset inventory. Use isolated `contents: write` in the asset environment. Verify the uploaded bytes. A later replacement needs its own authorization. |
-| Publish or edit a GitHub release | Separate authorization for the exact draft ID, tag, notes and attachments. Use isolated `contents: write` in the publication environment. This covers final visibility and notes, with claims subject to readback. Any later edit, withdrawal or destructive cleanup needs its own recorded permission. |
-| Publish the public J8 result or claim-map update | Separate authorization for the reviewed public write, including a repository push with J8 release claims or evidence. Update the tracked public claim map from reviewed, run-bound release evidence. |
+| **GHCR image or attestation push** | **Covered by the one owner grant.** Compare the actual OCI manifest digests, destinations and scan dispositions to the grant and its sealed build record before writing. Apply the same check to subject and destination for any GHCR attestation push. Use the protected GHCR job with `contents: read` and `packages: write`. The registered provenance job uses the GitHub attestation store. |
+| **Annotated tag push** | **Covered by the same owner grant.** Create the annotated tag locally under Claude review. Before pushing, inspect the actual object, annotated tag name and target. Compare the name and candidate SHA to the grant, join the exact object SHA to the reviewed local creation receipt and verify the remote ref is unused. Push that object with `contents: write` in the protected tag job. Force, replacement and implicit release-tool tag creation are prohibited. |
+| **GitHub release publication with assets** | **Covered by the same owner grant.** Derive the expected draft ID from the reviewed same-run creation receipt for the granted repository and tag. Fetch that exact draft ID from GitHub and verify draft state, tag and peeled commit, reviewed notes, and the attached assets against the grant inventory and sealed checksums. Publish that draft with `contents: write` in the protected publication job. |
+| Workflow dispatch, scrubbed logs and per-run Actions artifacts | Internal CI under Claude review. Default token is `contents: read`. Use the per-run artifact mechanism with short retention for sealed candidate transport and scrubbed evidence. Exclude credentials and private keys. |
+| GitHub attestation-store provenance | Internal under Claude review. Verify same-run digest binding. Limit `contents: read`, `id-token: write` and `attestations: write` to the provenance job. Keep `push-to-registry: false`. |
+| Draft creation and asset staging on an unpublished GitHub release | Internal under Claude review. Use the existing verified tag, seal the returned draft ID with the run and tag, and stage reviewed assets on that unpublished draft. Scope `contents: write` to the separate draft and asset jobs. Verify that the draft is still unpublished and the upload matches the reviewed inventory. |
+| Public claim-map update | Ordinary reviewed commit to the tracked claim map using the reviewed, run-bound results for C1–C7. |
 
-No shared workflow PAT, standing package write grant, global write permissions
-or credentials in assets. At each mutation boundary recheck source, tag,
-digests, sealed artifacts, approval scope and applicable prior verdicts. A
-draft stays a draft when a gate is missing. If an earlier outward step has
-already produced immutable objects when a later gate fails, retain their exact
-identities and the blocked status in the review record. Stop the remaining
-writes pending disposition and any separately authorized correction.
+Avoid shared workflow PATs, standing write grants, global write permissions
+and persisted checkout credentials. If a later gate stops, preserve the
+identities of any earlier writes and the blocked status in `REVIEW.md`.
+Keep any unpublished draft in draft state. Return publication changes outside
+the recorded grant to the owner as one revised release grant.
 
 ## Budget, verdicts and retained evidence
 
@@ -383,27 +403,28 @@ jobs. Other job caps are admission 10, build and pre-push scans 30, registry
 10, provenance 10, digest recheck and HTTP contract 20, pre-release replay 10,
 tag 5, draft 5, asset upload 10, publish 5 and public readback/replay 10
 minutes. Preserve staging diagnostics, remaining time and teardown evidence.
-No automatic retry or replacement. A rerun requires reviewed disposition and
-fresh authorization for every repeated outward operation.
+No automatic retry or replacement. Claude reviews rerun disposition. A changed
+publication scope requires one revised owner grant.
 
 - **Pass.** Require all prepublication tier, exact-commit CI, inventory, digest,
   SBOM, scan, provenance, three valid quickstarts, API/seeded-control and
   replay gates before the applicable tag or release mutation. The release is
   accepted only after public readback matches the tag, images and assets and
-  passes anonymous-fetch offline replay. Publish the accepted scope after
-  review and owner authorization.
+  passes anonymous-fetch offline replay. Update the public claim map through
+  an ordinary reviewed commit.
 - **Fail.** A witnessed contract mismatch, security gate failure, semantic
   negative surviving verification, cutoff miss under valid conditions or
   post-publication mismatch fails the relevant gate. Preserve counts and
   diagnostics. Hold further publication or acceptance claims.
-- **Invalid.** Missing approvals, unqualified runner or cold-start conditions,
+- **Invalid.** A missing or mismatched grant at an outward gate, unqualified
+  runner or cold-start conditions,
   bad tool/database inputs, incomplete evidence, intake/setup interruptions
   or unverified cleanup invalidate the affected run or stage. List unstarted
   checks as unperformed. Preserve partial evidence for review and withhold
   the success claim.
 
 Retain the tag and peeled SHA, source/workflow digests, run/attempt IDs, reviewed
-tier/claim map, approval references, exact image identities, SBOMs, scans and
+tier/claim map, owner grant reference, exact image identities, SBOMs, scans and
 dispositions, provenance bundles and control verdicts, cold clocks/profile and
 schema observations, OpenAPI/client hashes and replay manifests. Record results
 under `experiments/portfolio/release-verification/<release-tag>/` after review.

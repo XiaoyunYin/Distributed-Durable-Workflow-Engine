@@ -1,6 +1,6 @@
 # J8 slice 0. Keep outside .github/workflows. No job can run in this draft.
-# Activation, dispatch and each outward write require the protocol's separate
-# owner authorization. A dispatch input is a record identifier, never approval.
+# Claude reviews internal CI. The three outward stages verify the same
+# Claude-recorded owner grant. The optional dispatch input identifies the record.
 name: J8 verifiable release (draft)
 on:
   workflow_dispatch:
@@ -14,9 +14,9 @@ on:
         type: string
         required: true
       authorization_record:
-        description: Identifier of the protected operation-specific authorization record
+        description: Identifier of the single Claude-recorded release grant
         type: string
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -36,30 +36,24 @@ jobs:
     timeout-minutes: 10
     outputs:
       admitted: ${{ steps.gate.outputs.admitted }}
-      workflow_run: ${{ steps.gate.outputs.workflow_run }}
     steps:
-      - name: Require reviewed candidate, trusted workflow, owner record and runner admission
+      - name: Require Claude-reviewed candidate, trusted workflow and runner admission
         id: gate
         env:
-          AUTHORIZATION_RECORD: ${{ inputs.authorization_record }}
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: exit 1
 
   build_scan:
     needs: admission
-    if: ${{ false && needs.admission.outputs.admitted == 'true' && needs.admission.outputs.workflow_run == 'true' }}
+    if: ${{ false && needs.admission.outputs.admitted == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: j8-candidate-artifacts
     steps:
       - name: Seal clean OCI builds, helper assets, SBOMs and pre-push scan verdicts
         run: exit 1
-      - name: Require the candidate artifact transport grant
-        id: transport_grant
-        run: exit 1
-      - name: Upload the authorized Actions candidate payload
-        if: ${{ steps.transport_grant.outputs.authorized == 'true' }}
+      - name: Stage the sealed candidate in per-run Actions artifacts under Claude review
         run: exit 1
 
   registry:
@@ -72,8 +66,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Require GHCR authorization for the sealed digests and review the dispositions
+      - name: Verify the single grant against actual OCI digests, GHCR destinations and dispositions
         id: registry_grant
+        env:
+          AUTHORIZATION_RECORD: ${{ inputs.authorization_record }}
         run: exit 1
       - name: Push the two authorized image digests to GHCR
         if: ${{ steps.registry_grant.outputs.authorized == 'true' }}
@@ -90,11 +86,9 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Require attestation authorization and verify same-run digest binding
-        id: provenance_grant
+      - name: Verify the Claude-reviewed same-run digest binding
         run: exit 1
-      - name: Write the authorized GitHub artifact attestations
-        if: ${{ steps.provenance_grant.outputs.authorized == 'true' }}
+      - name: Write provenance to the GitHub attestation store
         run: exit 1
 
   digest_contract:
@@ -118,6 +112,8 @@ jobs:
     steps:
       - name: Cold release quickstart repeat ${{ matrix.repeat }}
         run: exit 1
+      - name: Label Compose-only TokenReview fixture in quickstart artifacts
+        run: exit 1
 
   replay_before_release:
     needs: [admission, build_scan]
@@ -136,18 +132,19 @@ jobs:
     environment: j8-tag
     permissions:
       contents: write
+    outputs:
+      tag_object: ${{ steps.push_tag.outputs.tag_object }}
     steps:
-      - name: Require authorization for the exact unused tag and candidate
-        id: tag_create_grant
+      - name: Create the Claude-reviewed annotated tag locally and seal the object SHA
         run: exit 1
-      - name: Create the authorized annotated tag locally
-        if: ${{ steps.tag_create_grant.outputs.authorized == 'true' }}
-        run: exit 1
-      - name: Require separate push authorization for the exact tag object
+      - name: Verify the single grant against the actual tag object and unused remote ref
         id: tag_push_grant
+        env:
+          AUTHORIZATION_RECORD: ${{ inputs.authorization_record }}
         run: exit 1
       - name: Push the authorized tag object
-        if: ${{ steps.tag_create_grant.outputs.authorized == 'true' && steps.tag_push_grant.outputs.authorized == 'true' }}
+        id: push_tag
+        if: ${{ steps.tag_push_grant.outputs.authorized == 'true' }}
         run: exit 1
 
   release_draft:
@@ -158,12 +155,15 @@ jobs:
     environment: j8-release-draft
     permissions:
       contents: write
+    outputs:
+      draft_id: ${{ steps.create_draft.outputs.draft_id }}
     steps:
-      - name: Require draft-creation authorization and check the existing peeled tag
-        id: draft_grant
+      - name: Check the Claude-reviewed existing tag object and peeled candidate
+        env:
+          TAG_OBJECT: ${{ needs.tag.outputs.tag_object }}
         run: exit 1
-      - name: Create the authorized GitHub draft release
-        if: ${{ steps.draft_grant.outputs.authorized == 'true' }}
+      - name: Create an unpublished draft and seal the same-run draft ID receipt
+        id: create_draft
         run: exit 1
 
   release_assets:
@@ -175,11 +175,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Require asset-upload authorization for this draft and exact checksum inventory
-        id: asset_grant
+      - name: Check the draft is unpublished and verify the Claude-reviewed asset inventory
+        env:
+          DRAFT_ID: ${{ needs.release_draft.outputs.draft_id }}
         run: exit 1
-      - name: Upload the authorized GitHub release assets
-        if: ${{ steps.asset_grant.outputs.authorized == 'true' }}
+      - name: Stage checked assets on the unpublished draft
         run: exit 1
 
   release_publish:
@@ -191,8 +191,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Require publication authorization for this draft and attached evidence
+      - name: Verify the single grant against the actual draft ID, tag and attached asset inventory
         id: publish_grant
+        env:
+          AUTHORIZATION_RECORD: ${{ inputs.authorization_record }}
+          DRAFT_ID: ${{ needs.release_draft.outputs.draft_id }}
+          TAG_OBJECT: ${{ needs.tag.outputs.tag_object }}
         run: exit 1
       - name: Publish the authorized GitHub release draft
         if: ${{ steps.publish_grant.outputs.authorized == 'true' }}
@@ -207,9 +211,5 @@ jobs:
     steps:
       - name: Fetch public assets anonymously and repeat both replay verdicts offline
         run: exit 1
-      - name: Require the separately scoped Actions evidence-upload grant
-        id: evidence_grant
-        run: exit 1
-      - name: Upload the authorized public readback evidence to Actions artifacts
-        if: ${{ steps.evidence_grant.outputs.authorized == 'true' }}
+      - name: Upload scrubbed readback evidence to per-run Actions artifacts under Claude review
         run: exit 1
