@@ -10,6 +10,11 @@ DEADLINE = 2_854_000_000
 WINDOWS = {"all": None, "10m": 600 * SECOND, "2m": 120 * SECOND}
 DOMAIN = ("OldestClaimable", "DeadlineBudgetBurn")
 ALERTS = (*DOMAIN, "ScrapeAbsent")
+OLDEST_CLEAR_EVALUATIONS = 24
+
+
+class EpisodeFailure(ValueError):
+    """A registered behavior failed with observations available."""
 
 
 def require(condition, detail):
@@ -198,6 +203,29 @@ def burn(band, field):
     return hot, not hot
 
 
+def oldest_clear_input(row):
+    return row["valid"] and (
+        row["claimable_attempts"] == 0 or row["oldest_claimable_age_seconds"] <= 28.540
+    )
+
+
+def oldest_states(evaluations):
+    firing, clear = False, 0
+    for row in evaluations:
+        if oldest_clear_input(row):
+            clear += 1
+            if clear >= OLDEST_CLEAR_EVALUATIONS:
+                firing = False
+        else:
+            clear = 0
+            firing = firing or (
+                row["valid"]
+                and row["claimable_attempts"] > 0
+                and row["oldest_claimable_age_seconds"] > 28.540
+            )
+        yield firing
+
+
 def verify_alerts(rows, setup, stream, evaluations, first, last):
     require(
         bool(evaluations)
@@ -213,10 +241,14 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
         if at in requests:
             inputs[at] = band, sample["demand"], sample["windows"]
     active, pending, ambiguous, transitions = set(), None, [], []
-    for ev in evaluations:
+    for ev, oldest in zip(evaluations, oldest_states(evaluations), strict=True):
         at = ev["at_ns"]
         before = active.copy()
         require(ev["rule_ok"] is True, f"rule evaluation failed: {at}")
+        if oldest:
+            active.add(DOMAIN[0])
+        else:
+            active.discard(DOMAIN[0])
         if ev["valid"]:
             source, scrape = ev["sample_ns"], ev["scrape_ns"]
             require(source in inputs, f"missing visibility evidence: {source}")
@@ -233,9 +265,6 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
                 and demand["oldest_claimable_age_seconds"] == ev["oldest_claimable_age_seconds"]
                 and demand["claimable_attempts"] == ev["claimable_attempts"],
                 "demand sample mismatch",
-            )
-            age_fire = (
-                demand["claimable_attempts"] > 0 and demand["oldest_claimable_age_seconds"] > 28.540
             )
             pending = None
             active.discard("ScrapeAbsent")
@@ -255,11 +284,10 @@ def verify_alerts(rows, setup, stream, evaluations, first, last):
                 )
             else:
                 require(live == lower, f"live/replay predicate mismatch: {at}")
-            for alert, (fire, clear) in zip(DOMAIN, ((age_fire, not age_fire), live), strict=True):
-                if fire:
-                    active.add(alert)
-                elif clear:
-                    active.discard(alert)
+            if live[0]:
+                active.add(DOMAIN[1])
+            elif live[1]:
+                active.discard(DOMAIN[1])
         else:
             pending = at if pending is None else pending
             if at - pending >= 5 * SECOND:

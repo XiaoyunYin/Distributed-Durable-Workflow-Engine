@@ -1,0 +1,20 @@
+{
+  "exit": 0,
+  "observer_current_peak_bytes": 1076264960,
+  "observer_peak_bytes": 1094004736,
+  "observer_limit_bytes": 2147483648,
+  "checker_sha256": "823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e",
+  "gomemlimit": "1200MiB",
+  "checker_sampled_peak_rss_kib": 977760,
+  "checker_exit_measurements": [
+    {
+      "exit_status": 0,
+      "started_at_ns": 1795825370567154397,
+      "wall_seconds": 22.225789806999273,
+      "peak_rss_kib": 993636,
+      "checker_sha256": "823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e",
+      "gomemlimit": "1200MiB"
+    }
+  ],
+  "max_sample_gap_ns": 1043754596
+}

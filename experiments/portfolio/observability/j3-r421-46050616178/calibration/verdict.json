@@ -1,0 +1,87 @@
+{
+  "campaign": "j3-r421-46050616178",
+  "episodes": {
+    "foreign": {
+      "arm_seconds": 1801,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 129,
+      "setup_seconds": 66,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-foreign"
+      }
+    },
+    "outage-1": {
+      "arm_seconds": 2821,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 159,
+      "setup_seconds": 61,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-1"
+      }
+    },
+    "outage-2": {
+      "arm_seconds": 2821,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 161,
+      "setup_seconds": 60,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-2"
+      }
+    },
+    "outage-3": {
+      "arm_seconds": 2821,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 158,
+      "setup_seconds": 62,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-3"
+      }
+    },
+    "scrape-loss": {
+      "arm_seconds": 1321,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 120,
+      "setup_seconds": 60,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-scrape-loss"
+      }
+    }
+  },
+  "stage": "calibration",
+  "status": "PASS"
+}

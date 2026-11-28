@@ -1,12 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestDemandRequiresFreshScopedAuthenticatedRead(t *testing.T) {
@@ -46,5 +52,30 @@ func TestVisibilityDelta(t *testing.T) {
 	if len(d.Set) != 2 || d.Set["new-revision"] != 3 || d.Set["added"] != 1 ||
 		len(d.Delete) != 1 || d.Delete[0] != "gone" {
 		t.Fatalf("delta=%+v", d)
+	}
+}
+
+func TestFailedCycleRetainsSafeTiming(t *testing.T) {
+	var logs bytes.Buffer
+	output := log.Writer()
+	t.Cleanup(func() { log.SetOutput(output) })
+	log.SetOutput(&logs)
+	s := sampler{}
+	if err := s.collect(context.Background(), func(context.Context) (*projection, error) {
+		return nil, &pgconn.PgError{Code: "57014", Message: "secret details"}
+	}, func(context.Context) (*demand, error) {
+		return nil, context.DeadlineExceeded
+	}); err != nil {
+		t.Fatal(err)
+	}
+	text := logs.String()
+	_, payload, found := strings.Cut(text, " J3_CYCLE ")
+	var timing cycleTiming
+	if !found || strings.Contains(text, "secret details") || json.Unmarshal([]byte(payload), &timing) != nil {
+		t.Fatalf("unexpected cycle diagnostics: %s", text)
+	}
+	if timing.StartedNS == 0 || timing.SQLFailure != "postgres_57014" || timing.DemandFailure != "deadline" ||
+		timing.CycleNS < timing.SQLNS+timing.DemandNS {
+		t.Fatalf("unexpected timing: %+v", timing)
 	}
 }

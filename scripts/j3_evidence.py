@@ -3,11 +3,34 @@
 import json
 
 from j2_offline import attempt_key, utc_ns
-from j3_replay import ALERTS, DEADLINE, SECOND, require, unique
+from j3_replay import ALERTS, DEADLINE, SECOND, EpisodeFailure, require, unique
+
+DELIVERY_WINDOW = 30 * SECOND
+MAX_HEARTBEAT_GAP = 10 * SECOND
+
+
+def receiver_sequence_ok(rows):
+    # The end marker times the snapshot; only the receiver writes sequence numbers.
+    return all(row.get("sequence") == index for index, row in enumerate(rows[:-1]))
+
+
+def missing_delivery(rows, at, detail):
+    require(receiver_sequence_ok(rows), f"receiver log sequence gap: {detail}")
+    heartbeats = [row["received_ns"] for row in rows if row.get("heartbeat") in {"start", "alive"}]
+    deadline = at + DELIVERY_WINDOW
+    before = max((t for t in heartbeats if t <= at), default=None)
+    after = min((t for t in heartbeats if t >= deadline), default=None)
+    require(before is not None and after is not None, f"receiver heartbeat gap: {detail}")
+    window = [t for t in heartbeats if before <= t <= after]
+    require(
+        all(b - a <= MAX_HEARTBEAT_GAP for a, b in zip(window, window[1:], strict=False)),
+        f"receiver heartbeat gap: {detail}",
+    )
+    raise EpisodeFailure(f"absent alert: {detail}")
 
 
 def notifications(rows, transitions, target, start_ns, end_ns):
-    """Pair receiver deliveries to observed Prometheus transitions by incident."""
+    """Verify setup closures and pair measured deliveries with observed transitions."""
     require(len(rows) >= 2, "missing receiver heartbeats")
     first, last = rows[0], rows[-1]
     times = [row["received_ns"] for row in rows]
@@ -19,7 +42,10 @@ def notifications(rows, transitions, target, start_ns, end_ns):
         "receiver evidence does not enclose the episode",
     )
     deliveries = []
+    setup = {}
     for row in rows[1:-1]:
+        if row.get("heartbeat") == "alive":
+            continue
         require(
             row.get("http_status") == 204
             and row.get("status") in {"firing", "resolved"}
@@ -35,7 +61,33 @@ def notifications(rows, transitions, target, start_ns, end_ns):
                 and delivery["status"] in {"firing", "resolved"},
                 "unexpected receiver labels, status or fingerprint",
             )
-            deliveries.append({**delivery, "received_ns": row["received_ns"]})
+            received = row["received_ns"]
+            d = {**delivery, "received_ns": received}
+            started = utc_ns(d["startsAt"])
+            if started >= start_ns:
+                deliveries.append(d)
+                continue
+            require(
+                started <= received < start_ns, "setup incident delivery reached episode origin"
+            )
+            key = (labels["alertname"], d["fingerprint"], started)
+            if d["status"] == "firing":
+                setup.setdefault(key, {"firing": [], "resolved": []})["firing"].append(d)
+            else:
+                require(key in setup, "setup incident resolution has no matching firing")
+                require(
+                    started <= utc_ns(d["endsAt"]) <= received,
+                    "setup incident has invalid resolution time",
+                )
+                setup[key]["resolved"].append(d)
+    require(
+        all(
+            incident["resolved"]
+            and incident["firing"][-1]["received_ns"] <= incident["resolved"][-1]["received_ns"]
+            for incident in setup.values()
+        ),
+        "setup incident unresolved at origin",
+    )
 
     incidents = {}
     matched = []
@@ -48,7 +100,7 @@ def notifications(rows, transitions, target, start_ns, end_ns):
             received = d["received_ns"]
             if not (d["labels"]["alertname"] == name and d["status"] == expected and i not in used):
                 continue
-            if not at <= received <= at + 30 * SECOND:
+            if not at <= received <= at + DELIVERY_WINDOW:
                 continue
             started = utc_ns(d["startsAt"])
             if firing:
@@ -65,7 +117,8 @@ def notifications(rows, transitions, target, start_ns, end_ns):
             matched.append({"transition": transition, "delivery": d})
             break
         else:
-            raise ValueError(f"missing {expected} receiver delivery for {name} at {at}")
+            missing_delivery(rows, at, f"missing {expected} receiver delivery for {name} at {at}")
+    require(receiver_sequence_ok(rows), "receiver log sequence gap")
     allowed_repeats = {
         (d["labels"]["alertname"], d["status"], d["fingerprint"], d["startsAt"])
         for i, d in enumerate(deliveries)
@@ -79,7 +132,7 @@ def notifications(rows, transitions, target, start_ns, end_ns):
         ),
         "unexpected or unpaired receiver delivery",
     )
-    return matched
+    return {"matches": matched, "setup_incidents": list(setup.values())}
 
 
 def foreign_positive(witness, evaluations, seeds, foreign):

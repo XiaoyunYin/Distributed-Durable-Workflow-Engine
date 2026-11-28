@@ -1,11 +1,16 @@
 import copy
+import json
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
+import j3_episode as episode  # noqa: E402
+import j3_pilot as pilot  # noqa: E402
 from j3_evidence import (  # noqa: E402
     SECOND,
     foreign_isolation,
@@ -14,12 +19,13 @@ from j3_evidence import (  # noqa: E402
     slot_occupancy,
     target_only_attainment,
 )
-from j3_prometheus import evaluation_rows  # noqa: E402
-from j3_resources import cgroup_paths, checker_failure  # noqa: E402
-from j3_slots import ready_slots  # noqa: E402
+from j3_prometheus import evaluation_rows, scrape_timeout_ns  # noqa: E402
+from j3_resources import cgroup_paths, checker_failure, checker_outcome  # noqa: E402
+from j3_slots import ready_slots, sample_ready_slots  # noqa: E402
 
 UID = "abc-def"
 GROUP = "/sys/fs/cgroup/kubepods.slice/kubepods-burstable-podabc_def.slice"
+HOST_GROUP = "/system.slice/docker-kind-node.scope" + GROUP.removeprefix("/sys/fs/cgroup")
 
 
 def test_observer_resolves_pod_group_from_container_membership():
@@ -47,6 +53,26 @@ def test_observer_resolves_pod_group_from_container_membership():
             ["oom-kill: task_memcg=" + GROUP.removeprefix("/sys/fs/cgroup") + "/runtime"],
             "oom",
         ),
+        (
+            UID,
+            "Error",
+            0,
+            0,
+            [
+                "[725.77] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),"
+                f"oom_memcg={HOST_GROUP},task_memcg={HOST_GROUP}/cri-containerd-xyz.scope,"
+                "task=checker,pid=30191,uid=65532"
+            ],
+            "oom",
+        ),
+        (
+            UID,
+            "Error",
+            0,
+            0,
+            [f"oom-kill: task_memcg={HOST_GROUP}-sibling/runtime,task=checker"],
+            "unexplained_checker_exit",
+        ),
     ],
 )
 def test_checker_failure_uses_pod_identity_and_positive_oom_evidence(
@@ -71,6 +97,363 @@ def test_missing_checker_status_and_cgroup_evidence_is_unexplained():
     assert checker_failure(UID, GROUP, {}, [{"files": {}}], []) == "unexplained_checker_exit"
 
 
+@pytest.mark.parametrize(
+    ("criterion", "outcome"),
+    [("oom", "capacity"), ("restart", "capacity"), ("unexplained_checker_exit", "invalid")],
+)
+def test_runner_classifies_only_the_recorded_checker_criterion(tmp_path, criterion, outcome):
+    assert checker_outcome(tmp_path) == "invalid"
+    (tmp_path / "checker-failure.json").write_text(
+        json.dumps({"criterion": criterion, "untrusted_text": "oom restart"})
+    )
+    assert checker_outcome(tmp_path) == outcome
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_sender_guard_stops_on_a_terminal_miss(tmp_path, accepted):
+    journal, abort, armed = (tmp_path / name for name in ("journal", "abort", "armed"))
+    exit_record = tmp_path / "exit.json"
+    first = {"event": "arrival", "key": "one", "outcome": "uncertain", "status": 0, "error": ""}
+    last = {"event": "closed"} if accepted else {**first, "error": "transport-error"}
+    records = [
+        {"event": "plan"},
+        first,
+        *([{**first, "outcome": "accepted", "status": 200}] if accepted else []),
+        last,
+    ]
+    content = "".join(json.dumps(row) + "\n" for row in records)
+    child = (
+        f"from pathlib import Path; Path({str(journal)!r}).write_bytes({content.encode()!r});"
+        + ("" if accepted else "import time; time.sleep(20)")
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            episode.GUARD_SENDER,
+            str(journal),
+            str(abort),
+            str(armed),
+            str(exit_record),
+            sys.executable,
+            "-c",
+            child,
+        ],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert armed.is_file() and result.returncode == (0 if accepted else 1)
+    assert not (tmp_path / "exit.json.tmp").exists()
+    status = json.loads(exit_record.read_bytes())
+    assert status["returncode"] == result.returncode
+    assert status["closed"] is accepted and status["exited_ns"] > 0
+    if not accepted:
+        assert json.loads(result.stderr)["error"] == "transport-error"
+
+
+def test_sender_guard_records_a_launch_failure(tmp_path):
+    journal, abort, armed, exit_record, missing_binary = (
+        tmp_path / name for name in ("journal", "abort", "armed", "exit.json", "missing")
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            episode.GUARD_SENDER,
+            *map(str, (journal, abort, armed, exit_record, missing_binary)),
+        ],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
+    status = json.loads(exit_record.read_bytes())
+    assert status["returncode"] == result.returncode
+    assert status["closed"] is False and status["exited_ns"] > 0
+    assert not (tmp_path / "exit.json.tmp").exists()
+
+
+def test_observer_sender_exit_read_checks_the_last_complete_journal_line(tmp_path):
+    record, journal = tmp_path / "record", tmp_path / "journal"
+
+    def read():
+        result = subprocess.run(
+            [sys.executable, "-c", episode.READ_SENDER_EXIT, str(record), str(journal)],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        return json.loads(result.stdout)
+
+    (tmp_path / "record.tmp").write_text('{"returncode":0}', encoding="utf-8")
+    assert read() == {"record": None, "journal_last_line": None}
+    record.write_text('{"returncode":0}', encoding="utf-8")
+    journal.write_bytes(b"{}\n" * 3000 + b'{"event":"closed"}')
+    assert read()["journal_last_line"] is None
+    with journal.open("ab") as stream:
+        stream.write(b"\n")
+    assert read() == {"record": '{"returncode":0}', "journal_last_line": '{"event":"closed"}'}
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("lingering", None),
+        ("nonzero", "sender exited with status 7"),
+        ("missing", "sender exit evidence missing at the drain deadline"),
+        ("local_only", "sender exited without an exit record"),
+        ("truncated", None),
+        ("partial", None),
+        ("open_journal", "sender exit record lacks a closed journal"),
+        ("unquiet", "drain did not reach 30 seconds quiet within 600 seconds"),
+    ],
+)
+def test_drain_uses_the_observer_sender_exit_record(tmp_path, monkeypatch, case, error):
+    stop = 100 * SECOND
+    local_exit = stop - 40 * SECOND
+    now = local_exit - 5 * SECOND if case == "local_only" else stop
+    closed = '{"event":"closed"}'
+    reads = []
+    valid = {"returncode": 7 if case == "nonzero" else 0, "closed": True, "exited_ns": stop}
+    observer_processes = [{"pid": 12, "state": "S (sleeping)", "cmdline": ["python", "guard"]}]
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds * SECOND
+
+    class Client:
+        pid = 42
+        returncode = None
+
+        def poll(self):
+            if case == "local_only" and now >= local_exit and self.returncode is None:
+                self.returncode = 0
+            return self.returncode
+
+        def wait(self, timeout):
+            if self.returncode is None:
+                raise subprocess.TimeoutExpired("kubectl", timeout)
+            return self.returncode
+
+        def terminate(self):
+            self.returncode = -15
+
+    def kubectl(*args, **kwargs):
+        if episode.READ_SENDER_EXIT in args:
+            assert kwargs["timeout"] == 5
+            raw = json.dumps(valid)
+            if case in ("missing", "local_only"):
+                raw = None
+            elif not reads and case in ("truncated", "partial"):
+                raw = '{"returncode":' if case == "truncated" else '{"returncode":0,"closed":true}'
+            reads.append((now, raw))
+            last = "{}" if case == "open_journal" else closed
+            stdout = json.dumps({"record": raw, "journal_last_line": last})
+        elif episode.OBSERVER_PROCESSES in args:
+            stdout = json.dumps(observer_processes)
+        elif args[-2:] == ("cat", episode.JOURNAL):
+            stdout = closed + "\n"
+        else:
+            assert "-i" in args
+            stdout = ""
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    client = Client()
+    monkeypatch.setattr(episode.subprocess, "Popen", lambda *args, **kwargs: client)
+    monkeypatch.setattr(
+        episode, "time", SimpleNamespace(time_ns=lambda: now, monotonic_ns=lambda: now, sleep=sleep)
+    )
+    monkeypatch.setattr(
+        episode,
+        "duration_witness",
+        lambda _driver: {
+            "at_ns": now,
+            "failed": 0,
+            "admitted": 1,
+            "succeeded": 1,
+            "active_claims": 0,
+            "unpublished": int(case == "unquiet"),
+            "revision_hash": "stable",
+        },
+    )
+    driver = SimpleNamespace(output=tmp_path, k=kubectl, env={})
+    samples = SimpleNamespace(latest={"witness": {}, "slots": list(range(4)), "sample_ns": stop})
+    rows = [{"namespace": "target", "scheduled_ns": stop - SECOND}]
+    sender = episode.Sender(driver, "observer", "sender", rows, "test", stop - SECOND, stop)
+    deadline = stop + (2 if error else 40) * SECOND
+
+    def run():
+        with sender.run():
+            while now < stop:
+                assert not sender.check_running()
+                sleep(1)
+            return episode.drain(driver, sender, samples, deadline, sender.check_running)
+
+    if error:
+        with pytest.raises(ValueError, match=error):
+            run()
+        evidence = json.loads((tmp_path / "sender-process-evidence.jsonl").read_bytes())
+        assert evidence["reason"] == error
+        assert evidence["local_client"]["pid"] == 42
+        assert evidence["local_client"]["alive"] is (case != "local_only")
+        assert evidence["observer_processes"] == observer_processes
+        assert not (tmp_path / "quiet-drain.json").exists()
+        if case == "missing":
+            assert evidence["at_ns"] == deadline
+            assert not (tmp_path / "sender-exit.json").exists()
+        if case == "local_only":
+            assert reads[0][0] == local_exit
+            assert evidence["at_ns"] == local_exit + 30 * SECOND < stop
+            assert not (tmp_path / "sender-exit.json").exists()
+        return
+
+    result = run()
+    ignored_first = case in ("truncated", "partial")
+    assert len(reads) == (2 if ignored_first else 1)
+    assert result["quiet_start_ns"] == stop + int(ignored_first) * SECOND
+    assert result["quiet_seconds"] == 30
+    evidence = json.loads((tmp_path / "exec-stream-lingering.json").read_bytes())
+    assert evidence["event"] == "exec_stream_lingering"
+    assert evidence["termination_started_ns"] == evidence["exit_observed_ns"] + 30 * SECOND
+    assert evidence["client_before"]["alive"] and not evidence["client_after"]["alive"]
+    assert client.returncode == -15
+
+
+def test_drain_starts_quiet_when_outbox_empties_with_the_same_fingerprint(tmp_path, monkeypatch):
+    stop = 100 * SECOND
+    now = stop
+    unpublished = iter((3, 2, 1))
+    slots = {"witness": {"worker": "stable"}, "slots": list(range(4)), "sample_ns": stop}
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds * SECOND
+
+    def durable_read(_driver):
+        return {
+            "at_ns": now,
+            "failed": 0,
+            "admitted": 1,
+            "succeeded": 1,
+            "active_claims": 0,
+            "unpublished": next(unpublished, 0),
+            "revision_hash": "stable",
+        }
+
+    monkeypatch.setattr(episode, "time", SimpleNamespace(time_ns=lambda: now, sleep=sleep))
+    monkeypatch.setattr(episode, "duration_witness", durable_read)
+    sender = SimpleNamespace(rows=[{}], exit_record={"returncode": 0}, check_running=lambda: True)
+    result = episode.drain(
+        SimpleNamespace(output=tmp_path),
+        sender,
+        SimpleNamespace(latest=slots),
+        stop + 40 * SECOND,
+        lambda: None,
+    )
+
+    assert result["quiet_start_ns"] == stop + 3 * SECOND
+    assert result["quiet_end_ns"] == stop + 33 * SECOND
+    assert result["quiet_seconds"] == 30
+    reads = list(episode.jsonl(tmp_path / "quiet-reads.jsonl"))
+    assert [read["unpublished"] for read in reads[:4]] == [3, 2, 1, 0]
+    assert [read["quiet_start_ns"] for read in reads[:4]] == [None, None, None, stop + 3 * SECOND]
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("partial_commit", None),
+        ("missing", "live scoped sample gap"),
+        ("zero", "live scoped sample gap"),
+        ("overrun", "rule evaluation overran the settle margin"),
+        ("still_running", "rule evaluation overran the settle margin"),
+        ("stale", "live rule evaluation gap"),
+    ],
+)
+def test_live_sample_check_reads_settled_prometheus_evaluations(monkeypatch, case, error):
+    now = 105.005 if case == "partial_commit" else 106.050
+    if case == "stale":
+        now = 108.000
+    reads = []
+    expected = [(100, 1, 100.004)]
+    valid = [(100, 1, 100.006)]
+    if case != "stale":
+        expected.append((105, 1, 105.004))
+    if case not in {"missing", "stale", "still_running"}:
+        valid.append((105, 0 if case == "zero" else 1, 105.009))
+
+    def visible(points, at):
+        return max((p for p in points if p[0] <= at and p[2] <= now), default=None)
+
+    def request(port, path, **params):
+        assert port == 19090
+        reads.append((path, params))
+        if path == "/api/v1/rules":
+            assert params == {
+                "rule_group[]": "j3",
+                "file[]": "/etc/j3/rules.yml",
+                "rule_name[]": "j3:expected",
+            }
+            second_completed = now >= 105.010 and case not in {"still_running", "stale"}
+            data = {
+                "groups": [
+                    {
+                        "evaluationTime": 1.0 if case == "overrun" else 0.008,
+                        "lastEvaluation": (
+                            "1970-01-01T00:01:45.002Z"
+                            if second_completed
+                            else "1970-01-01T00:01:40.002Z"
+                        ),
+                    }
+                ]
+            }
+        else:
+            assert path == "/api/v1/query"
+            query = params["query"]
+            at = params.get("time", now)
+            exp = visible(expected, at)
+            result = []
+            if query.startswith("timestamp(j3:expected)"):
+                assert "time() - timestamp(j3:expected) <= 6" in query
+                if exp and at - exp[0] <= 6:
+                    result = [{"value": [at, str(exp[0])]}]
+            else:
+                assert "timestamp(j3:valid) == timestamp(j3:expected)" in query
+                row = visible(valid, at)
+                if (
+                    row
+                    and exp
+                    and row[0] == exp[0]
+                    and ("j3:valid == 1" not in query or row[1] == 1)
+                ):
+                    result = [{"value": [at, str(row[1])]}]
+            data = {"result": result}
+        return json.dumps({"status": "success", "data": data}).encode()
+
+    monkeypatch.setattr("j3_pilot.request", request)
+    sampler = episode.Sampler(None, [], "outage")
+    sampler.origin = 95 * SECOND
+    if case == "partial_commit":
+        assert visible(expected, now)[0] == 105 and visible(valid, now)[0] == 100
+        assert not episode.prom("j3:valid and (timestamp(j3:valid) == timestamp(j3:expected))")
+        reads.clear()
+    if error:
+        with pytest.raises(ValueError, match=error):
+            sampler.check_live_rules(round(now * SECOND))
+    else:
+        sampler.check_live_rules(round(now * SECOND))
+        now += 1
+        sampler.check_live_rules(round(now * SECOND))
+        assert [params["time"] for path, params in reads if path == "/api/v1/query"] == [
+            104.005,
+            104.005,
+            105.005,
+            105.005,
+        ]
+    assert any(path == "/api/v1/rules" for path, _ in reads)
+
+
 def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
     pod = {
         "metadata": {"name": "worker-a", "uid": "uid-a"},
@@ -86,6 +469,79 @@ def test_ready_slots_counts_only_live_ready_pods_with_matching_witnesses():
         ready_slots([pod], {})
     pod["metadata"]["deletionTimestamp"] = "2026-01-01T00:00:00Z"
     assert ready_slots([pod], {}) == []
+
+
+@pytest.mark.parametrize("batch_timeout", [False, True])
+def test_ready_sample_retains_failed_and_terminating_pods_with_zero_slots(
+    tmp_path, monkeypatch, batch_timeout
+):
+    clock = SimpleNamespace(time_ns=lambda: 100, monotonic_ns=iter((30, 50)).__next__)
+    monkeypatch.setattr("j3_slots.time", clock)
+
+    def pod(name, ip, terminating=False):
+        metadata = {"name": name, "uid": name}
+        if terminating:
+            metadata["deletionTimestamp"] = "2026-01-01T00:00:00Z"
+        return {
+            "metadata": metadata,
+            "status": {
+                "phase": "Running",
+                "podIP": ip,
+                "conditions": [{"type": "Ready", "status": "True"}],
+            },
+            "spec": {
+                "containers": [{"name": "worker", "env": [{"name": "WORKER_SLOTS", "value": "2"}]}]
+            },
+        }
+
+    class Driver:
+        output = tmp_path
+        metric = None
+        reads = 0
+
+        def k(self, _flag, _app, _verb, name, *_args, **_kwargs):
+            self.reads += 1
+            assert name == "observer"
+            assert json.loads(_args[-1]) == {"live": "10.0.0.1", "missing": "10.0.0.2"}
+            assert "connection.request('GET','/witness')" in _args[-2]
+            if batch_timeout:
+                raise TimeoutError("observer exec timed out")
+            return SimpleNamespace(
+                stdout=json.dumps(
+                    {
+                        "live": {
+                            "witness": {
+                                "complete": True,
+                                "pod_name": "live",
+                                "pod_uid": "live",
+                                "session": "live",
+                            }
+                        },
+                        "missing": {"error": "worker witness timed out"},
+                    }
+                )
+            )
+
+        def python(self, _ns, _receiver, code, **_kwargs):
+            self.metric = code
+
+    driver = Driver()
+    sample = sample_ready_slots(
+        driver,
+        "app",
+        "telemetry",
+        "receiver",
+        [pod("live", "10.0.0.1"), pod("missing", "10.0.0.2"), pod("terminating", "10.0.0.3", True)],
+        observer_pod="observer",
+    )
+    assert driver.reads == 1
+    assert sample["witness_transport"] == "observer_http"
+    assert sample["witness_read_ns"] == 20
+    assert sample["slots"] == ([] if batch_timeout else ["live-0", "live-1"])
+    assert set(sample["errors"]) == ({"live", "missing"} if batch_timeout else {"missing"})
+    assert sample["pods"][2]["terminating"]
+    assert json.loads((tmp_path / "ready-slots.jsonl").read_bytes()) == sample
+    assert f'"ready_slots": {len(sample["slots"])}' in driver.metric
 
 
 def test_foreign_positive_requires_both_hot_windows_at_the_quiet_target_sample():
@@ -206,18 +662,113 @@ def test_receiver_requires_resolution_matching_a_real_prometheus_transition():
     resolved = copy.deepcopy(firing)
     resolved.update(received_ns=21 * SECOND, status="resolved")
     resolved["alerts"][0].update(status="resolved", endsAt="1970-01-01T00:00:20Z")
-    rows = [
-        {"heartbeat": "start", "received_ns": 0},
-        firing,
-        resolved,
-        {"heartbeat": "end", "received_ns": 30 * SECOND},
-    ]
-    assert len(notifications(rows, transitions, target, SECOND, 25 * SECOND)) == 2
+    rows = receiver_rows([firing, resolved])
+    evidence = notifications(rows, transitions, target, SECOND, 25 * SECOND)
+    assert [pair["transition"] for pair in evidence["matches"]] == transitions
+    assert evidence["setup_incidents"] == []
     with pytest.raises(ValueError, match="unexpected or unpaired"):
         notifications(rows, transitions[:1], target, SECOND, 25 * SECOND)
     resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:19Z"
-    with pytest.raises(ValueError, match="missing resolved"):
+    with pytest.raises(episode.EpisodeFailure, match="absent alert: missing resolved"):
         notifications(rows, transitions, target, SECOND, 25 * SECOND)
+
+
+def receiver_rows(deliveries):
+    rows = sorted(
+        [
+            {"heartbeat": "start", "received_ns": 0},
+            *({"heartbeat": "alive", "received_ns": t * SECOND} for t in range(5, 60, 5)),
+            *deliveries,
+        ],
+        key=lambda row: row["received_ns"],
+    )
+    for sequence, row in enumerate(rows):
+        row["sequence"] = sequence
+    return [*rows, {"heartbeat": "end", "received_ns": 60 * SECOND}]
+
+
+@pytest.mark.parametrize("gap", ["heartbeat", "log", "deadline"])
+def test_receiver_gap_keeps_missing_delivery_invalid(gap):
+    rows = receiver_rows([])
+    if gap == "heartbeat":
+        del rows[3:6]
+        for sequence, row in enumerate(rows[:-1]):
+            row["sequence"] = sequence
+    elif gap == "log":
+        del rows[4]
+    else:
+        rows = [r for r in rows if r["received_ns"] < 40 * SECOND or r.get("heartbeat") == "end"]
+    transition = {"alert": "OldestClaimable", "firing": True, "at_ns": 10 * SECOND}
+    with pytest.raises(ValueError, match=r"receiver (heartbeat|log sequence) gap") as caught:
+        notifications(rows, [transition], {}, SECOND, 25 * SECOND)
+    assert not isinstance(caught.value, episode.EpisodeFailure)
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("closed", None),
+        ("unresolved", "setup incident unresolved at origin"),
+        ("late_firing_repeat", "setup incident unresolved at origin"),
+        ("orphan", "setup incident resolution has no matching firing"),
+        ("wrong_fingerprint", "setup incident resolution has no matching firing"),
+        ("wrong_start", "setup incident resolution has no matching firing"),
+        ("late_receipt", "setup incident delivery reached episode origin"),
+        ("late_end", "setup incident has invalid resolution time"),
+        ("in_window", "unexpected or unpaired receiver delivery"),
+    ],
+)
+def test_receiver_classifies_only_closed_setup_incidents(case, error):
+    target = {"namespace": "target", "campaign": "run"}
+    alert = {
+        "labels": {**target, "alertname": "ScrapeAbsent"},
+        "fingerprint": "setup",
+        "startsAt": "1970-01-01T00:00:05Z",
+    }
+
+    def receipt(status, received, **fields):
+        return {
+            "received_ns": received * SECOND,
+            "http_status": 204,
+            "status": status,
+            "alerts": [{**alert, "status": status, **fields}],
+        }
+
+    firing = receipt("firing", 6, endsAt="0001-01-01T00:00:00Z")
+    resolved = receipt("resolved", 9, endsAt="1970-01-01T00:00:08Z")
+    deliveries = [firing, resolved]
+    if case == "unresolved":
+        deliveries = [firing]
+    elif case == "late_firing_repeat":
+        resolved["received_ns"] = 8 * SECOND
+        deliveries.append(receipt("firing", 9, endsAt="0001-01-01T00:00:00Z"))
+    elif case == "orphan":
+        deliveries = [resolved]
+    elif case == "wrong_fingerprint":
+        resolved["alerts"][0]["fingerprint"] = "other"
+    elif case == "wrong_start":
+        resolved["alerts"][0]["startsAt"] = "1970-01-01T00:00:06Z"
+    elif case == "late_receipt":
+        resolved["received_ns"] = 10 * SECOND
+    elif case == "late_end":
+        resolved["alerts"][0]["endsAt"] = "1970-01-01T00:00:10Z"
+    elif case == "in_window":
+        deliveries.append(receipt("firing", 11, startsAt="1970-01-01T00:00:10Z"))
+    rows = receiver_rows(deliveries)
+    if error:
+        with pytest.raises(ValueError, match=error):
+            notifications(rows, [], target, 10 * SECOND, 25 * SECOND)
+    else:
+        evidence = notifications(rows, [], target, 10 * SECOND, 25 * SECOND)
+        assert evidence == {
+            "matches": [],
+            "setup_incidents": [
+                {
+                    "firing": [{**firing["alerts"][0], "received_ns": 6 * SECOND}],
+                    "resolved": [{**resolved["alerts"][0], "received_ns": 9 * SECOND}],
+                }
+            ],
+        }
 
 
 def test_prometheus_joins_original_visibility_ns_and_rejects_missing_scrape_fields():
@@ -261,11 +812,86 @@ def test_prometheus_joins_original_visibility_ns_and_rejects_missing_scrape_fiel
             "ScrapeAbsent",
         )
     ]
-    (event,) = evaluation_rows(rows, stream, target, t, t + 2 * SECOND, health)
+    (event,) = evaluation_rows(rows, stream, target, t, t + 2 * SECOND, health, SECOND)
     assert event["sample_ns"] == sample
     assert event["scrape_ns"] == scrape
     assert event["at_ns"] == at
     with pytest.raises(ValueError, match="missing visibility evidence"):
-        evaluation_rows(rows, [], target, t, t + 2 * SECOND, health)
+        evaluation_rows(rows, [], target, t, t + 2 * SECOND, health, SECOND)
     with pytest.raises(ValueError, match="required metric missing"):
-        evaluation_rows(rows[:-1], stream, target, t, t + 2 * SECOND, health)
+        evaluation_rows(rows[:-1], stream, target, t, t + 2 * SECOND, health, SECOND)
+
+
+@pytest.fixture
+def scrape_cut_trace():
+    return json.loads((Path(__file__).with_name("fixtures") / "r421-scrape-cut.json").read_bytes())
+
+
+def scrape_cut_evaluations(trace):
+    cut = trace["cut_ns"]
+    return evaluation_rows(
+        trace["matrices"],
+        trace["visibility"],
+        trace["target"],
+        cut,
+        cut + 7 * SECOND,
+        trace["rule_health"],
+        scrape_timeout_ns(trace["rendered_overlay"]),
+    )
+
+
+def test_scrape_cut_pairs_the_recorded_valid_evaluation_to_its_successful_scrape(
+    scrape_cut_trace, tmp_path, monkeypatch
+):
+    cut = scrape_cut_trace["cut_ns"]
+    (tmp_path / "overlay.json").write_text(json.dumps(scrape_cut_trace["rendered_overlay"]))
+    matrices = iter([scrape_cut_trace["matrices"], [], [], []])
+
+    def get_json(_port, path, **_params):
+        if path == "/api/v1/rules":
+            return {"data": {"groups": [{"rules": scrape_cut_trace["rule_health"]}]}}
+        return {"data": {"result": next(matrices)}}
+
+    visibility = "\n".join(map(json.dumps, scrape_cut_trace["visibility"])).encode()
+    monkeypatch.setattr(pilot, "json_request", get_json)
+    monkeypatch.setattr(pilot, "request", lambda _port, _path: visibility)
+    paired, invalid = pilot.collect_replay_inputs(
+        SimpleNamespace(output=tmp_path), scrape_cut_trace["target"], cut, cut + 7 * SECOND
+    )
+    assert paired["at_ns"] - scrape_cut_trace["cut_ns"] == 1_245_829_718
+    assert paired["valid"] and paired["up"] == 1
+    assert paired["scrape_ns"] == 1_795_802_560_549_000_000
+    assert paired["sample_ns"] == scrape_cut_trace["visibility"][-1]["sample_ns"]
+    assert paired["in_flight_scrape_starts_ns"] == [1_795_802_561_549_000_000]
+    assert not invalid["valid"] and invalid["up"] == 0
+    assert "in_flight_scrape_starts_ns" not in invalid
+    assert json.loads((tmp_path / "in-flight-scrape-pairings.json").read_bytes()) == [paired]
+    assert (
+        json.loads((tmp_path / "prometheus-raw.json").read_bytes())["scrape_timeout_ns"] == SECOND
+    )
+
+
+def test_scrape_cut_rejects_failed_scrape_older_than_rendered_timeout(scrape_cut_trace):
+    (configmap,) = scrape_cut_trace["rendered_overlay"]["items"]
+    config = json.loads(configmap["data"]["prometheus.yml"])
+    config["scrape_configs"][0]["scrape_timeout"] = "600ms"
+    configmap["data"]["prometheus.yml"] = json.dumps(config)
+    with pytest.raises(ValueError, match="later scrape could not have been in flight"):
+        scrape_cut_evaluations(scrape_cut_trace)
+
+
+@pytest.mark.parametrize("case", ["mismatched_source", "older_success"])
+def test_scrape_cut_rejects_mismatched_sample_timestamp(scrape_cut_trace, case):
+    (source,) = (
+        row
+        for row in scrape_cut_trace["matrices"]
+        if row["metric"]["__name__"] == "j3_sample_timestamp_seconds"
+    )
+    if case == "mismatched_source":
+        source["values"][-1][1] = source["values"][0][1]
+        message = "demand timestamp differs from the exporter witness"
+    else:
+        source["values"].pop()
+        message = "later scrape could not have been in flight"
+    with pytest.raises(ValueError, match=message):
+        scrape_cut_evaluations(scrape_cut_trace)

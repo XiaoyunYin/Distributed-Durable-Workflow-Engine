@@ -1,12 +1,24 @@
+import hashlib
+import json
 import sys
 from fractions import Fraction
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from j3_schedule import ARRIVAL_RATE, SECOND, derive, restored_rate  # noqa: E402
+from j3_replay import oldest_states  # noqa: E402
+from j3_schedule import (  # noqa: E402
+    ARRIVAL_RATE,
+    CALIBRATION_MINUTES,
+    SECOND,
+    derive,
+    recovery_evidence,
+    restored_rate,
+    verify_seal,
+)
 
 
 def rates_for(t):
@@ -16,29 +28,38 @@ def rates_for(t):
 
 @pytest.mark.parametrize("mu", [ARRIVAL_RATE - 1, ARRIVAL_RATE])
 def test_rate_at_or_below_offered_halts(mu):
-    result = derive([mu + 1, mu - 1, mu])
+    result = derive([mu + 1, mu - 1, mu], [])
     assert result["status"] == "HALT"
     assert result["reason"] == "mu_at_or_below_arrival_rate"
     assert "delta_s" not in result
 
 
 @pytest.mark.parametrize(
-    ("t", "delta", "forecast", "status"),
+    ("t", "r", "delta", "forecast", "status"),
     [
-        (539, 0, 226, "SEALED"),
-        (540, 0, 226, "SEALED"),
-        (600, 60, 228, "SEALED"),
-        (Fraction(600000001, 1000000), 120, 230, "SEALED"),
-        (4260, 3720, 350, "SEALED"),
-        (4261, 3780, 352, "HALT"),
+        (539, 200, 0, 226, "SEALED"),
+        (540, 200, 0, 226, "SEALED"),
+        (600, 200, 60, 228, "SEALED"),
+        (Fraction(600000001, 1000000), 200, 120, 230, "SEALED"),
+        (540, Fraction(267_499_999_999, SECOND), 0, 226, "SEALED"),
+        (540, Fraction(535, 2), 60, 228, "SEALED"),
+        (540, Fraction(595, 2), 120, 230, "SEALED"),
+        (220, 361, 240, 234, "SEALED"),
+        (362, 649, 780, 252, "SEALED"),
+        (4260, 200, 3720, 350, "SEALED"),
+        (4261, 200, 3780, 352, "HALT"),
     ],
 )
-def test_seal_uses_exact_boundaries_and_shifts_both_arms(t, delta, forecast, status):
-    result = derive(rates_for(t))
+def test_seal_uses_exact_boundaries_and_shifts_both_arms(t, r, delta, forecast, status):
+    result = derive(rates_for(t), [10 * SECOND, int(r * SECOND), 20 * SECOND])
     assert result["status"] == status
     assert Fraction(result["T_ratio"]) == t
     assert result["delta_s"] == delta
     assert result["forecast_minutes"] == forecast
+    assert result["qualification_forecast"]["calibration"]["forecast_minutes"] == 293
+    assert (
+        result["qualification_forecast"]["confirmation"]["forecast_minutes"] == 164 + 2 * delta / 60
+    )
     primary = result["primary"]
     assert [primary[k] for k in ("catchup_before_s", "oldest_clear_by_s", "burn_clear_by_s")] == [
         1440 + delta,
@@ -56,6 +77,22 @@ def test_seal_uses_exact_boundaries_and_shifts_both_arms(t, delta, forecast, sta
     count = result["arrival_volume"]
     assert count - 1 < (2220 + delta) * ARRIVAL_RATE <= count
     assert result["baseline_arrivals"] == 15843
+
+
+def test_measured_forecast_halts_when_the_base_forecast_passes():
+    measurements = {name: 60 * minutes for name, minutes in CALIBRATION_MINUTES.items()}
+    measurements["foreign"] += 7 * 60
+    result = derive(rates_for(540), [200 * SECOND] * 3, measurements)
+    assert result["status"] == "SEALED"
+    assert result["qualification_forecast"]["calibration"]["forecast_seconds"] == 18_000
+    measurements["foreign"] += 1
+    result = derive(rates_for(540), [200 * SECOND] * 3, measurements)
+    assert result["status"] == "HALT"
+    assert result["reason"] == "forecast_over_cap"
+    assert result["over_cap"] == ["calibration"]
+    del measurements["final_evidence"]
+    with pytest.raises(ValueError, match="missing forecast allowances"):
+        derive(rates_for(540), [200 * SECOND] * 3, measurements)
 
 
 def outage(last):
@@ -105,3 +142,106 @@ def test_missing_backlog_and_invalid_episode_fail():
     evidence["admissions"][-1]["state"] = "FAILED"
     with pytest.raises(ValueError, match="unsuccessful"):
         restored_rate(evidence)
+
+
+@pytest.mark.parametrize(
+    ("case", "status", "r"),
+    [
+        ("later_terminal", "PASS", 480),
+        ("later_age", "PASS", 475),
+        ("zero_claimable", "PASS", 475),
+        ("missing_age", "FAIL", None),
+        ("not_terminal", "FAIL", None),
+        ("refire", "FAIL", 475),
+        ("missing_tick", "INVALID", None),
+        ("missing_terminal_timestamp", "INVALID", None),
+    ],
+)
+def test_recovery_endpoints_require_replay_coverage_and_continuing_offers(case, status, r):
+    evidence = outage(1480 if case == "later_terminal" else 1355)
+    stop = 2320 * SECOND
+    evidence["observed_through_ns"] = stop + SECOND
+    evaluations = [
+        {
+            "at_ns": at * SECOND,
+            "valid": True,
+            "rule_ok": True,
+            "claimable_attempts": int(case != "zero_claimable" or at < 1360),
+            "oldest_claimable_age_seconds": 28.540
+            if at >= 1360 and case != "zero_claimable"
+            else 90,
+        }
+        for at in range(1000, 2321, 5)
+        if case != "missing_tick" or at != 1350
+    ]
+    if case == "missing_age":
+        for row in evaluations[:-1]:
+            row["oldest_claimable_age_seconds"] = 90
+    if case in {"not_terminal", "missing_terminal_timestamp"}:
+        evidence["admissions"][2]["terminal_ns"] = None
+    if case == "not_terminal":
+        evidence["admissions"][2]["state"] = "WAITING"
+    if case == "refire":
+        next(r for r in evaluations if r["at_ns"] == 1480 * SECOND)[
+            "oldest_claimable_age_seconds"
+        ] = 90
+    transitions, previous = [], False
+    for row, firing in zip(evaluations, oldest_states(evaluations), strict=True):
+        if firing != previous:
+            transitions.append(
+                {"at_ns": row["at_ns"], "firing": firing, "alert": "OldestClaimable"}
+            )
+        previous = firing
+    if status == "INVALID":
+        with pytest.raises(ValueError, match="missing"):
+            recovery_evidence(evidence, evaluations, transitions, stop)
+        return
+    result = recovery_evidence(evidence, evaluations, transitions, stop)
+    assert result["status"] == status and result["R_s"] == r
+    assert [row["at_ns"] for row in result["oldest_refires_before_stop"]] == (
+        [1480 * SECOND] if case == "refire" else []
+    )
+    assert (result["age_endpoint"] is None) == (case == "missing_age")
+    if result["age_endpoint"]:
+        assert result["first_clear_input"]["at_ns"] == 1360 * SECOND
+        assert result["age_endpoint"]["at_ns"] == 1475 * SECOND
+    assert (result["terminal_endpoint"] is None) == (case == "not_terminal")
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        ("valid", None),
+        ("outer_digest", "schedule artifact digest mismatch"),
+        ("inner_digest", "sealed schedule digest mismatch"),
+        ("over_cap", "confirmation forecast over cap"),
+    ],
+)
+def test_confirmation_verifies_artifact_and_inner_seal_before_running(tmp_path, case, message):
+    schedule = derive(rates_for(540), [649 * SECOND] * 3)
+    if case == "over_cap":
+        schedule["qualification_forecast"]["confirmation"]["forecast_seconds"] = 18_001
+    payload = json.dumps(schedule).encode()
+    digest = hashlib.sha256(payload).hexdigest()
+    archive = tmp_path / "seal.zip"
+    with ZipFile(archive, "w") as bundle:
+        bundle.writestr("sealed-schedule.json", payload)
+        bundle.writestr(
+            "schedule-seal.json",
+            json.dumps(
+                {
+                    "sha256": "0" * 64 if case == "inner_digest" else digest,
+                    "campaign": "campaign",
+                    "head": "head",
+                }
+            ),
+        )
+    artifact_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    if case == "outer_digest":
+        artifact_digest = "0" * 64
+    if message:
+        with pytest.raises(ValueError, match=message):
+            verify_seal(archive, artifact_digest, "campaign", "head")
+    else:
+        verified, seal = verify_seal(archive, "sha256:" + artifact_digest, "campaign", "head")
+        assert verified == schedule and seal["sha256"] == digest

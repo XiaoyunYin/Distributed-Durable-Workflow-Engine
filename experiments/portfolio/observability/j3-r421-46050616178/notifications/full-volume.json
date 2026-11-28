@@ -1,0 +1,78 @@
+[
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "cbf928fdb368b29c",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-full-volume"
+      },
+      "received_ns": 1795822632256989978,
+      "startsAt": "2026-11-27T23:37:12.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795822632246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "b3174cf6ec8d2d9b",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-full-volume"
+      },
+      "received_ns": 1795822692253944298,
+      "startsAt": "2026-11-27T23:38:12.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795822692246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-27T23:49:47.246Z",
+      "fingerprint": "cbf928fdb368b29c",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-full-volume"
+      },
+      "received_ns": 1795823387743096175,
+      "startsAt": "2026-11-27T23:37:12.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795823387246000000,
+      "firing": false
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-27T23:50:42.246Z",
+      "fingerprint": "b3174cf6ec8d2d9b",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-full-volume"
+      },
+      "received_ns": 1795823442752562622,
+      "startsAt": "2026-11-27T23:38:12.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795823442246000000,
+      "firing": false
+    }
+  }
+]

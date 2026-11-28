@@ -5,19 +5,35 @@ import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from itertools import count
 from pathlib import Path
 
 ROOT = Path("/evidence")
 LOG = ROOT / "notifications.jsonl"
 LOCK = threading.Lock()
+SEQUENCE = count()
+HEARTBEAT_SECONDS = 5
 OBSERVATIONS = ("ready_slots", "lease_takeovers_total", "stale_rejections_total")
 
 
 def record(row):
     with LOCK, LOG.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps({"received_ns": time.time_ns(), **row}) + "\n")
+        stream.write(
+            json.dumps({"received_ns": time.time_ns(), "sequence": next(SEQUENCE), **row}) + "\n"
+        )
         stream.flush()
-        os.fsync(stream.fileno())
+        if row.get("heartbeat") != "alive":
+            os.fsync(stream.fileno())
+
+
+class ReceiverServer(ThreadingHTTPServer):
+    next_heartbeat = 0.0
+
+    def service_actions(self):
+        now = time.monotonic()
+        if now >= self.next_heartbeat:
+            record({"heartbeat": "alive"})
+            self.next_heartbeat = now + HEARTBEAT_SECONDS
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -73,4 +89,4 @@ if __name__ == "__main__":
     record({"heartbeat": "start"})
     metrics = ThreadingHTTPServer(("", 8082), Handler)
     threading.Thread(target=metrics.serve_forever, daemon=True).start()
-    ThreadingHTTPServer(("", 8080), Handler).serve_forever()
+    ReceiverServer(("", 8080), Handler).serve_forever()

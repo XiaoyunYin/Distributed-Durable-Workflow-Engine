@@ -1,0 +1,51 @@
+{
+  "source": "Run 46016570882 attempt 2 scrape-loss. Projection of retained matrices, cut command, visibility and rendered config.",
+  "cut_ns": 1795802561000170282,
+  "target": {
+    "campaign": "j3-r420-46016570882",
+    "namespace": "j3-target-scrape-loss"
+  },
+  "rendered_overlay": {
+    "kind": "List",
+    "items": [
+      {
+        "kind": "ConfigMap",
+        "data": {
+          "prometheus.yml": "{\"global\":{\"scrape_timeout\":\"1s\"},\"scrape_configs\":[{\"job_name\":\"j3\"}]}"
+        }
+      }
+    ]
+  },
+  "rule_health": [
+    {"name":"j3:expected","health":"ok"},
+    {"name":"j3:valid","health":"ok"},
+    {"name":"j3:oldest_fire","health":"ok"},
+    {"name":"j3:oldest_clear","health":"ok"},
+    {"name":"j3:burn_fire","health":"ok"},
+    {"name":"j3:burn_clear","health":"ok"},
+    {"name":"OldestClaimable","health":"ok"},
+    {"name":"DeadlineBudgetBurn","health":"ok"},
+    {"name":"ScrapeAbsent","health":"ok"}
+  ],
+  "visibility": [
+    {"sample_ns":1795802558960469000,"demand":{"namespace":"j3-target-scrape-loss","sampled_at":"2026-11-27T18:02:38.992731Z","oldest_claimable_age_seconds":0.008488,"claimable_attempts":1,"active_claims":1},"windows":{"10m":{"eligible":4247,"bad":0},"2m":{"eligible":856,"bad":0},"all":{"eligible":4247,"bad":0}}},
+    {"sample_ns":1795802559961421000,"demand":{"namespace":"j3-target-scrape-loss","sampled_at":"2026-11-27T18:02:39.993505Z","oldest_claimable_age_seconds":0,"claimable_attempts":0,"active_claims":1},"windows":{"10m":{"eligible":4254,"bad":0},"2m":{"eligible":856,"bad":0},"all":{"eligible":4254,"bad":0}}}
+  ],
+  "matrices": [
+    {"metric":{"__name__":"j3_bad","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"10m"},"values":[[1795802559.549,"0"],[1795802560.549,"0"]]},
+    {"metric":{"__name__":"j3_bad","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"2m"},"values":[[1795802559.549,"0"],[1795802560.549,"0"]]},
+    {"metric":{"__name__":"j3_bad","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"all"},"values":[[1795802559.549,"0"],[1795802560.549,"0"]]},
+    {"metric":{"__name__":"j3_claimable_attempts","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"1"],[1795802560.549,"0"]]},
+    {"metric":{"__name__":"j3_demand_timestamp_seconds","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"1795802558.992731"],[1795802560.549,"1795802559.993505"]]},
+    {"metric":{"__name__":"j3_eligible","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"10m"},"values":[[1795802559.549,"4247"],[1795802560.549,"4254"]]},
+    {"metric":{"__name__":"j3_eligible","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"2m"},"values":[[1795802559.549,"856"],[1795802560.549,"856"]]},
+    {"metric":{"__name__":"j3_eligible","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss","window":"all"},"values":[[1795802559.549,"4247"],[1795802560.549,"4254"]]},
+    {"metric":{"__name__":"j3_oldest_claimable_age_seconds","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"0.008488"],[1795802560.549,"0"]]},
+    {"metric":{"__name__":"j3_sample_timestamp_seconds","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"1795802558.960469"],[1795802560.549,"1795802559.961421"]]},
+    {"metric":{"__name__":"j3_sql_oldest_claimable_seconds","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"0"],[1795802560.549,"0.004448"]]},
+    {"metric":{"__name__":"up","campaign":"j3-r420-46016570882","instance":"j3-exporter:9187","job":"j3","namespace":"j3-target-scrape-loss"},"values":[[1795802559.549,"1"],[1795802560.549,"1"],[1795802561.549,"0"],[1795802562.549,"0"],[1795802563.551,"0"],[1795802564.552,"0"],[1795802565.553,"0"],[1795802566.554,"0"],[1795802567.554,"0"]]},
+    {"metric":{"__name__":"j3_ready_slots","campaign":"j3-r420-46016570882","instance":"j3-receiver:8082","job":"j3-observer","namespace":"j3-target-scrape-loss"},"values":[[1795802559.244,"4"],[1795802560.244,"4"],[1795802561.244,"4"],[1795802562.244,"4"],[1795802563.244,"4"],[1795802564.244,"4"],[1795802565.244,"4"],[1795802566.244,"4"],[1795802567.244,"4"]]},
+    {"metric":{"__name__":"j3:expected","campaign":"j3-r420-46016570882","namespace":"j3-target-scrape-loss"},"values":[[1795802562.246,"1"],[1795802567.246,"1"]]},
+    {"metric":{"__name__":"j3:valid","campaign":"j3-r420-46016570882","namespace":"j3-target-scrape-loss"},"values":[[1795802562.246,"1"]]}
+  ]
+}

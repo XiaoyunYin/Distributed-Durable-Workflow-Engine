@@ -69,7 +69,7 @@ def render(labels):
         previous = presence(f'ALERTS{{{matcher},alertname="{name}",alertstate="firing"}} == 1')
         return {
             "alert": name,
-            "expr": f"{normalized(fire)} or ({previous} unless on({KEY}) {normalized(clear)})",
+            "expr": f"{normalized(fire)} or ({previous} unless on({KEY}) {clear})",
         }
 
     def volume(window):
@@ -83,6 +83,12 @@ def render(labels):
 
     valid_name = normalized("valid")
     sufficient = f"{valid_name} and {volume('2m')} and {volume('10m')}"
+    # A left-open 120 s range at the 5 s cadence includes the current
+    # evaluation and 23 earlier ticks. A stale or invalid tick contributes none.
+    held_clear = (
+        f"({normalized('oldest_clear')} and "
+        f"(count_over_time(j3:oldest_clear{{{matcher}}}[120s]) == 24))"
+    )
     return {
         "groups": [
             {
@@ -106,8 +112,8 @@ def render(labels):
                         "burn_clear",
                         f"{sufficient} and ({burn('2m', '<=')} or {burn('10m', '<=')})",
                     ),
-                    latch(DOMAIN[0], "oldest_fire", "oldest_clear"),
-                    latch(DOMAIN[1], "burn_fire", "burn_clear"),
+                    latch(DOMAIN[0], "oldest_fire", held_clear),
+                    latch(DOMAIN[1], "burn_fire", normalized("burn_clear")),
                     {
                         "alert": "ScrapeAbsent",
                         "expr": f"{normalized('expected')} unless {valid_name}",
@@ -185,7 +191,7 @@ def vector_tests():
             (5, {}),
             (6, {**hot, "bad:2m": 18}),
         ],
-        {0: (), 5: (), 10: (), 15: DOMAIN[:1], 20: (), 25: DOMAIN[:1]},
+        {0: (), 5: (), 10: (), 15: DOMAIN[:1], 20: DOMAIN[:1], 25: DOMAIN[:1]},
     )
     case(
         "99 versus 100, mature stalled admissions, late completion leaves a miss",
@@ -225,7 +231,7 @@ def vector_tests():
             (1, stale),
             (325, empty),
             (4, {"eligible:10m": 99, "oldest_claimable_age_seconds": 30}),
-            (6, {}),
+            (116, {}),
         ],
         {
             0: DOMAIN,
@@ -233,14 +239,28 @@ def vector_tests():
             10: (*DOMAIN, "ScrapeAbsent"),
             325: (*DOMAIN, "ScrapeAbsent"),
             330: (*DOMAIN, "ScrapeAbsent"),
-            335: (),
+            335: DOMAIN[:1],
+            445: DOMAIN[:1],
+            450: (),
         },
         [{"series": 'receiver_status{status="resolved"}', "values": "1x340"}],
     )
     case(
         "firing burn holds until fresh sufficient volume",
         [(5, hot), (10, {"sql_ok": 0}), (5, {"eligible:2m": 99}), (6, {})],
-        {0: DOMAIN, 10: (*DOMAIN, "ScrapeAbsent"), 15: DOMAIN[1:], 20: ()},
+        {0: DOMAIN, 10: (*DOMAIN, "ScrapeAbsent"), 15: DOMAIN, 20: DOMAIN[:1]},
+    )
+    above = {"oldest_claimable_age_seconds": 28.541}
+    equal = {"oldest_claimable_age_seconds": 28.540}
+    case(
+        "oldest sawtooth clears on the 24th consecutive evaluation",
+        [(5, above), (5, equal), (5, above), (120, equal), (1, above)],
+        {0: DOMAIN[:1], 5: DOMAIN[:1], 10: DOMAIN[:1], 125: DOMAIN[:1], 130: (), 135: DOMAIN[:1]},
+    )
+    case(
+        "an invalid evaluation restarts the oldest hold",
+        [(5, above), (60, equal), (5, {"sql_ok": 0}), (116, equal)],
+        {0: DOMAIN[:1], 60: DOMAIN[:1], 65: DOMAIN[:1], 180: DOMAIN[:1], 185: ()},
     )
     return {"rule_files": ["rules.yml"], "evaluation_interval": "5s", "tests": cases}
 

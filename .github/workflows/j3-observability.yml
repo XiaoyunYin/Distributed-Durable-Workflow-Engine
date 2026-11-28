@@ -5,10 +5,22 @@ on:
     paths:
       - '.github/workflows/j3-observability.yml'
       - 'experiments/portfolio/observability/**'
+      - 'experiments/portfolio/load-envelope/checker.lock.json'
+      - 'scripts/j2_checker.py'
       - 'scripts/j3_*'
       - 'go.mod'
       - 'go.sum'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Hosted J3 run
+        type: choice
+        options:
+          - pilot
+          - qualification
+          - sql-benchmark
+          - runner-baseline
+        default: pilot
 
 permissions:
   contents: read
@@ -28,12 +40,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.27.4'
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.9.5'
+      - name: Reproduce the locked J2 checker
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/j3-exporter"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-exporter/checker-build.log"
       - name: Hosted promtool and PostgreSQL fixtures
         env:
           GOMAXPROCS: '2'
@@ -51,7 +71,7 @@ jobs:
               -w /rules "$prom" $args
           done
           docker run -d --name "$J3_SQL_CONTAINER" -e POSTGRES_HOST_AUTH_METHOD=trust \
-            "$(jq -er .postgres deploy/k8s/tools.lock.json)"
+            "$(jq -er .postgres deploy/k8s/tools.lock.json)" -c track_commit_timestamp=on
           trap 'docker logs "$J3_SQL_CONTAINER" > "$evidence/postgres.log" 2>&1; docker rm -fv "$J3_SQL_CONTAINER"' EXIT
           timeout 60 bash -c 'until docker exec "$J3_SQL_CONTAINER" pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done'
           go test -race -p 1 ./experiments/portfolio/observability/exporter
@@ -65,47 +85,224 @@ jobs:
           name: j3-exporter-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j3-exporter/
           if-no-files-found: warn
-  overlay-pilot:
-    if: github.event_name == 'workflow_dispatch'
+  calibration:
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'qualification' || inputs.mode == 'pilot')
+    name: ${{ inputs.mode == 'qualification' && 'Calibration and seal' || 'Overlay pilot' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: ${{ inputs.mode == 'qualification' && 350 || 35 }}
+    outputs:
+      seal-id: ${{ steps.seal.outputs.artifact-id }}
+      seal-digest: ${{ steps.seal.outputs.artifact-digest }}
+    env:
+      GOMAXPROCS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+      J3_MODE: ${{ inputs.mode }}
+    steps:
+      - name: Record job start
+        run: echo "J3_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - name: Observe the idle runner gate before bootstrap
+        if: inputs.mode == 'qualification'
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/j3_runner_gate.py calibration "$RUNNER_TEMP/j3-qualification/runner-gate"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && inputs.mode == 'qualification'
+        with:
+          name: j3-runner-gate-calibration-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.gate.outputs.decision }}
+          path: ${{ runner.temp }}/j3-qualification/runner-gate/
+          if-no-files-found: error
+      - name: Stop a calibration stage that was not armed
+        if: inputs.mode == 'qualification' && steps.gate.outputs.decision != 'admitted'
+        run: exit 1
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Reproduce the locked J2 checker
+        if: inputs.mode == 'qualification'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/j3-qualification"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-qualification/checker-build.log"
+      - name: Restore locked OCI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j3_prepare_hosted.sh "$RUNNER_TEMP/j3-$J3_MODE" "$J3_MODE"
+      - name: Prove private overlay and foreign dispatch isolation
+        if: inputs.mode == 'pilot'
+        run: |
+          python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
+      - name: Run the calibration outages and seal the confirmation schedule
+        if: inputs.mode == 'qualification'
+        run: |
+          python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-qualification" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
+            "$RUNNER_TEMP/j3-tooling/checker" --stage calibration
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.mode == 'qualification'
+        id: seal
+        with:
+          name: j3-schedule-seal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/j3-qualification/sealed-schedule.json
+            ${{ runner.temp }}/j3-qualification/schedule-seal.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-${{ inputs.mode == 'qualification' && 'calibration' || 'pilot' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-${{ inputs.mode }}/
+          if-no-files-found: warn
+  confirmation:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'
+    needs: calibration
+    name: Confirmation on a fresh runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
     env:
       GOMAXPROCS: '2'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
+      - name: Record job start
+        run: echo "J3_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Restore locked OCI artifacts
+          fetch-depth: 0
+          filter: blob:none
+      - name: Observe the idle runner gate before bootstrap
+        id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          evidence="$RUNNER_TEMP/j3-pilot"
-          mkdir -p "$evidence"
-          exec > >(tee "$evidence/restore.log") 2>&1
-          for lock in experiments/portfolio/load-envelope/images.lock.json experiments/portfolio/observability/exporter.lock.json; do
-            name=$(basename "$lock" .lock.json)
-            artifact=$(jq -er .artifact "$lock")
-            archive="$RUNNER_TEMP/j3-$name.zip"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
-            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
-            unzip -q "$archive" -d "$RUNNER_TEMP/j3-$name-layout"
-          done
-          CGO_ENABLED=0 go build -p 1 -trimpath -buildvcs=false \
-            -o "$RUNNER_TEMP/j3-loadgen" ./cmd/dur053-loadgen
-          sha256sum "$RUNNER_TEMP/j3-loadgen" > "$evidence/sender.sha256"
-          go test -p 1 ./experiments/portfolio/observability/probe
-      - name: Prove private overlay and foreign dispatch isolation
-        run: |
-          python3 scripts/j3_pilot.py "$RUNNER_TEMP/j3-pilot" "$RUNNER_TEMP/j3-scratch" \
-            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen"
+        run: python3 scripts/j3_runner_gate.py confirmation "$RUNNER_TEMP/j3-confirmation/runner-gate"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: j3-pilot-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/j3-pilot/
+          name: j3-runner-gate-confirmation-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.gate.outputs.decision }}
+          path: ${{ runner.temp }}/j3-confirmation/runner-gate/
+          if-no-files-found: error
+      - name: Stop a confirmation stage that was not armed
+        if: steps.gate.outputs.decision != 'admitted'
+        run: exit 1
+      - name: Download and verify the frozen calibration artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEAL_ID: ${{ needs.calibration.outputs.seal-id }}
+          SEAL_DIGEST: ${{ needs.calibration.outputs.seal-digest }}
+        run: |
+          set -euo pipefail
+          seal="$RUNNER_TEMP/j3-schedule-seal.zip"
+          mkdir -p "$RUNNER_TEMP/j3-confirmation"
+          exec > >(tee "$RUNNER_TEMP/j3-confirmation/seal-verification.log") 2>&1
+          [[ "$SEAL_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SEAL_ID/zip" > "$seal"
+          PYTHONPATH=scripts python3 -c 'import sys; from pathlib import Path; from j3_schedule import verify_seal; verify_seal(Path(sys.argv[1]), *sys.argv[2:]); print("Verified calibration artifact and its forecast")' \
+            "$seal" "$SEAL_DIGEST" "j3-r421-$GITHUB_RUN_ID" "$GITHUB_SHA"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Reproduce the locked J2 checker
+        run: |
+          set -euo pipefail
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j3-tooling/checker" 2>&1 \
+            | tee "$RUNNER_TEMP/j3-confirmation/checker-build.log"
+      - name: Restore locked OCI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j3_prepare_hosted.sh "$RUNNER_TEMP/j3-confirmation" qualification
+      - name: Run the sealed matched-healthy and full-volume confirmation
+        env:
+          SEAL_DIGEST: ${{ needs.calibration.outputs.seal-digest }}
+        run: |
+          python3 scripts/j3_qualification.py "$RUNNER_TEMP/j3-confirmation" "$RUNNER_TEMP/j3-scratch" \
+            "$RUNNER_TEMP/j3-images-layout" "$RUNNER_TEMP/j3-exporter-layout" "$RUNNER_TEMP/j3-loadgen" \
+            "$RUNNER_TEMP/j3-tooling/checker" --stage confirmation \
+            --seal "$RUNNER_TEMP/j3-schedule-seal.zip" --seal-digest "$SEAL_DIGEST"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-confirmation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-confirmation/
+          if-no-files-found: warn
+  runner-baseline:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-baseline'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - name: Record the 120-second idle runner baseline
+        env:
+          BASELINE_INDEX: ${{ matrix.index }}
+        run: python3 scripts/j3_runner_gate.py baseline "$RUNNER_TEMP/j3-baseline" --index "$BASELINE_INDEX"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-baseline-row-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.index }}
+          path: ${{ runner.temp }}/j3-baseline/
+          if-no-files-found: error
+  runner-baseline-report:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-baseline'
+    needs: runner-baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: j3-baseline-row-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/j3-baseline-inputs
+      - name: Check the validation baseline against the locked runner gate
+        run: |
+          python3 scripts/j3_runner_gate.py report "$RUNNER_TEMP/j3-baseline-report" \
+            --source "$RUNNER_TEMP/j3-baseline-inputs"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-runner-baseline-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-baseline-report/
+          if-no-files-found: error
+  sql-benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'sql-benchmark'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build candidate exporter and retain OCI layout
+        run: bash scripts/j3_build_exporter.sh "$RUNNER_TEMP/j3-sql-benchmark" candidate
+      - name: Compare SQL projections under hosted PostgreSQL load
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/j3-sql-benchmark"
+          baseline=70a0ae4dd03337b9d02b85054dfa7545096fbd3b
+          git show "$baseline:experiments/portfolio/observability/exporter/monitor.sql" \
+            > "$evidence/baseline-monitor.sql"
+          python3 scripts/j3_benchmark.py "$evidence" "$evidence/baseline-monitor.sql" \
+            "$(cat "$evidence/image.txt")"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: j3-sql-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j3-sql-benchmark/
           if-no-files-found: warn

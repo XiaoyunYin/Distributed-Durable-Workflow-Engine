@@ -5,16 +5,70 @@ import json
 import os
 import subprocess
 import sys
+import time
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import j3_replay as j3  # noqa: E402
+from j3_diagnostics import enable_exporter_diagnostics  # noqa: E402
 
 T = 1_767_226_800 * j3.SECOND
 SETUP, CLOSING = 1_000_000, 3_000_000
 HERE = Path(__file__).parent
+
+
+@pytest.mark.parametrize("invalid_interruption", [False, True])
+def test_alert_replay_requires_24_consecutive_valid_clear_evaluations(invalid_interruption):
+    evaluations, visibility_rows = [], []
+    for tick in range(38):
+        at = T + tick * 5 * j3.SECOND
+        invalid = invalid_interruption and tick == 13
+        above = tick == 0 or (not invalid_interruption and tick == 13)
+        row = {
+            "at_ns": at,
+            "valid": not invalid,
+            "rule_ok": True,
+            "firing": [j3.DOMAIN[0]] if tick < 37 else [],
+        }
+        if not invalid:
+            counts = {window: {"eligible": 0, "bad": 0} for window in j3.WINDOWS}
+            age = 28.541 if above else 28.540
+            row.update(
+                sample_ns=at,
+                scrape_ns=at,
+                demand_ns=at,
+                windows=counts,
+                claimable_attempts=1,
+                oldest_claimable_age_seconds=age,
+            )
+            visibility_rows.append(
+                {
+                    "sample_ns": at,
+                    "u_ns": 0,
+                    "admissions": {"delete": [], "set": {}},
+                    "successes": {"delete": [], "set": {}},
+                    "windows": counts,
+                    "demand": {
+                        "sampled_at": datetime.fromtimestamp(at // j3.SECOND, UTC).isoformat(),
+                        "claimable_attempts": 1,
+                        "oldest_claimable_age_seconds": age,
+                    },
+                }
+            )
+        evaluations.append(row)
+    last = evaluations[-1]["at_ns"]
+    result = j3.verify_alerts({}, 0, visibility_rows, evaluations, T, last)
+    assert result["transitions"] == [
+        {"alert": j3.DOMAIN[0], "at_ns": T, "firing": True},
+        {"alert": j3.DOMAIN[0], "at_ns": last, "firing": False},
+    ]
+    evaluations[-2]["firing"] = []
+    with pytest.raises(ValueError, match="actual rule transitions"):
+        j3.verify_alerts({}, 0, visibility_rows, evaluations, T, last)
 
 
 def fixture_data():
@@ -172,8 +226,81 @@ def test_bad_final_history_fails(duplicate):
         j3.reconcile(data)
 
 
+@pytest.mark.parametrize(
+    ("defect", "message"),
+    [
+        (None, None),
+        ("catalog", "exporter role diagnostics differ in pg_db_role_setting"),
+        ("catalog_jit", "exporter role diagnostics differ in pg_db_role_setting"),
+        ("placeholder", "auto_explain is missing or misconfigured in the exporter session"),
+        ("duration", "slow statement logging is misconfigured in the exporter session"),
+        ("live_jit", "JIT is not disabled in the exporter session"),
+    ],
+)
+def test_exporter_diagnostics_verify_role_defaults_and_loaded_module(tmp_path, defect, message):
+    settings = [
+        "statement_timeout=2s",
+        "default_transaction_read_only=on",
+        "jit=off",
+        "session_preload_libraries=auto_explain",
+        "auto_explain.log_min_duration=500ms",
+        "auto_explain.log_analyze=on",
+        "auto_explain.log_nested_statements=on",
+        "auto_explain.log_timing=off",
+        "log_min_duration_statement=500ms",
+    ]
+    duration = {"vartype": "integer", "unit": "ms", "setting": "500"}
+    session = {
+        "auto_explain.log_min_duration": duration,
+        "log_min_duration_statement": duration,
+        "jit": {"vartype": "bool", "unit": None, "setting": "off"},
+    }
+    if defect == "catalog":
+        settings.remove("session_preload_libraries=auto_explain")
+    if defect == "catalog_jit":
+        settings.remove("jit=off")
+    if defect == "placeholder":
+        session["auto_explain.log_min_duration"] = {
+            "vartype": "string",
+            "unit": None,
+            "setting": "500",
+        }
+    if defect == "duration":
+        session["log_min_duration_statement"] = {**duration, "setting": "-1"}
+    if defect == "live_jit":
+        session["jit"]["setting"] = "on"
+
+    calls = []
+
+    def postgres(query, *, role="postgres"):
+        calls.append(role)
+        if query.startswith("ALTER ROLE"):
+            assert role == "postgres"
+            assert all(
+                line.startswith("ALTER ROLE j3_exporter SET ") for line in query.splitlines()
+            )
+            return SimpleNamespace(stdout="")
+        if role == "postgres":
+            assert "pg_catalog.pg_db_role_setting" in query and "s.setdatabase = 0" in query
+            return SimpleNamespace(stdout=json.dumps(settings))
+        assert "pg_catalog.pg_settings" in query and "session_preload_libraries" not in query
+        assert "'jit'" in query
+        return SimpleNamespace(stdout=json.dumps(session))
+
+    driver = SimpleNamespace(output=tmp_path, postgres=postgres)
+    if message:
+        with pytest.raises(ValueError, match=message):
+            enable_exporter_diagnostics(driver)
+    else:
+        enable_exporter_diagnostics(driver)
+    assert calls == ["postgres", "postgres", "j3_exporter"]
+    evidence = json.loads((tmp_path / "exporter-role-settings.json").read_bytes())
+    assert evidence["observed"] == sorted(settings)
+    assert evidence["session_settings"] == session
+
+
 @pytest.mark.skipif(not os.getenv("J3_SQL_CONTAINER"), reason="hosted PostgreSQL fixture required")
-def test_postgres_statement_visibility():
+def test_postgres_statement_visibility(tmp_path):
     psql = [
         "docker",
         "exec",
@@ -278,29 +405,78 @@ def test_postgres_statement_visibility():
         .replace(":'foreign'", "'foreign'")
         .replace(":'password'", "'fixture'")
     )
-    run("""
+    seed_before = int(run("SELECT (extract(epoch FROM clock_timestamp()) * 1e9)::bigint;"))
+    foreign_sample = seed_before + 20 * j3.SECOND
+    created = (foreign_sample - 40 * j3.SECOND) / j3.SECOND
+    run(f"""
         INSERT INTO j2_monitor.j3_plan
-        SELECT 'foreign', 'foreign-' || i, 1767226800000000000 - (i + 30) * 1000000000::bigint
+        SELECT 'foreign', 'foreign-' || i, {foreign_sample} - (i + 30) * 1000000000::bigint
         FROM generate_series(1, 101) s(i);
         SELECT j2_monitor.j3_seed(submission_key) FROM j2_monitor.j3_plan WHERE namespace='foreign';
-        UPDATE engine.workflow_executions SET created_at=to_timestamp(1767226760)
+        UPDATE engine.workflow_executions SET created_at=to_timestamp({created})
           WHERE namespace='foreign';
-        UPDATE engine.activity_attempts SET created_at=to_timestamp(1767226760)
+        UPDATE engine.activity_attempts SET created_at=to_timestamp({created})
           WHERE workflow_id LIKE 'j3-fixture-foreign-%';
         """)
-    witness = json.loads(
-        run(
-            (HERE / "foreign-witness.sql")
-            .read_text()
-            .replace(":'foreign'", "'foreign'")
-            .replace(":'sample_ns'", str(T))
-            .replace(":'u_ns'", str(SETUP))
+    sql = (HERE / "foreign-witness.sql").read_text()
+
+    def positive_witness(sample):
+        return json.loads(
+            run(
+                sql.replace(":'foreign'", "'foreign'")
+                .replace(":'sample_ns'", str(sample))
+                .replace(":'u_ns'", str(SETUP))
+            )
         )
-    )
-    assert witness["namespace"] == "foreign" and witness["sample_ns"] == T
+
+    assert positive_witness(seed_before)["claimable_attempts"] == 0
+    witness = positive_witness(foreign_sample)
+    assert witness["namespace"] == "foreign" and witness["sample_ns"] == foreign_sample
     assert witness["claimable_attempts"] == 101
     assert witness["oldest_claimable_age_ns"] == 40 * j3.SECOND
     assert witness["windows"] == {
         "2m": {"eligible": 92, "bad": 92},
         "10m": {"eligible": 101, "bad": 101},
     }
+
+    settings = "SHOW session_preload_libraries; SHOW log_min_duration_statement; SHOW jit;"
+    owner_settings = run(settings)
+
+    def postgres(query, *, role="postgres"):
+        return subprocess.run(
+            [*psql, "-U", role, "-d", "postgres"],
+            input=query,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+
+    enable_exporter_diagnostics(SimpleNamespace(output=tmp_path, postgres=postgres))
+    assert run(settings) == owner_settings
+    assert postgres("SHOW jit;", role="j3_exporter").stdout.strip() == "off"
+    assert (
+        postgres(
+            "SELECT pg_has_role(current_user, 'pg_read_all_settings', 'MEMBER');",
+            role="j3_exporter",
+        ).stdout.strip()
+        == "f"
+    )
+    postgres("SELECT pg_sleep(0.55) /* j3_role_diagnostic */;", role="j3_exporter")
+    expected_logs = [
+        "Query Text: SELECT pg_sleep(0.55) /* j3_role_diagnostic */",
+        "statement: SELECT pg_sleep(0.55) /* j3_role_diagnostic */",
+    ]
+    for _ in range(20):
+        result = subprocess.run(
+            ["docker", "logs", os.environ["J3_SQL_CONTAINER"]],
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        if all(entry in result.stdout + result.stderr for entry in expected_logs):
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail("role-scoped slow statement or auto_explain evidence missing")

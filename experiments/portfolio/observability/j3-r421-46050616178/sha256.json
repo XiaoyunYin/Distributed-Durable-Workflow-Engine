@@ -1,0 +1,1089 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-11-27T18:48:50Z",
+      "digest": "sha256:9640cbc6180f82f070cc0d9d1b50db325e68e8c7cf4f97553a07d7155813e4a6",
+      "expires_at": "2027-02-25T18:35:31Z",
+      "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+      "id": 15223759432,
+      "name": "j3-runner-gate-calibration-46050616178-1-admitted",
+      "run_id": 46050616178,
+      "size_in_bytes": 4348,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46050616178/artifacts/15223759432"
+    },
+    {
+      "created_at": "2026-11-27T22:24:02Z",
+      "digest": "sha256:b650e03ab461e235a23c522489fd45cd7a32e31699ec0e526cfc769eca68c0c7",
+      "expires_at": "2027-02-25T18:35:31Z",
+      "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+      "id": 15235390969,
+      "name": "j3-runner-gate-confirmation-46050616178-1-admitted",
+      "run_id": 46050616178,
+      "size_in_bytes": 4395,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46050616178/artifacts/15235390969"
+    },
+    {
+      "created_at": "2026-11-27T22:21:43Z",
+      "digest": "sha256:e9e2b2b42e45c48c98424d90e422b98b2c173588cfc031b58a82ac896e47a406",
+      "expires_at": "2027-02-25T18:35:31Z",
+      "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+      "id": 15235740301,
+      "name": "j3-calibration-46050616178-1",
+      "run_id": 46050616178,
+      "size_in_bytes": 130964790,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46050616178/artifacts/15235740301"
+    },
+    {
+      "created_at": "2026-11-27T22:21:30Z",
+      "digest": "sha256:0b6234659285790064d3d3d78855e34d3b3485deb13c4aefa65ec481df26ff79",
+      "expires_at": "2027-02-25T18:35:31Z",
+      "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+      "id": 15235825154,
+      "name": "j3-schedule-seal-46050616178-1",
+      "run_id": 46050616178,
+      "size_in_bytes": 76391,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46050616178/artifacts/15235825154"
+    },
+    {
+      "created_at": "2026-11-28T00:24:56Z",
+      "digest": "sha256:84bd1624a83d96071af876ade0ec9e0c5cfbff3ecb54d8760e473e5f44625465",
+      "expires_at": "2027-02-25T18:35:31Z",
+      "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+      "id": 15239329022,
+      "name": "j3-confirmation-46050616178-1",
+      "run_id": 46050616178,
+      "size_in_bytes": 147045973,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46050616178/artifacts/15239329022"
+    },
+    {
+      "created_at": "2026-11-27T11:24:58Z",
+      "digest": "sha256:a6180bad46b404c2507cdddb6e5f3ae6371632d33b9a8ca6918ac8f6022e4c9d",
+      "expires_at": "2027-02-25T11:13:18Z",
+      "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+      "id": 15192953885,
+      "name": "j3-runner-gate-candidate-45988661821-1",
+      "run_id": 45988661821,
+      "size_in_bytes": 1377,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45988661821/artifacts/15192953885"
+    },
+    {
+      "created_at": "2026-11-27T11:40:21Z",
+      "digest": "sha256:0e959344ce3954e9f63868c4304d9cf912d456fecd81ddc431b6415f4a0df6e1",
+      "expires_at": "2027-02-25T11:33:45Z",
+      "head": "ebb3b2a45d2487ba1a9fc6a4162dea00d7103d67",
+      "id": 15193758981,
+      "name": "j3-runner-baseline-report-45991483894-1",
+      "run_id": 45991483894,
+      "size_in_bytes": 1516,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45991483894/artifacts/15193758981"
+    },
+    {
+      "created_at": "2026-11-27T11:49:24Z",
+      "digest": "sha256:7612b16740792e537470e8e923ade2bc8b466d1b2c4e3fbe58c4950aca5aa686",
+      "expires_at": "2027-02-25T11:47:14Z",
+      "head": "ebb3b2a45d2487ba1a9fc6a4162dea00d7103d67",
+      "id": 15194972197,
+      "name": "j3-runner-gate-calibration-45993299758-1-admitted",
+      "run_id": 45993299758,
+      "size_in_bytes": 4108,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45993299758/artifacts/15194972197"
+    },
+    {
+      "created_at": "2026-11-27T14:36:21Z",
+      "digest": "sha256:cb735e72a6864a919decc64216ba49fb09dbf758f2d152403c0b3346aa5de3dd",
+      "expires_at": "2027-02-25T14:30:40Z",
+      "head": "428197e2c2d5d254e5424b3b74639f4265b34232",
+      "id": 15206626414,
+      "name": "j3-runner-gate-calibration-46016570882-1-not-armed",
+      "run_id": 46016570882,
+      "size_in_bytes": 5944,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46016570882/artifacts/15206626414"
+    },
+    {
+      "created_at": "2026-11-27T14:44:42Z",
+      "digest": "sha256:b03c845692118c9f8743a4b978d618f7514d6e2a313e20578a57140f22b9da75",
+      "expires_at": "2027-02-25T14:42:29Z",
+      "head": "428197e2c2d5d254e5424b3b74639f4265b34232",
+      "id": 15207551010,
+      "name": "j3-runner-gate-calibration-46016570882-2-admitted",
+      "run_id": 46016570882,
+      "size_in_bytes": 4356,
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/46016570882/artifacts/15207551010"
+    }
+  ],
+  "campaign": "j3-r421-46050616178",
+  "files": {
+    "alert-state.json": {
+      "kind": "projection",
+      "sha256": "100c2e4746d4d9a2e4a177a875d001188482e17f8bee7f2252bc88f7f58768ac",
+      "size_in_bytes": 9162,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/prometheus-raw.json",
+          "sha256": "b9e3f27e9f61a4f80a27a45b25aafa946388882bdfa43e41ecb4d1480f59d775",
+          "size_in_bytes": 2634208
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/prometheus-raw.json",
+          "sha256": "b3e4a5efa37e6c5a75c3f49c53f1770c1fd58408b1ea1845f815d67a0df4216d",
+          "size_in_bytes": 4155998
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/prometheus-raw.json",
+          "sha256": "9de244d94b9544cca0208d7f38a76c75359e67f8a4ef13cc6fdd813d95dfc012",
+          "size_in_bytes": 4156195
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/prometheus-raw.json",
+          "sha256": "e0ec0d9635272687da62a52847c1d59480057c14a389dc9afee77d58997ce70f",
+          "size_in_bytes": 4155963
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/prometheus-raw.json",
+          "sha256": "9a53f90440ff10bfc8cea58ca51000513bdc5560275656d662b88a5d61cabee5",
+          "size_in_bytes": 1850427
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/prometheus-raw.json",
+          "sha256": "3689830bdb8bb11a01227f76dc1fffbb4d5bbb1fa179de438ecbd308c4819221",
+          "size_in_bytes": 4853868
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/prometheus-raw.json",
+          "sha256": "3ea4187df6714fb8920b4fe941b67c73b29fb196eb5a216a86bf6de5282f1cc5",
+          "size_in_bytes": 4735283
+        }
+      ]
+    },
+    "calibration/cleanup.json": {
+      "kind": "archive-member",
+      "sha256": "32060575ebf00ec403f3a8e47a2c9c3b50f8efbcceee84c6f88dcd99f9fb2250",
+      "size_in_bytes": 150,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "cleanup.json",
+          "sha256": "32060575ebf00ec403f3a8e47a2c9c3b50f8efbcceee84c6f88dcd99f9fb2250",
+          "size_in_bytes": 150
+        }
+      ]
+    },
+    "calibration/verdict.json": {
+      "kind": "archive-member",
+      "sha256": "22df2bfa6b534c4ac9ddcb8d468366d150013bee6cf17dd1ef642e3499d63a34",
+      "size_in_bytes": 1895,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "verdict.json",
+          "sha256": "22df2bfa6b534c4ac9ddcb8d468366d150013bee6cf17dd1ef642e3499d63a34",
+          "size_in_bytes": 1895
+        }
+      ]
+    },
+    "confirmation/cleanup.json": {
+      "kind": "archive-member",
+      "sha256": "4da1bacbe45156f4e217b0d24e67e7813d7f8c4e01e593291012e090b3bdea13",
+      "size_in_bytes": 149,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "cleanup.json",
+          "sha256": "4da1bacbe45156f4e217b0d24e67e7813d7f8c4e01e593291012e090b3bdea13",
+          "size_in_bytes": 149
+        }
+      ]
+    },
+    "confirmation/measurement-forecast.json": {
+      "kind": "archive-member",
+      "sha256": "3aa380d5768121dfdfe508d897c7729f7d384a368fe507797cc7ecd23e8f71e5",
+      "size_in_bytes": 778,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "measurement-forecast.json",
+          "sha256": "3aa380d5768121dfdfe508d897c7729f7d384a368fe507797cc7ecd23e8f71e5",
+          "size_in_bytes": 778
+        }
+      ]
+    },
+    "confirmation/verdict.json": {
+      "kind": "archive-member",
+      "sha256": "b70fb3638acd100e19f95ee626bac4fbfbc5578020186aade1fb3dea4773c1d8",
+      "size_in_bytes": 866,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "verdict.json",
+          "sha256": "b70fb3638acd100e19f95ee626bac4fbfbc5578020186aade1fb3dea4773c1d8",
+          "size_in_bytes": 866
+        }
+      ]
+    },
+    "dashboard/dashboard-api.json": {
+      "kind": "archive-member",
+      "sha256": "1b0cb24844261a36827ac73e543f11db6d3889b76406c1b9f39dca67d134bb0f",
+      "size_in_bytes": 11083,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/dashboard-api.json",
+          "sha256": "1b0cb24844261a36827ac73e543f11db6d3889b76406c1b9f39dca67d134bb0f",
+          "size_in_bytes": 11083
+        }
+      ]
+    },
+    "dashboard/dashboard-ranges.json": {
+      "kind": "archive-member",
+      "sha256": "df1b2cf47a5c24dad8cebdc4a0614893bb4ebd678ee513e08cd6da8db140b917",
+      "size_in_bytes": 51168,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/dashboard-ranges.json",
+          "sha256": "df1b2cf47a5c24dad8cebdc4a0614893bb4ebd678ee513e08cd6da8db140b917",
+          "size_in_bytes": 51168
+        }
+      ]
+    },
+    "dashboard/dashboard-source-times.json": {
+      "kind": "archive-member",
+      "sha256": "01f633e0d9609237ebed742ff12e3253adb21c974f6a62ac9976d865bd880191",
+      "size_in_bytes": 2830,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/dashboard-source-times.json",
+          "sha256": "01f633e0d9609237ebed742ff12e3253adb21c974f6a62ac9976d865bd880191",
+          "size_in_bytes": 2830
+        }
+      ]
+    },
+    "episodes.json": {
+      "kind": "projection",
+      "sha256": "fce9ca461d9144676a7506219e035b40c20db9c31bdfaae158b147bcc36b0e5a",
+      "size_in_bytes": 20673,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/foreign-verdict.json",
+          "sha256": "a139758f6258a9a4e9e92b60bb098ef98948fe35a5e333b9fef9b99e0b0a7f6d",
+          "size_in_bytes": 3663747
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/notifications.jsonl",
+          "sha256": "64322029ba8529b7da07cfa14c78f58a2d5a67ed63a936809b8392e72e823a03",
+          "size_in_bytes": 28368
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/replay.json",
+          "sha256": "b7c71063a5a6417379458342bd7079fe23e9c0142c0e4c6a11647e959410f31d",
+          "size_in_bytes": 444802
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/run.json",
+          "sha256": "a1c4cfc34f8ab3245b4dea04c0c8cd48dcb5bf216fdebec8d72297a17e350350",
+          "size_in_bytes": 2362
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/runner-pressure.jsonl",
+          "sha256": "9af0eef272b9dd77e98fb489afc16ce3e787969e3889a07b8848a8ab80ec1cf0",
+          "size_in_bytes": 632107
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/sender-exit.json",
+          "sha256": "795e156000e9bdfb0c32e418a2de13cc31b71b69eb30fdffe0f9ecc3b5a7b62c",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/timing.json",
+          "sha256": "0e25304b6613a1fd408ba6dd299dd917465ba2d5aeffc6a9544f0170c22862a2",
+          "size_in_bytes": 139
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/actual-clears.json",
+          "sha256": "0eea61228bd14647eeedc9b78ff0275a4e7b4ff3d708d37c556b4c1b1b2dc78a",
+          "size_in_bytes": 405
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/calibration-recovery.json",
+          "sha256": "25fbba121699fcf59acc1b26bd4894ffd89ffe6a09c7e9a70fac648ebd0737f5",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/faults.jsonl",
+          "sha256": "9d96985d88684e545777f901d8c5ec7251ec2b18d18e393766e8abe26199c2cd",
+          "size_in_bytes": 244
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/notifications.jsonl",
+          "sha256": "77d832dc726f82e32ae3a0bfb379039f678186ae28eae1a9889fec494ce2f059",
+          "size_in_bytes": 45602
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/outage-witness.json",
+          "sha256": "932b30b9c2b86bb5bd43ae7bfe2ec0285370c89a584a789db395f5ac8bc9693e",
+          "size_in_bytes": 380
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/replay.json",
+          "sha256": "6300bbb1ea68e9f3485862d701ab5011c6fc7a2afeed3121492bdf447c9b6d20",
+          "size_in_bytes": 852090
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/run.json",
+          "sha256": "4dc8a5ca1ab312edce4557aa27891ca0b7a8b99a92f33942ff1827d3413a5453",
+          "size_in_bytes": 2364
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/runner-pressure.jsonl",
+          "sha256": "8ebb98a72e44eddad0c678489cf10d114920e324b1a160e28b229578bbe9970f",
+          "size_in_bytes": 988799
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/sender-exit.json",
+          "sha256": "def7614a3f949ddcd5a730c41ac91f6c428510059a9693c67d1df77cee7a2e3c",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/timing.json",
+          "sha256": "64132e4705678812a6bc52546e56b8f00a4bf9b1458b67c1e07ed588733e70cb",
+          "size_in_bytes": 140
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/actual-clears.json",
+          "sha256": "9c46e3f08d8b6c85ef3cb2b0feb4a76ae00bd500f57e544db5ff950eee2b8243",
+          "size_in_bytes": 405
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/calibration-recovery.json",
+          "sha256": "bdb5a3781e2afb8210dbada2a12ab4b54083b3952d49393c35e15dfd98f66f9c",
+          "size_in_bytes": 1827
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/faults.jsonl",
+          "sha256": "04ae5e3e3f25ec499321a573e8ea3e9781f91342506fa3f0393a51e358b9dbaa",
+          "size_in_bytes": 244
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/notifications.jsonl",
+          "sha256": "a2f7159a88ec3cfba7496fbd1ddbc8e975788839bb823b7f212c44d3b2b250a8",
+          "size_in_bytes": 46306
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/outage-witness.json",
+          "sha256": "bac48eb2e790be8d608b57ec9e54b79110308882e65a372ec3afb8148f9c4a32",
+          "size_in_bytes": 380
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/replay.json",
+          "sha256": "e72fcd9b111e55943e649ad628b7e006328d284ff2db8312ef12562cb71dc6a9",
+          "size_in_bytes": 852107
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/run.json",
+          "sha256": "bac836ddfb531f882ef91c8d4d11721946dfbc6ef8d0d1c89c57acfee2a5f537",
+          "size_in_bytes": 2364
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/runner-pressure.jsonl",
+          "sha256": "3036b3fece80ccdd0ef3a72e0b79785248479a346022419d86498e7c416fe2d1",
+          "size_in_bytes": 990259
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/sender-exit.json",
+          "sha256": "a8293034bfafba70ad326613d78ec1f95a499345fb569c13cea636f3614bb899",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/setup-incidents.json",
+          "sha256": "3a38c23d27d711c4ae92f15626d023e3c1e06d33f48d7e919783be960572dbeb",
+          "size_in_bytes": 910
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/timing.json",
+          "sha256": "7cd2066c835cbc22a88764cf2bf174615bf0d5518d93545bac65515cb4c8a9a8",
+          "size_in_bytes": 140
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/actual-clears.json",
+          "sha256": "70102349b1e49ee39ee0547e5edd3a83b1fda797e5d544d590242c52fddc4a5b",
+          "size_in_bytes": 405
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/calibration-recovery.json",
+          "sha256": "22d3801bae4903a20a7f8420ec77e8925d09355699d833cca25de3ae090e87dd",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/faults.jsonl",
+          "sha256": "007669cf695271ad0499b1b3460d4d91d43812c40032a2205a2906ab18ef18e8",
+          "size_in_bytes": 244
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/notifications.jsonl",
+          "sha256": "47dca05ff87d0fe826b1ef5dcbd7354df430eee3cf6659a01e384fb931a77c4e",
+          "size_in_bytes": 45602
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/outage-witness.json",
+          "sha256": "730aac9eb9c9e1a1eb7165100c3a52a4d7b080078f9bb1ffb720dff43f2b9544",
+          "size_in_bytes": 380
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/replay.json",
+          "sha256": "22812122b6be9c38035994616af0816d0a8c9a01e28ccddad41453763ac6bde7",
+          "size_in_bytes": 852128
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/run.json",
+          "sha256": "48c3c12348a165ba1499b9978ce3edd7fe6931cad8568c3cb9164e027fd066a2",
+          "size_in_bytes": 2364
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/runner-pressure.jsonl",
+          "sha256": "0f3b21af769a80f778826edd0fc9427acf0050ba1abf4c99616e058377b721ce",
+          "size_in_bytes": 993904
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/sender-exit.json",
+          "sha256": "77198916e6372b88c4d6549ab72c39e689e3a955038d3b8fa86f629289fd3110",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/timing.json",
+          "sha256": "1435ff460ee5f5eaa41aa269eed2ae3dc5fbd45eddea06d6259e01430833e2b5",
+          "size_in_bytes": 140
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/faults.jsonl",
+          "sha256": "cb0da6af5c8b59e41b276511bfa95e515248bfa79b6e19cdd752ebb20e54a625",
+          "size_in_bytes": 660
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/in-flight-scrape-pairings.json",
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "size_in_bytes": 3
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/notifications.jsonl",
+          "sha256": "89ed63af50e7e9c5119144719f225dbe22be90b9d7e71c7fb740bb7ce0a4d090",
+          "size_in_bytes": 21554
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/replay.json",
+          "sha256": "e5d9fe546ce95ddb0e7084455994c96f6aff041d0ed08f43aa2155b1b8acd184",
+          "size_in_bytes": 287722
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/run.json",
+          "sha256": "8792b5cc4fc97a9b8011c353b3d970d524ef31138716d76c25fb1a6eaa2fd464",
+          "size_in_bytes": 2370
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/runner-pressure.jsonl",
+          "sha256": "b5ae691e2ce18ce9f2a8013e223de9ca1216ce0b66aeb528a1114703de10e6b7",
+          "size_in_bytes": 470879
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/sender-exit.json",
+          "sha256": "896a7c786343c85a0c58626981f15e00280484608e49667b004f78afc3af83a3",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/timing.json",
+          "sha256": "cb726b176b0648454220d8c3e1cd1c4de586631c7bd4165bd639a87d0d7afe63",
+          "size_in_bytes": 139
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/actual-clears.json",
+          "sha256": "81b3603bb598d5d45800b4f3fffb2d5ea65f21334a02b254b4943d71b2e439cd",
+          "size_in_bytes": 403
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/faults.jsonl",
+          "sha256": "92e833200eee43ab4f593e440e33af774dd629b465ce150705324cbad22073b9",
+          "size_in_bytes": 244
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/notifications.jsonl",
+          "sha256": "d87e6a1c95d4517fa756dd10c4b6e182ce78e5f56c7b6f7bb8052690f8b50228",
+          "size_in_bytes": 53974
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/outage-witness.json",
+          "sha256": "fe808407e0142de79df23515912d4cd44be68c7dc10af28787d2848220c33d46",
+          "size_in_bytes": 380
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/replay.json",
+          "sha256": "aaae398db482c4d6701ebf92546ee6375dcaaabd8a95d195643203cd58f7c5da",
+          "size_in_bytes": 1091661
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/run.json",
+          "sha256": "f5c99ca2b33f3634e3a25f89ac87a416ed4952b46eb5dba0e41f5af92b6bf1ed",
+          "size_in_bytes": 2371
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/runner-pressure.jsonl",
+          "sha256": "85f367f83b25d9335ccd004348e7f07a695a92da3e3578bbbe6d2a32ce62389e",
+          "size_in_bytes": 1171791
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/sender-exit.json",
+          "sha256": "ecaf228a01cc08097303a1ac9141a8709e41052c9a04f1e52acd1b677e9eafd3",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/timing.json",
+          "sha256": "d18a4a2b81c6e86547b4d8a20b59752869bf5d82a36041e6a2baf2a4e69aa4f7",
+          "size_in_bytes": 140
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/notifications.jsonl",
+          "sha256": "d320d347b9a0a088bb33c3cd5fc272676520a2f718eb9fdeb20951970b0647af",
+          "size_in_bytes": 51776
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/replay.json",
+          "sha256": "37d97e66d26beb6a69c35785838ad056994de1b2d5ff78ffa659eadde47a2982",
+          "size_in_bytes": 1154889
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/run.json",
+          "sha256": "e12300306724ebb81a693f4162b24b49c426c939bf6d3a68748563e4bf94d81b",
+          "size_in_bytes": 2379
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/runner-pressure.jsonl",
+          "sha256": "d29e1daebd42ffb9e6b411ec60a7f96008fc8ad57493a2bb44d745f420041b00",
+          "size_in_bytes": 1155333
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/sender-exit.json",
+          "sha256": "223544e562f8fca3b5417233793a9fff788fc355c0dd028486cfce460a3de0fb",
+          "size_in_bytes": 76
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/setup-incidents.json",
+          "sha256": "d70a8220c882a9e2a4024e64ee3242f241bab7d5413d517a9b9aefc296e56c64",
+          "size_in_bytes": 28
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/timing.json",
+          "sha256": "b27832af33fe78b19bdc4a98cd6a9e18e31d4fbf25f35a2144bb1bdc1abbe7ee",
+          "size_in_bytes": 140
+        }
+      ]
+    },
+    "full-volume/checker-binary.json": {
+      "kind": "archive-member",
+      "sha256": "7e570c78d209a2dff4f8a68440b42ef1634c72cb979bc871d735728483d3f493",
+      "size_in_bytes": 932,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/checker-binary.json",
+          "sha256": "7e570c78d209a2dff4f8a68440b42ef1634c72cb979bc871d735728483d3f493",
+          "size_in_bytes": 932
+        }
+      ]
+    },
+    "full-volume/checker-resources.json": {
+      "kind": "archive-member",
+      "sha256": "a503c98d38094e29e6355e2aedf12d25e1db0e944e75ffe91dcd15a44352b571",
+      "size_in_bytes": 640,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/checker-resources.json",
+          "sha256": "a503c98d38094e29e6355e2aedf12d25e1db0e944e75ffe91dcd15a44352b571",
+          "size_in_bytes": 640
+        }
+      ]
+    },
+    "full-volume/identity-drain.json": {
+      "kind": "archive-member",
+      "sha256": "6a6a008289d9d4f2a1bdace045ec93eebdb3b81893f0618c39149985616272ec",
+      "size_in_bytes": 1333,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/identity-drain.json",
+          "sha256": "6a6a008289d9d4f2a1bdace045ec93eebdb3b81893f0618c39149985616272ec",
+          "size_in_bytes": 1333
+        }
+      ]
+    },
+    "full-volume/identity-reconciliation.json": {
+      "kind": "archive-member",
+      "sha256": "32808c4c390127d6e99639fbad3e94c287be3f45ad6d07c0be4fc950534134f1",
+      "size_in_bytes": 160,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/identity-reconciliation.json",
+          "sha256": "32808c4c390127d6e99639fbad3e94c287be3f45ad6d07c0be4fc950534134f1",
+          "size_in_bytes": 160
+        }
+      ]
+    },
+    "gates/45993299758-attempt-1.json": {
+      "kind": "archive-member",
+      "sha256": "387ebed78ec4250245b12e1323b562437d4b5cabc320fc68eebbc6233f7517e8",
+      "size_in_bytes": 543,
+      "sources": [
+        {
+          "artifact_id": 15194972197,
+          "member": "runner-gate.json",
+          "sha256": "387ebed78ec4250245b12e1323b562437d4b5cabc320fc68eebbc6233f7517e8",
+          "size_in_bytes": 543
+        }
+      ]
+    },
+    "gates/46016570882-attempt-1-idle-pressure.jsonl": {
+      "kind": "archive-member",
+      "sha256": "87503e92de60d258af3c7279064a510d3eaaf170e322dbd674cc42457e246b74",
+      "size_in_bytes": 34941,
+      "sources": [
+        {
+          "artifact_id": 15206626414,
+          "member": "idle-pressure.jsonl",
+          "sha256": "87503e92de60d258af3c7279064a510d3eaaf170e322dbd674cc42457e246b74",
+          "size_in_bytes": 34941
+        }
+      ]
+    },
+    "gates/46016570882-attempt-1.json": {
+      "kind": "archive-member",
+      "sha256": "d6204af440acc22369b95db0dbdd7088195a04d098495485ded2ae4cf6e9f85e",
+      "size_in_bytes": 573,
+      "sources": [
+        {
+          "artifact_id": 15206626414,
+          "member": "runner-gate.json",
+          "sha256": "d6204af440acc22369b95db0dbdd7088195a04d098495485ded2ae4cf6e9f85e",
+          "size_in_bytes": 573
+        }
+      ]
+    },
+    "gates/46016570882-attempt-2.json": {
+      "kind": "archive-member",
+      "sha256": "361ff168793532c54e4ace14024211560ee6834c41dbd367ef6dac8bb54d700c",
+      "size_in_bytes": 534,
+      "sources": [
+        {
+          "artifact_id": 15207551010,
+          "member": "runner-gate.json",
+          "sha256": "361ff168793532c54e4ace14024211560ee6834c41dbd367ef6dac8bb54d700c",
+          "size_in_bytes": 534
+        }
+      ]
+    },
+    "gates/calibration.json": {
+      "kind": "archive-member",
+      "sha256": "deffee9d2b24c773c22372083c6c5cc8d8a091c44594e8874e29c258610c9835",
+      "size_in_bytes": 535,
+      "sources": [
+        {
+          "artifact_id": 15223759432,
+          "member": "runner-gate.json",
+          "sha256": "deffee9d2b24c773c22372083c6c5cc8d8a091c44594e8874e29c258610c9835",
+          "size_in_bytes": 535
+        }
+      ]
+    },
+    "gates/confirmation.json": {
+      "kind": "archive-member",
+      "sha256": "9c93d193e4b9354a3e69d9204f7baa25a5bde9be3b2647ff7b87e5d61de5c0e8",
+      "size_in_bytes": 536,
+      "sources": [
+        {
+          "artifact_id": 15235390969,
+          "member": "runner-gate.json",
+          "sha256": "9c93d193e4b9354a3e69d9204f7baa25a5bde9be3b2647ff7b87e5d61de5c0e8",
+          "size_in_bytes": 536
+        }
+      ]
+    },
+    "gates/original-baseline.json": {
+      "kind": "archive-member",
+      "sha256": "d57a7d227766b2d897befc12499da01ead799836aaa9b5b8e66de104b64096d6",
+      "size_in_bytes": 4499,
+      "sources": [
+        {
+          "artifact_id": 15192953885,
+          "member": "baseline-records.json",
+          "sha256": "d57a7d227766b2d897befc12499da01ead799836aaa9b5b8e66de104b64096d6",
+          "size_in_bytes": 4499
+        }
+      ]
+    },
+    "gates/superseded-candidate.json": {
+      "kind": "archive-member",
+      "sha256": "93e52750943a19f33864a8acf39083cf7f1332175a6dbc06522fb7ea44833f41",
+      "size_in_bytes": 270,
+      "sources": [
+        {
+          "artifact_id": 15192953885,
+          "member": "runner-gate.candidate.json",
+          "sha256": "93e52750943a19f33864a8acf39083cf7f1332175a6dbc06522fb7ea44833f41",
+          "size_in_bytes": 270
+        }
+      ]
+    },
+    "gates/validation-baseline.json": {
+      "kind": "archive-member",
+      "sha256": "e6d5078169c145da3d61f9d9cf71161b908e9d95e72d8b962eb65647af357b83",
+      "size_in_bytes": 10419,
+      "sources": [
+        {
+          "artifact_id": 15193758981,
+          "member": "baseline-report.json",
+          "sha256": "e6d5078169c145da3d61f9d9cf71161b908e9d95e72d8b962eb65647af357b83",
+          "size_in_bytes": 10419
+        }
+      ]
+    },
+    "j3-r421-46050616178-index.json": {
+      "kind": "release-asset",
+      "sha256": "7cdae1077e6665f3e7e2bf8355c16b09d5be8ec38c933af4edf82d7d5773440f",
+      "size_in_bytes": 2639,
+      "sources": [
+        {
+          "asset": "j3-r421-46050616178-index.json",
+          "release_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/tag/j3-r421-46050616178-evidence"
+        }
+      ]
+    },
+    "notifications/foreign.json": {
+      "kind": "archive-member",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "size_in_bytes": 3,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "foreign/notification-pairs.json",
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "size_in_bytes": 3
+        }
+      ]
+    },
+    "notifications/full-volume.json": {
+      "kind": "archive-member",
+      "sha256": "815f4359de3ca3aa93d25eaf02af615bc1857ae8cbb3201a8ace0ea5f175c01a",
+      "size_in_bytes": 2029,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "full-volume/notification-pairs.json",
+          "sha256": "815f4359de3ca3aa93d25eaf02af615bc1857ae8cbb3201a8ace0ea5f175c01a",
+          "size_in_bytes": 2029
+        }
+      ]
+    },
+    "notifications/matched-healthy.json": {
+      "kind": "archive-member",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "size_in_bytes": 3,
+      "sources": [
+        {
+          "artifact_id": 15239329022,
+          "member": "matched-healthy/notification-pairs.json",
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "size_in_bytes": 3
+        }
+      ]
+    },
+    "notifications/outage-1.json": {
+      "kind": "archive-member",
+      "sha256": "9ae27543e50104ffaa648cc654651823d7b8c980cec82eb093a5c0ebbc95a709",
+      "size_in_bytes": 2017,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/notification-pairs.json",
+          "sha256": "9ae27543e50104ffaa648cc654651823d7b8c980cec82eb093a5c0ebbc95a709",
+          "size_in_bytes": 2017
+        }
+      ]
+    },
+    "notifications/outage-2.json": {
+      "kind": "archive-member",
+      "sha256": "12d120c20e1d57e498c643d54f63ade25abe0df5075b4bb6e27714457c4dc782",
+      "size_in_bytes": 2017,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/notification-pairs.json",
+          "sha256": "12d120c20e1d57e498c643d54f63ade25abe0df5075b4bb6e27714457c4dc782",
+          "size_in_bytes": 2017
+        }
+      ]
+    },
+    "notifications/outage-3.json": {
+      "kind": "archive-member",
+      "sha256": "1d2c591b8c8068a2c661dbc25c13451313d283f2f961572efb3b9b1f473e8fe5",
+      "size_in_bytes": 2017,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/notification-pairs.json",
+          "sha256": "1d2c591b8c8068a2c661dbc25c13451313d283f2f961572efb3b9b1f473e8fe5",
+          "size_in_bytes": 2017
+        }
+      ]
+    },
+    "notifications/scrape-loss.json": {
+      "kind": "archive-member",
+      "sha256": "30649f208ee87d5d31e311a8c4f280d75f92e0e8d3ace1e6bc89330b5d3a7c75",
+      "size_in_bytes": 998,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "scrape-loss/notification-pairs.json",
+          "sha256": "30649f208ee87d5d31e311a8c4f280d75f92e0e8d3ace1e6bc89330b5d3a7c75",
+          "size_in_bytes": 998
+        }
+      ]
+    },
+    "seal/confirmation-check.json": {
+      "kind": "projection",
+      "sha256": "0fcbbff8cc22689a31e40f4519c7821e0547fd51460b51240ad01e9311cda0ef",
+      "size_in_bytes": 1150,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "forecast-measurements.json",
+          "sha256": "08d8de4ae6d0d08908682657d61d77eda3a6ce0ccc85f341683bfe25879f86a0",
+          "size_in_bytes": 290
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/calibration-recovery.json",
+          "sha256": "25fbba121699fcf59acc1b26bd4894ffd89ffe6a09c7e9a70fac648ebd0737f5",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/outage.json",
+          "sha256": "19f9e48b657bce2d5e0bf4249cfa9397b246e690e7260c3cd28ae818a5cb1900",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/calibration-recovery.json",
+          "sha256": "bdb5a3781e2afb8210dbada2a12ab4b54083b3952d49393c35e15dfd98f66f9c",
+          "size_in_bytes": 1827
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/outage.json",
+          "sha256": "e8f109f8907b9024158a861887d14d83adcc5d32832b208a39abc64f0a2325a9",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/calibration-recovery.json",
+          "sha256": "22d3801bae4903a20a7f8420ec77e8925d09355699d833cca25de3ae090e87dd",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/outage.json",
+          "sha256": "eb7e1f18e6a88431fa46db7088a9256d2209d807ab0e4b3da02d2194015a4735",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235825154,
+          "member": "sealed-schedule.json",
+          "sha256": "83a4219d82f3ee1099ce619b9488a2c405aa7cfb95a4feb2a2df1222de614db9",
+          "size_in_bytes": 1192244
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "verified-schedule.json",
+          "sha256": "31b51f9e57dfa8c7ff3e1290de7983afa4844227850a816c4bfab2cc22528cc6",
+          "size_in_bytes": 1247654
+        }
+      ]
+    },
+    "seal/schedule-seal.json": {
+      "kind": "archive-member",
+      "sha256": "68d69167a0bb53d87c58036c57d086b3b82e938621a88c4a784cf737f4d879e2",
+      "size_in_bytes": 948,
+      "sources": [
+        {
+          "artifact_id": 15235825154,
+          "member": "schedule-seal.json",
+          "sha256": "68d69167a0bb53d87c58036c57d086b3b82e938621a88c4a784cf737f4d879e2",
+          "size_in_bytes": 948
+        }
+      ]
+    },
+    "seal/sealed-schedule-summary.json": {
+      "kind": "projection",
+      "sha256": "87ba80195bc53be549c66e970a8e38484b21d0b0f8efcb35519fea5e19e4928c",
+      "size_in_bytes": 5112,
+      "sources": [
+        {
+          "artifact_id": 15235740301,
+          "member": "forecast-measurements.json",
+          "sha256": "08d8de4ae6d0d08908682657d61d77eda3a6ce0ccc85f341683bfe25879f86a0",
+          "size_in_bytes": 290
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/calibration-recovery.json",
+          "sha256": "25fbba121699fcf59acc1b26bd4894ffd89ffe6a09c7e9a70fac648ebd0737f5",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-1/outage.json",
+          "sha256": "19f9e48b657bce2d5e0bf4249cfa9397b246e690e7260c3cd28ae818a5cb1900",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/calibration-recovery.json",
+          "sha256": "bdb5a3781e2afb8210dbada2a12ab4b54083b3952d49393c35e15dfd98f66f9c",
+          "size_in_bytes": 1827
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-2/outage.json",
+          "sha256": "e8f109f8907b9024158a861887d14d83adcc5d32832b208a39abc64f0a2325a9",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/calibration-recovery.json",
+          "sha256": "22d3801bae4903a20a7f8420ec77e8925d09355699d833cca25de3ae090e87dd",
+          "size_in_bytes": 1832
+        },
+        {
+          "artifact_id": 15235740301,
+          "member": "outage-3/outage.json",
+          "sha256": "eb7e1f18e6a88431fa46db7088a9256d2209d807ab0e4b3da02d2194015a4735",
+          "size_in_bytes": 2957480
+        },
+        {
+          "artifact_id": 15235825154,
+          "member": "sealed-schedule.json",
+          "sha256": "83a4219d82f3ee1099ce619b9488a2c405aa7cfb95a4feb2a2df1222de614db9",
+          "size_in_bytes": 1192244
+        },
+        {
+          "artifact_id": 15239329022,
+          "member": "verified-schedule.json",
+          "sha256": "31b51f9e57dfa8c7ff3e1290de7983afa4844227850a816c4bfab2cc22528cc6",
+          "size_in_bytes": 1247654
+        }
+      ]
+    }
+  },
+  "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+  "review_round": 607,
+  "run_id": 46050616178,
+  "workflow_attempt": 1
+}

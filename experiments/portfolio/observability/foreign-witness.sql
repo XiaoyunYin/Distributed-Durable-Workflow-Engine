@@ -10,7 +10,8 @@ WITH parameters AS (
     FROM engine.workflow_executions w
     JOIN j2_monitor.j3_plan schedule USING (namespace, submission_key)
     CROSS JOIN parameters p
-    WHERE w.namespace = p.ns AND extract(epoch FROM w.created_at) * 1000000000 <= p.t
+    WHERE w.namespace = p.ns
+      AND extract(epoch FROM pg_xact_commit_timestamp(w.xmin)) * 1000000000 <= p.t
 ), claimable AS (
     SELECT extract(epoch FROM a.created_at) * 1000000000 AS created_ns
     FROM engine.activity_attempts a

@@ -6,17 +6,12 @@ import subprocess
 import time
 from pathlib import PurePosixPath
 
+from j2_checker import CHECKER, INSTALL, POD_CHECKER
+from j2_checker_report import markers
 from j3_replay import SECOND, require
 
 OBSERVER_LIMIT = 2 << 30
 CGROUP_FILES = ("memory.events", "memory.events.local", "memory.peak", "memory.max")
-CHECKER = """
-import json,resource,subprocess,sys
-status=subprocess.run(sys.argv[1:]).returncode
-peak=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-print('J3_CHECKER '+json.dumps({'status':status,'rss_peak_kib':peak}),file=sys.stderr,flush=True)
-sys.exit(status if status>=0 else 128-status)
-"""
 SAMPLER = """
 while IFS= read -r current < "$1/memory.current" && IFS= read -r peak < "$1/memory.peak"; do
     rss=
@@ -78,9 +73,11 @@ def checker_failure(uid, group, before, polls, kernel_lines):
         for key, value in oom_counts(poll["files"]).items()
     )
     relative = group.removeprefix("/sys/fs/cgroup")
+    # The Linux OOM summary prints kernfs paths from the host hierarchy.
+    # The kind node's /proc membership can omit the Docker cgroup ancestors.
     oom_log = any(
         "oom-kill:" in line
-        and any(path == relative or path.startswith(relative + "/") for path in paths)
+        and any(path.endswith(relative) or relative + "/" in path for path in paths)
         for line in kernel_lines
         if (paths := re.findall(r"(?:oom_memcg|task_memcg)=([^,\s]+)", line))
     )
@@ -169,10 +166,42 @@ def write_report(path, report):
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
-def run_checker(driver, node_name, namespace, observer, checker, args):
-    """Run the already-installed checker and retain exit evidence before any teardown."""
+def run_checker(driver, node_name, namespace, observer, checker, lock, args):
+    """Install the verified checker, run it and retain evidence before teardown."""
     node = ["docker", "exec", node_name]
     name, uid = observer["metadata"]["name"], observer["metadata"]["uid"]
+    output = driver.output
+    digest, memory_limit = lock["sha256"], lock["gomemlimit"]
+    exec_args = [
+        "kubectl",
+        "--context",
+        "kind-" + node_name.removesuffix("-control-plane"),
+        "-n",
+        namespace,
+        "exec",
+    ]
+    install_log = output / "checker-install.stdout"
+    with (
+        checker.open("rb") as binary,
+        install_log.open("wb") as out,
+        (output / "checker-install.stderr").open("wb") as err,
+    ):
+        installed = subprocess.run(
+            [*exec_args, "-i", name, "--", "python", "-c", INSTALL, POD_CHECKER, digest],
+            stdin=binary,
+            stdout=out,
+            stderr=err,
+            env=driver.env,
+            timeout=60,
+        )
+    require(
+        installed.returncode == 0
+        and install_log.read_text().strip() == f"observer checker SHA-256 {digest}",
+        "could not install verified observer checker",
+    )
+    write_report(
+        output / "checker-binary.json", {**lock, "observer_sha256": digest, "path": POD_CHECKER}
+    )
     (container,) = observer["status"]["containerStatuses"]
     _, runtime_id = container["containerID"].split("://", 1)
     info = driver.command([*node, "crictl", "inspect", runtime_id], record=False, timeout=5)
@@ -186,18 +215,16 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
     require(container["restartCount"] == 0, "observer restarted before checker")
     require(oom_counts(before) and not any(oom_counts(before).values()), "invalid OOM baseline")
     kernel_before = kernel_oom_lines(driver, node)
-    output = driver.output
     command = [
-        "kubectl",
-        "-n",
-        namespace,
-        "exec",
+        *exec_args,
         name,
         "--",
         "python",
         "-c",
         CHECKER,
-        checker,
+        POD_CHECKER,
+        digest,
+        memory_limit,
         *args,
     ]
     sample_file = output / "checker-resources.tsv"
@@ -217,7 +244,7 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
                 SAMPLER,
                 "bash",
                 group,
-                PurePosixPath(checker).name[:15],
+                PurePosixPath(POD_CHECKER).name[:15],
             ],
             stdin=subprocess.PIPE,
             stdout=samples,
@@ -247,11 +274,7 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
         write_report(output / "checker-failure.json", diagnosis)
     rows = [line.split("\t") for line in sample_file.read_text().splitlines()]
     timestamps = [int(row[0]) for row in rows]
-    measurements = [
-        json.loads(line.removeprefix("J3_CHECKER "))
-        for line in (output / "checker.stderr").read_text(errors="replace").splitlines()
-        if line.startswith("J3_CHECKER ")
-    ]
+    measurements = markers(output / "checker.stderr", "J2_CHECKER")
     final_container, _ = read_group(driver, node, group)
     report = {
         "exit": status,
@@ -260,6 +283,8 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
             [int(row[2]) for row in rows] + [int(final_container.get("memory.peak") or 0)]
         ),
         "observer_limit_bytes": OBSERVER_LIMIT,
+        "checker_sha256": digest,
+        "gomemlimit": memory_limit,
         "checker_sampled_peak_rss_kib": max((int(row[3]) for row in rows if row[3]), default=None),
         "checker_exit_measurements": measurements,
         "max_sample_gap_ns": max(
@@ -273,10 +298,22 @@ def run_checker(driver, node_name, namespace, observer, checker, args):
         rows
         and report["max_sample_gap_ns"] <= 2 * SECOND
         and len(measurements) == 1
-        and measurements[0]["rss_peak_kib"] > 0
+        and measurements[0]["exit_status"] == 0
+        and measurements[0]["peak_rss_kib"] > 0
+        and measurements[0]["checker_sha256"] == digest
+        and measurements[0]["gomemlimit"] == memory_limit
         and 0 < report["observer_peak_bytes"] <= OBSERVER_LIMIT
         and oom_counts(final_container)
         and not any(oom_counts(final_container).values()),
         "missing or invalid observer/checker resource evidence",
     )
     return json.loads((output / "checker.json").read_bytes())
+
+
+def checker_outcome(output):
+    report = output / "checker-failure.json"
+    if report.is_file():
+        criterion = json.loads(report.read_bytes()).get("criterion")
+        if criterion in {"oom", "restart"}:
+            return "capacity"
+    return "invalid"

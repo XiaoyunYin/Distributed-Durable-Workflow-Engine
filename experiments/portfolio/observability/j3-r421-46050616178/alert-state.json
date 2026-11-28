@@ -1,0 +1,438 @@
+{
+  "foreign": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 360,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795805542246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795807337246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-foreign"
+    }
+  },
+  "full-volume": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 660,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [
+        [
+          1795822692246000000,
+          1795823437246000000
+        ]
+      ],
+      "OldestClaimable": [
+        [
+          1795822632246000000,
+          1795823382246000000
+        ]
+      ],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795822002246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795825297246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-full-volume"
+    }
+  },
+  "matched-healthy": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 660,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795818467246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795821762246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-matched-healthy"
+    }
+  },
+  "outage-1": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 564,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [
+        [
+          1795808222246000000,
+          1795808947246000000
+        ]
+      ],
+      "OldestClaimable": [
+        [
+          1795808162246000000,
+          1795808902246000000
+        ]
+      ],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795807532246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795810347246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-1"
+    }
+  },
+  "outage-2": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 564,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [
+        [
+          1795811257246000000,
+          1795811987246000000
+        ]
+      ],
+      "OldestClaimable": [
+        [
+          1795811197246000000,
+          1795811937246000000
+        ]
+      ],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795810567246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795813382246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-2"
+    }
+  },
+  "outage-3": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 564,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [
+        [
+          1795814302246000000,
+          1795815027246000000
+        ]
+      ],
+      "OldestClaimable": [
+        [
+          1795814237246000000,
+          1795814972246000000
+        ]
+      ],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795813612246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795816427246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-3"
+    }
+  },
+  "scrape-loss": {
+    "evaluation_interval_ns": 5000000000,
+    "expected_evaluations": 264,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": [
+        [
+          1795817252246000000,
+          1795817302246000000
+        ]
+      ]
+    },
+    "first_evaluation_ns": 1795816647246000000,
+    "invalid_evaluations_ns": [
+      1795817247246000000,
+      1795817252246000000,
+      1795817257246000000,
+      1795817262246000000,
+      1795817267246000000,
+      1795817272246000000,
+      1795817277246000000,
+      1795817282246000000,
+      1795817287246000000,
+      1795817292246000000,
+      1795817297246000000,
+      1795817302246000000
+    ],
+    "last_evaluation_ns": 1795817962246000000,
+    "last_rule_health": [
+      {
+        "health": "ok",
+        "name": "j3:expected"
+      },
+      {
+        "health": "ok",
+        "name": "j3:valid"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:oldest_clear"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_fire"
+      },
+      {
+        "health": "ok",
+        "name": "j3:burn_clear"
+      },
+      {
+        "health": "ok",
+        "name": "OldestClaimable"
+      },
+      {
+        "health": "ok",
+        "name": "DeadlineBudgetBurn"
+      },
+      {
+        "health": "ok",
+        "name": "ScrapeAbsent"
+      }
+    ],
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-scrape-loss"
+    }
+  }
+}

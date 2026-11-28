@@ -1,0 +1,78 @@
+[
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "fb6e9b9c64183d55",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-3"
+      },
+      "received_ns": 1795814237255141296,
+      "startsAt": "2026-11-27T21:17:17.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795814237246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "6007bd7484b29b64",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-3"
+      },
+      "received_ns": 1795814302259450863,
+      "startsAt": "2026-11-27T21:18:22.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795814302246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-27T21:29:37.246Z",
+      "fingerprint": "fb6e9b9c64183d55",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-3"
+      },
+      "received_ns": 1795814977728988161,
+      "startsAt": "2026-11-27T21:17:17.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795814977246000000,
+      "firing": false
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-27T21:30:32.246Z",
+      "fingerprint": "6007bd7484b29b64",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-outage-3"
+      },
+      "received_ns": 1795815032762820116,
+      "startsAt": "2026-11-27T21:18:22.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795815032246000000,
+      "firing": false
+    }
+  }
+]

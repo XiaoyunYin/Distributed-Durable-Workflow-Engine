@@ -1,0 +1,40 @@
+{
+  "campaign": "j3-r421-46050616178",
+  "episodes": {
+    "full-volume": {
+      "arm_seconds": 3301,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 121,
+      "setup_seconds": 60,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-full-volume"
+      }
+    },
+    "matched-healthy": {
+      "arm_seconds": 3301,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 174,
+      "setup_seconds": 67,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r421-46050616178",
+        "namespace": "j3-target-matched-healthy"
+      }
+    }
+  },
+  "full_volume": "PASS",
+  "stage": "confirmation",
+  "status": "PASS"
+}

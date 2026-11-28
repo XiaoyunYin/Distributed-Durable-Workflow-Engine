@@ -1,0 +1,31 @@
+{
+  "forecast_allowance_seconds": {
+    "bootstrap": 1500,
+    "final_evidence": 1500,
+    "foreign": 1801,
+    "foreign_export_reset": 600,
+    "matched_healthy": 2821,
+    "matched_healthy_export_reset": 600,
+    "primary": 2821,
+    "primary_export_reset": 600,
+    "scrape_loss": 1321
+  },
+  "forecast_base_minutes": 242,
+  "forecast_extended_arm_seconds": {
+    "matched_healthy": 3301,
+    "primary": 3301
+  },
+  "forecast_measured_seconds": {
+    "bootstrap": 354,
+    "final_evidence": 182,
+    "foreign": 1801,
+    "foreign_export_reset": 129,
+    "matched_healthy": 2821,
+    "matched_healthy_export_reset": 221,
+    "primary": 2821,
+    "primary_export_reset": 221,
+    "scrape_loss": 1321
+  },
+  "forecast_minutes": 242.06666666666666,
+  "forecast_seconds": 14524
+}
