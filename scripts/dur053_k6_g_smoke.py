@@ -21,7 +21,15 @@ from uuid import uuid4
 
 from dur053_k3 import CLUSTER, K8S, LABEL, LOCK, ROOT, Driver
 from dur053_k6_b_evidence import Evidence, SmokeFailure
-from dur053_k6_b_smoke import ENGINE_ROLE, Smoke, json_data, private_file, require, subject
+from dur053_k6_b_smoke import (
+    ENGINE_ROLE,
+    Smoke,
+    json_data,
+    legacy_timeout_retry_env,
+    private_file,
+    require,
+    subject,
+)
 from dur053_k6_c_deploy import (
     ENGINE_CONTAINER,
     EXPORTER,
@@ -1062,6 +1070,7 @@ class Episode(Matrix):
                 continue
             require(pod["metadata"]["namespace"] == self.namespace, "G_CONTROL_NAMESPACE")
             spec = pod["spec"]
+            legacy_env = legacy_timeout_retry_env(spec)
             init = spec.get("initContainers", [])
             ephemeral = spec.get("ephemeralContainers", [])
             require(
@@ -1084,6 +1093,7 @@ class Episode(Matrix):
                         {entry["name"] for c in containers for entry in c.get("env", [])}
                     ),
                     "env_from": any(c.get("envFrom") for c in containers),
+                    **({"legacy_env": legacy_env} if legacy_env else {}),
                 }
             )
         return {

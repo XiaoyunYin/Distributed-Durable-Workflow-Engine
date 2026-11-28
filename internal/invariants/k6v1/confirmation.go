@@ -26,10 +26,16 @@ type ControlSnapshot struct {
 }
 
 type ControlPod struct {
-	Role     string          `json:"role"`
-	Runtime  RuntimeIdentity `json:"runtime"`
-	EnvNames []string        `json:"env_names"`
-	EnvFrom  bool            `json:"env_from"`
+	Role      string            `json:"role"`
+	Runtime   RuntimeIdentity   `json:"runtime"`
+	EnvNames  []string          `json:"env_names"`
+	EnvFrom   bool              `json:"env_from"`
+	LegacyEnv map[string]string `json:"legacy_env,omitempty"`
+}
+
+// These switches may be present only with a witnessed literal legacy value.
+var controlLegacyEnv = map[string]string{
+	"RUNTIME_TIMEOUT_RETRY_POLICY": "0",
 }
 
 // Reviewed PodSpec env names from the medium-16 inventories in runs
@@ -105,7 +111,15 @@ func (s ControlSnapshot) valid() bool {
 
 func (s ControlSnapshot) faultConfigured() bool {
 	return len(s.ChaosCRDs) > 0 || slices.ContainsFunc(s.Pods, func(p ControlPod) bool {
+		for name, value := range p.LegacyEnv {
+			if legacy, ok := controlLegacyEnv[name]; !ok || legacy != value || !slices.Contains(p.EnvNames, name) {
+				return true
+			}
+		}
 		return p.EnvFrom || slices.ContainsFunc(p.EnvNames, func(name string) bool {
+			if legacy, ok := controlLegacyEnv[name]; ok {
+				return p.LegacyEnv[name] != legacy
+			}
 			return !controlConfigEnv[name]
 		})
 	})
