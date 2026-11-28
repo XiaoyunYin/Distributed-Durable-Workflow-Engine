@@ -11,18 +11,30 @@ import time
 import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal
+from decimal import Decimal
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from j2_schedule import MEASURED, ORDERS, RATES, WARMUP
+from j2_schedule import (
+    ENGINEERING_GRID,
+    ENGINEERING_WARMUP,
+    MEASURED,
+    ORDERS,
+    RATES,
+    WARMUP,
+    population,
+    soak_population,
+)
 
 JOBS = (1, 2, 3)
 BARRIER_SECONDS = 45 * 60
 JOB_MINUTES = 75
 INTEGRATED_SCOPE = "synthetic integrated rehearsal grid"
+REGISTERED_GRID_SCOPE = "registered J2 grid"
+ENGINEERING_GRID_SCOPE = "unmeasured J2 grid with engineering timing"
+MEASURE_GRID_SCOPES = {REGISTERED_GRID_SCOPE, ENGINEERING_GRID_SCOPE}
 # Two polling peers and one withholding peer share the repository token quota.
 # Two list calls per poller and one per withholding peer cost about 450 over 45 min.
 POLL_SECONDS = 30
@@ -113,7 +125,14 @@ def expiry(value):
     return stamp.tzinfo is not None and stamp > datetime.now(UTC)
 
 
-def barrier_deadline(ready, job_deadline):
+def barrier_deadline(ready, job_deadline, *, allow_early=False):
+    if allow_early:
+        require(
+            job_deadline > ready,
+            "no budget for the complete next episode and closeout",
+            reason="insufficient_budget",
+        )
+        return min(ready + BARRIER_SECONDS, job_deadline)
     require(
         job_deadline - ready >= BARRIER_SECONDS,
         "less than the registered barrier allowance remains in the job",
@@ -122,16 +141,14 @@ def barrier_deadline(ready, job_deadline):
     return ready + BARRIER_SECONDS
 
 
-def population(rate, seconds):
-    return int((Decimal(RATES[rate]) * seconds).to_integral_value(rounding=ROUND_CEILING))
-
-
-def soak_population(rate):
-    return population(rate, WARMUP) + population(rate, 1800) + population("C", 300)
-
-
 def job_name(job, scope=None):
-    kind = "rehearsal" if scope == INTEGRATED_SCOPE else "barrier"
+    kind = (
+        "measure"
+        if scope in MEASURE_GRID_SCOPES
+        else "rehearsal"
+        if scope == INTEGRATED_SCOPE
+        else "barrier"
+    )
     return f"J2 {kind} job-{job}"
 
 
@@ -152,6 +169,11 @@ class Campaign:
 
     def name(self, kind, job):
         return f"j2-{kind}-{self.campaign}-{self.run}-{self.attempt}-job-{job}"
+
+    def checkpoint(self, job, cell):
+        if self.scope in MEASURE_GRID_SCOPES:
+            return self.name(f"checkpoint-{cell}", job)
+        return checkpoint_name(self.run, self.attempt, job, cell)
 
     def binding(self, job, job_id):
         return {
@@ -421,10 +443,19 @@ def validate_grid(body, campaign, job, job_id):
         raise BarrierStop(classification, f"job {job}: {detail}")
     cells = body["cells"]
     require(isinstance(cells, list) and len(cells) == len(RATES), "incomplete five-cell grid")
-    for cell, rate in zip(cells, ORDERS[job - 1], strict=True):
+    measurement = campaign.scope in MEASURE_GRID_SCOPES
+    warmup, measured = (
+        (ENGINEERING_WARMUP, ENGINEERING_GRID)
+        if campaign.scope == ENGINEERING_GRID_SCOPE
+        else (WARMUP, MEASURED)
+    )
+    order = ORDERS[job - 1]
+    for position, (cell, rate) in enumerate(zip(cells, order, strict=True)):
+        population_field = " population recovery" if measurement else ""
         schema(
             cell,
-            "rate offered_rate counts outcome reason checked reset_verified evidence_sha256",
+            "rate offered_rate counts outcome reason checked reset_verified evidence_sha256"
+            + population_field,
             "cell",
         )
         require(
@@ -446,9 +477,56 @@ def validate_grid(body, campaign, job, job_id):
         require(
             all(type(n) is int and n >= 0 for n in counts)
             and counts == sorted(counts, reverse=True)
-            and counts[0] == population(rate, WARMUP + MEASURED),
+            and counts[0] == population(rate, warmup + measured),
             "invalid cell counts",
         )
+        if measurement:
+            recorded = cell["population"]
+            schema(recorded, "bound scheduled windows", "registered cell population")
+            require(
+                type(recorded["bound"]) is int
+                and type(recorded["scheduled"]) is int
+                and recorded["bound"] == recorded["scheduled"] == counts[0],
+                "registered grid population bound or scheduled count differs",
+            )
+            windows = recorded["windows"]
+            schema(windows, "warmup grid", "registered cell population windows")
+            warmup_count = population(rate, warmup)
+            for name, scheduled in (("warmup", warmup_count), ("grid", counts[0] - warmup_count)):
+                window = windows[name]
+                schema(window, "scheduled checked_success in_window_success", "population window")
+                require(
+                    all(type(n) is int for n in window.values())
+                    and 0
+                    <= window["in_window_success"]
+                    <= window["checked_success"]
+                    <= window["scheduled"]
+                    == scheduled,
+                    "registered population window counts differ",
+                )
+            require(
+                sum(window["checked_success"] for window in windows.values()) == counts[-1],
+                "registered population checked total differs",
+            )
+            recovery = cell["recovery"]
+            if outcome == "invalid":
+                schema(
+                    recovery,
+                    "replaced_with telemetry_sha256 identity_sha256 series",
+                    "invalid cell recovery",
+                )
+                require(
+                    recovery["replaced_with"] == (*order, "soak")[position + 1]
+                    and sha256(recovery["telemetry_sha256"])
+                    and sha256(recovery["identity_sha256"])
+                    and isinstance(recovery["series"], list)
+                    and all(isinstance(name, str) and name for name in recovery["series"])
+                    and (cell["reason"] != "resource_evidence" or recovery["series"])
+                    and cell["checked"],
+                    "invalid cell was not continued past a verified reset",
+                )
+            else:
+                require(recovery is None, "unexpected invalid cell recovery")
         require(
             (
                 outcome == "pass"
@@ -465,7 +543,10 @@ def validate_grid(body, campaign, job, job_id):
             or (
                 outcome == "invalid"
                 and isinstance(cell["reason"], str)
-                and cell["reason"] in CELL_INVALID
+                and (
+                    cell["reason"] in CELL_INVALID
+                    or (measurement and cell["reason"] == "resource_evidence")
+                )
             ),
             f"invalid evidence or classification for cell {rate}",
         )
@@ -512,13 +593,11 @@ class Barrier:
         grid_names = {job: self.campaign.name("grid", job) for job in JOBS}
         evidence_names = {job: self.campaign.name("grid-evidence", job) for job in JOBS}
         names = set(grid_names.values()) | set(evidence_names.values())
-        integrated = self.campaign.scope == INTEGRATED_SCOPE
+        integrated = (
+            self.campaign.scope == INTEGRATED_SCOPE or self.campaign.scope in MEASURE_GRID_SCOPES
+        )
         if integrated:
-            names.update(
-                checkpoint_name(self.campaign.run, self.campaign.attempt, job, cell)
-                for job in JOBS
-                for cell in RATES
-            )
+            names.update(self.campaign.checkpoint(job, cell) for job in JOBS for cell in RATES)
         artifacts = self.api.artifacts(self.campaign, names)
         grids, hashes = {}, {}
         for job, name in grid_names.items():
@@ -573,7 +652,7 @@ class Barrier:
         schema(checkpoints, " ".join(RATES), "grid checkpoints")
         for cell, saved in checkpoints.items():
             schema(saved, "name id sha256 index_sha256", "grid checkpoint")
-            name = checkpoint_name(self.campaign.run, self.campaign.attempt, job, cell)
+            name = self.campaign.checkpoint(job, cell)
             require(
                 saved["name"] == name
                 and positive(saved["id"])

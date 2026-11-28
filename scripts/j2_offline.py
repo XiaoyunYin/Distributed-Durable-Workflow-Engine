@@ -25,11 +25,18 @@ def utc_ns(value: str) -> int:
     return (delta.days * 86400 + delta.seconds) * SECOND + int((fraction or "").ljust(9, "0"))
 
 
-def clock_bounds(probes: dict, start: int, last_observation: int) -> int:
-    setup, final = [
-        [utc_ns(probes[phase][k]) for k in ("observer_before", "database", "observer_after")]
-        for phase in ("setup", "measured")
-    ]
+class ClockEvidenceError(ValueError):
+    """The recorded clock evidence cannot support a latency claim."""
+
+
+def clock_evidence(probes: dict, start: int, last_observation: int) -> dict:
+    fields = ("observer_before", "database", "observer_after")
+    try:
+        setup, final = [
+            [utc_ns(probes[phase][k]) for k in fields] for phase in ("setup", "measured")
+        ]
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise ClockEvidenceError("missing or malformed observer/DB clock bracket") from error
     if not (
         setup[0]
         <= setup[1]
@@ -40,8 +47,13 @@ def clock_bounds(probes: dict, start: int, last_observation: int) -> int:
         <= final[1]
         <= final[2]
     ):
-        raise ValueError("unspanned or invalid observer/DB clock bracket")
-    return max(setup[2] - setup[0], final[2] - final[0])
+        raise ClockEvidenceError("unspanned or invalid observer/DB clock bracket")
+    widths = {"setup": setup[2] - setup[0], "measured": final[2] - final[0]}
+    return {"valid": True, "bracket_widths_ns": widths, "uncertainty_ns": max(widths.values())}
+
+
+def clock_bounds(probes: dict, start: int, last_observation: int) -> int:
+    return clock_evidence(probes, start, last_observation)["uncertainty_ns"]
 
 
 def index(rows, key):
@@ -317,7 +329,7 @@ def drain_identities(admitted, acknowledged, succeeded, checked):
     }
 
 
-def bins_gate(rows, samples, start, end, sender_valid):
+def bins_gate(rows, samples, start, end, sender_valid, *, checked_expiry=False):
     measured = sorted(
         (row for row in rows if start <= row["scheduled_ns"] < end),
         key=lambda r: (r["scheduled_ns"], r["workflow_id"]),
@@ -335,6 +347,7 @@ def bins_gate(rows, samples, start, end, sender_valid):
                     lo <= r.get("terminal_ns", -1) < hi
                     for r in measured
                     if r.get("terminal_state") == "SUCCEEDED"
+                    and (not checked_expiry or r["status"] == "observed")
                 ),
                 "samples": actual,
                 "outstanding": mean(a for _, a, _ in actual) if actual and valid else None,
@@ -349,9 +362,18 @@ def bins_gate(rows, samples, start, end, sender_valid):
         and maximum_gap <= 5 * SECOND
         and len(times[1:-1]) == len(set(times[1:-1]))
         and all(b["outstanding"] is not None for b in bins)
-        and all(row["status"] == "observed" for row in measured)
+        and all(
+            row["status"] == "observed"
+            or (checked_expiry and row["status"] == "censored" and row.get("admitted") is True)
+            for row in measured
+        )
     )
-    evidence = {"bins": bins, "maximum_sample_gap_ns": maximum_gap, "complete_inputs": eligible}
+    complete = all(row["status"] == "observed" for row in measured)
+    evidence = {
+        "bins": bins,
+        "maximum_sample_gap_ns": maximum_gap,
+        "complete_inputs": eligible and complete,
+    }
     if not sender_valid or not eligible:
         return {
             **evidence,
@@ -359,26 +381,32 @@ def bins_gate(rows, samples, start, end, sender_valid):
         }
     arrivals = sum(b["arrivals"] for b in bins[1:])
     completions = sum(b["completions"] for b in bins[1:])
-    latencies = [r["raw_end_to_end_ns"] for r in measured]
-    n = len(latencies)
-    first, last = [sorted(latencies[i * n // 3 : (i + 1) * n // 3]) for i in (0, 2)]
-    first_stats, last_stats = [(median(xs), xs[rank(len(xs), 90)]) for xs in (first, last)]
+    first_stats = last_stats = passes_latency = None
+    if complete:
+        latencies = [r["raw_end_to_end_ns"] for r in measured]
+        n = len(latencies)
+        first, last = [sorted(latencies[i * n // 3 : (i + 1) * n // 3]) for i in (0, 2)]
+        first_stats, last_stats = [(median(xs), xs[rank(len(xs), 90)]) for xs in (first, last)]
+        passes_latency = all(
+            y <= max(1.25 * x, x + SECOND // 2)
+            for x, y in zip(first_stats, last_stats, strict=True)
+        )
     outstanding = [b["outstanding"] for b in bins]
     checks = {
         "4a": 100 * completions >= 95 * arrivals,
-        "4b": all(
-            y <= max(1.25 * x, x + SECOND // 2)
-            for x, y in zip(first_stats, last_stats, strict=True)
-        ),
+        "4b": passes_latency,
         "4c": outstanding[-1] <= outstanding[0] + 4
         and bins[-1]["unpublished"] <= bins[0]["unpublished"] + 20,
     }
     growth = (
         outstanding[3] < outstanding[4] < outstanding[5] and outstanding[5] - outstanding[3] > 4
     )
+    status = "pass" if complete else "unevaluable_gate"
+    if False in checks.values():
+        status = "failed_gate"
     return {
         **evidence,
-        "status": "pass" if all(checks.values()) else "failed_gate",
+        "status": status,
         "checks": checks,
         "pooled_arrivals": arrivals,
         "pooled_completions": completions,

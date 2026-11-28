@@ -1,6 +1,7 @@
 import io
 import sys
 import zipfile
+from dataclasses import replace
 from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError
@@ -168,6 +169,7 @@ class GitHub:
     ("scenario", "volume", "rate"),
     [
         ("eligible", 26678, "AB"),
+        ("eligible", 26677, "A"),
         ("eligible", 21002, "A"),
         ("no-eligible", 26678, barrier.NO_RATE),
     ],
@@ -188,6 +190,84 @@ def test_three_local_decisions_and_matching_reporting_bytes(scenario, volume, ra
     assert gh.barrier.decisions(decision, jobs).keys() == set(barrier.JOBS)
     assert any(host == "storage.example" for host, *_ in gh.requests)
     assert all("secret" not in str(event) for event in gh.log)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        None,
+        "bound",
+        "checked_count",
+        "window_count",
+        "resource_invalid",
+        "unverified_reset",
+        "incomplete",
+    ],
+)
+def test_registered_grid_binds_actual_window_counts(change):
+    gh = GitHub()
+    gh.campaign = replace(gh.campaign, scope=barrier.REGISTERED_GRID_SCOPE)
+
+    def population_rows(body):
+        for cell in body["cells"]:
+            offered = cell["counts"]["offered"]
+            checked = cell["counts"]["succeeded"]
+            warmup = barrier.population(cell["rate"], barrier.WARMUP)
+            warm_checked = min(warmup, checked)
+            cell["population"] = dict(
+                bound=offered,
+                scheduled=offered,
+                windows={
+                    "warmup": dict(
+                        scheduled=warmup, checked_success=warm_checked, in_window_success=0
+                    ),
+                    "grid": dict(
+                        scheduled=offered - warmup,
+                        checked_success=checked - warm_checked,
+                        in_window_success=0,
+                    ),
+                },
+            )
+            cell["recovery"] = None
+        population = body["cells"][0]["population"]
+        if change == "bound":
+            population["bound"] -= 1
+        elif change == "checked_count":
+            population["windows"]["grid"]["checked_success"] -= 1
+        elif change == "window_count":
+            population["windows"]["warmup"]["scheduled"] += 1
+        elif change in {"resource_invalid", "unverified_reset"}:
+            body["cells"][0].update(
+                outcome="invalid",
+                reason="resource_evidence",
+                recovery={
+                    "replaced_with": "AB",
+                    "telemetry_sha256": "a" * 64,
+                    "identity_sha256": "b" * 64,
+                    "series": ["j2_outstanding"],
+                }
+                if change == "resource_invalid"
+                else None,
+            )
+        elif change == "incomplete":
+            body["cells"].pop()
+
+    meta = gh.grid(1, change=population_rows)
+    body, _ = barrier.read_bundle(gh.blobs[meta["id"]], "grid")
+    if change in {None, "resource_invalid"}:
+        assert barrier.validate_grid(body, gh.campaign, 1, 101) == body
+        if change:
+            assert (
+                barrier.decide(
+                    dict.fromkeys(barrier.JOBS, body), dict.fromkeys(barrier.JOBS, "hash"), 26678
+                )["selected_rate"]
+                == "AB"
+            )
+    else:
+        with pytest.raises(
+            barrier.BarrierStop, match="population|invalid cell recovery|incomplete"
+        ):
+            barrier.validate_grid(body, gh.campaign, 1, 101)
 
 
 def test_paginated_lists_and_delayed_visibility_use_the_same_local_path(monkeypatch):

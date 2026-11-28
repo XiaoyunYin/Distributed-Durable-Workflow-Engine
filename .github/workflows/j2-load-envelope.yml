@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Unmeasured engineering job
+        description: J2 workflow mode
         type: choice
         options:
           - overlay
@@ -30,11 +30,41 @@ on:
           - harness-sender
           - harness-step
           - controls
+          - controls-r422
+          - r422-full-clock
           - rehearsal
+          - checked-cut-replay
+          - measure
+          - measure-replay
           - barrier-success
           - barrier-peer-failure
           - barrier-missing-peer
         default: overlay
+      campaign_id:
+        description: Reviewed campaign ID for measure, or eng-r422-A/AB label for full-clock engineering
+        type: string
+        required: false
+      source_run_id:
+        description: Frozen engineering source run for measure-replay
+        type: string
+        required: false
+      replay_case:
+        description: Replay all checkpoints, the engineering partial fixture, or the Release copy
+        type: choice
+        options: [full, partial, release]
+        default: full
+      release_tag:
+        description: Reviewed J2 evidence tag for Release replay
+        type: string
+        required: false
+      release_index:
+        description: Release evidence index filename
+        type: string
+        required: false
+      release_index_sha256:
+        description: Verified digest of the published Release evidence index
+        type: string
+        required: false
       compare_gomemlimit:
         description: Compare unset, 1100MiB and 1200MiB on this revision in pre-qualification
         type: boolean
@@ -46,13 +76,24 @@ on:
         type: choice
         options: ['1', '4', '8']
         default: '1'
+      r422_hold:
+        description: Full-clock R422 engineering hold rate
+        type: choice
+        options: [A, AB]
+        default: A
+      authorization_ref:
+        description: Leave empty for the R422 engineering lane, which refuses all authorization refs
+        type: string
+        required: false
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}-${{ inputs.mode || 'pr' }}
+  group: >-
+    j2-load-envelope-${{ github.ref }}-${{ github.event_name }}-${{ inputs.mode || 'pr' }}${{
+      inputs.mode == 'r422-full-clock' && format('-{0}', inputs.r422_hold) || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -350,12 +391,15 @@ jobs:
           retention-days: 90
 
   controls:
-    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'controls'
+    if: >-
+      github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'controls' || inputs.mode == 'controls-r422')
     name: J2 unmeasured controls
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     env:
       PYTHONDONTWRITEBYTECODE: '1'
+      J2_CONTROLS_MODE: ${{ inputs.mode }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -373,23 +417,33 @@ jobs:
         timeout-minutes: 4
         with:
           go-version: '1.27.4'
-      - name: Build the pinned stock K4 sender and reproduce the locked checker
+      - name: Build the selected sender and reproduce the locked checker
         timeout-minutes: 8
         shell: bash
         run: |
           evidence="$RUNNER_TEMP/j2-controls-evidence"
           binaries="$RUNNER_TEMP/j2-sender"
           {
-            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/stock" "$evidence/stock-build.json"
+            if [[ "$J2_CONTROLS_MODE" == controls-r422 ]]; then
+              [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
+              python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/sender" "$evidence/dispatch-build.json" \
+                --package ./cmd/j2-sender --dispatch-journal precommit-v1
+            else
+              python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/sender" "$evidence/stock-build.json"
+            fi
             python3 scripts/j2_checker.py "$binaries/checker"
           } 2>&1 | tee "$evidence/controls-build.log"
-      - name: Run all four controls
+      - name: Run the selected control set
         timeout-minutes: 74
         run: |
           binaries="$RUNNER_TEMP/j2-sender"
+          options=()
+          if [[ "$J2_CONTROLS_MODE" == controls-r422 ]]; then
+            options+=(--supplemental)
+          fi
           python3 scripts/j2_controls.py hosted "$RUNNER_TEMP/j2-controls-evidence" \
             "$RUNNER_TEMP/j2-controls-scratch" "$RUNNER_TEMP/j2-images-layouts" \
-            "$RUNNER_TEMP/j2-exporter-layouts" "$binaries/stock" "$binaries/checker"
+            "$RUNNER_TEMP/j2-exporter-layouts" "$binaries/sender" "$binaries/checker" "${options[@]}"
       - name: Seal controls evidence
         id: seal
         if: always()
@@ -399,7 +453,7 @@ jobs:
         if: always() && steps.seal.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-controls-evidence/
           if-no-files-found: error
           compression-level: 1
@@ -408,7 +462,7 @@ jobs:
         if: always() && (steps.seal.outcome != 'success' || steps.upload.outcome != 'success')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-controls-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-controls-evidence/
           if-no-files-found: warn
           retention-days: 90
@@ -429,8 +483,12 @@ jobs:
           endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
           python3 scripts/j2_artifact_fetch.py "$endpoint" "$receipt" "$archive"
           python3 scripts/j2_harness_evidence.py verify-upload \
-            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode controls
-          python3 scripts/j2_controls.py replay "$archive" "$receipt/offline-replay.json"
+            "$archive" "$receipt/artifact.json" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode "$J2_CONTROLS_MODE"
+          options=()
+          if [[ "$J2_CONTROLS_MODE" == controls-r422 ]]; then
+            options+=(--supplemental)
+          fi
+          python3 scripts/j2_controls.py replay "$archive" "$receipt/offline-replay.json" "${options[@]}"
           {
             printf 'Verified J2 controls evidence [%s](%s)\n\n' "$ARTIFACT_ID" "$ARTIFACT_URL"
             jq -r '"SHA-256 \(.digest) · expires \(.expires_at)"' "$receipt/artifact.json"
@@ -439,10 +497,206 @@ jobs:
         if: always() && steps.verify-archive.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-controls-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          name: j2-${{ inputs.mode }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-controls-receipt/
           if-no-files-found: error
           retention-days: 90
+
+  r422-full-clock:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'r422-full-clock'
+    name: J2 R422 engineering job ${{ matrix.job }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        job: [1, 2, 3]
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GOMAXPROCS: '2'
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+      J2_R422_HOLD: ${{ inputs.r422_hold }}
+      J2_AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
+      J2_JOB: ${{ matrix.job }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Reject registered IDs and authorization refs
+        timeout-minutes: 1
+        run: python3 scripts/j2_r422_lane.py gate
+      - name: Restore the measured profile images
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir "$RUNNER_TEMP/j2-r422-live"
+          bash scripts/j2_restore_images.sh 2>&1 | tee "$RUNNER_TEMP/j2-r422-live/image-restore.log"
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the pinned J2 sender and locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          tooling="$RUNNER_TEMP/j2-r422-tooling"
+          python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$tooling/sender" \
+            "$RUNNER_TEMP/j2-r422-live/dispatch-build.json" --package ./cmd/j2-sender --dispatch-journal precommit-v1
+          python3 scripts/j2_checker.py "$tooling/checker"
+      - name: Run one full-clock engineering episode
+        timeout-minutes: 75
+        run: |
+          tooling="$RUNNER_TEMP/j2-r422-tooling"
+          python3 scripts/j2_r422_lane.py hosted "$J2_JOB" "$RUNNER_TEMP/j2-r422-live" \
+            "$RUNNER_TEMP/j2-r422-scratch" "$RUNNER_TEMP/j2-images-layouts" \
+            "$RUNNER_TEMP/j2-exporter-layouts" "$tooling/sender" "$tooling/checker"
+      - name: Seal the complete or partial evidence
+        id: seal
+        if: always()
+        timeout-minutes: 2
+        run: python3 scripts/j2_harness_evidence.py seal "$RUNNER_TEMP/j2-r422-live"
+      - name: Retain the sealed archive
+        id: upload
+        if: always() && steps.seal.outcome == 'success'
+        timeout-minutes: 4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-${{ github.run_id }}-${{ github.run_attempt }}-job-${{ matrix.job }}
+          path: ${{ runner.temp }}/j2-r422-live/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Retain unsealed evidence if sealing or upload failed
+        if: always() && (steps.seal.outcome != 'success' || steps.upload.outcome != 'success')
+        timeout-minutes: 3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-unsealed-${{ github.run_id }}-${{ github.run_attempt }}-job-${{ matrix.job }}
+          path: ${{ runner.temp }}/j2-r422-live/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Verify the uploaded archive
+        if: always() && steps.upload.outcome == 'success'
+        timeout-minutes: 4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          receipt="$RUNNER_TEMP/j2-r422-live-receipt"
+          mkdir "$receipt"
+          archive="$RUNNER_TEMP/j2-r422-live.zip"
+          trap 'rm -f "$archive"' EXIT
+          python3 scripts/j2_artifact_fetch.py "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" \
+            "$receipt" "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload "$archive" "$receipt/artifact.json" \
+            "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode r422-full-clock --job "$J2_JOB"
+      - name: Retain upload verification
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-receipt-${{ github.run_id }}-${{ github.run_attempt }}-job-${{ matrix.job }}
+          path: ${{ runner.temp }}/j2-r422-live-receipt/
+          if-no-files-found: warn
+          retention-days: 90
+
+  r422-full-clock-replay:
+    needs: r422-full-clock
+    if: always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'r422-full-clock'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GOMAXPROCS: '2'
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+      J2_R422_HOLD: ${{ inputs.r422_hold }}
+      J2_AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Anchor the replay and its closeout
+        timeout-minutes: 1
+        run: |
+          printf 'J2_REPLAY_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/j2-r422-replay"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Reject registered IDs and authorization refs
+        timeout-minutes: 1
+        run: python3 scripts/j2_r422_lane.py gate
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the locked checker
+        timeout-minutes: 4
+        run: python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-r422-tooling/checker"
+      - name: Replay the three frozen archives without a live cluster
+        timeout-minutes: 69
+        run: |
+          python3 scripts/j2_r422_lane.py replay "$RUNNER_TEMP/j2-r422-replay" \
+            "$RUNNER_TEMP/j2-r422-tooling/checker"
+      - name: Seal the complete or partial evidence
+        id: seal
+        if: always()
+        timeout-minutes: 1
+        run: python3 scripts/j2_harness_evidence.py seal "$RUNNER_TEMP/j2-r422-replay"
+      - name: Retain the sealed archive
+        id: upload
+        if: always() && steps.seal.outcome == 'success'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-r422-replay/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Retain unsealed evidence if sealing or upload failed
+        if: always() && (steps.seal.outcome != 'success' || steps.upload.outcome != 'success')
+        timeout-minutes: 3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-replay-unsealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-r422-replay/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Verify the uploaded archive
+        if: always() && steps.upload.outcome == 'success'
+        timeout-minutes: 4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          receipt="$RUNNER_TEMP/j2-r422-replay-receipt"
+          mkdir "$receipt"
+          archive="$RUNNER_TEMP/j2-r422-replay.zip"
+          trap 'rm -f "$archive"' EXIT
+          python3 scripts/j2_artifact_fetch.py "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" \
+            "$receipt" "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload "$archive" "$receipt/artifact.json" \
+            "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode r422-full-clock-replay
+      - name: Retain upload verification
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-r422-full-clock-replay-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-r422-replay-receipt/
+          if-no-files-found: warn
+          retention-days: 90
+
 
   rehearsal:
     if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'rehearsal'
@@ -595,6 +849,327 @@ jobs:
           retention-days: 90
           overwrite: false
 
+  measure:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'measure'
+    name: J2 measure job-${{ matrix.job }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ startsWith(inputs.campaign_id, 'eng-') && 180 || 350 }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        job: [1, 2, 3]
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      J2_JOB: ${{ matrix.job }}
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind reviewer authorization to this runner attempt
+        id: begin
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          export J2_INTEGRATED_ROOT="$RUNNER_TEMP/j2-measure"
+          printf 'J2_INTEGRATED_ROOT=%s\n' "$J2_INTEGRATED_ROOT" >> "$GITHUB_ENV"
+          python3 scripts/j2_measure.py begin "$J2_INTEGRATED_ROOT" "$J2_JOB" "$J2_CAMPAIGN"
+      - name: Retain pre-bootstrap authorization rejection
+        if: always() && steps.begin.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-authorization-stop-${{ github.run_id }}-${{ github.run_attempt }}-job-${{ matrix.job }}
+          path: ${{ runner.temp }}/j2-measure/final/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Verify controls applicability at this head
+        timeout-minutes: 6
+        run: python3 scripts/j2_measure.py controls "$J2_INTEGRATED_ROOT"
+      - name: Restore retained images
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/j2_restore_images.sh 2>&1 | tee "$J2_INTEGRATED_ROOT/final/image-restore.log"
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the verified precommit sender and locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          binaries="$RUNNER_TEMP/j2-measure-tooling"
+          evidence="$J2_INTEGRATED_ROOT/final"
+          {
+            python3 scripts/j2_build_sender.py "$GITHUB_SHA" "$binaries/sender" \
+              "$evidence/dispatch-build.json" --package ./cmd/j2-sender --dispatch-journal precommit-v1
+            python3 scripts/j2_checker.py "$binaries/checker"
+          } 2>&1 | tee "$evidence/build.log"
+      - name: Bootstrap an authorized runner profile
+        id: driver
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          binaries="$RUNNER_TEMP/j2-measure-tooling"
+          python3 -u scripts/j2_measure.py serve "$J2_INTEGRATED_ROOT" \
+            "$RUNNER_TEMP/j2-images-layouts" "$RUNNER_TEMP/j2-exporter-layouts" \
+            "$binaries/sender" "$binaries/checker" \
+            > "$J2_INTEGRATED_ROOT/driver.log" 2>&1 </dev/null &
+          echo "$!" > "$J2_INTEGRATED_ROOT/driver.pid"
+          python3 scripts/j2_measure.py ready "$J2_INTEGRATED_ROOT"
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '1'
+          driver: measure
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '2'
+          driver: measure
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '3'
+          driver: measure
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '4'
+          driver: measure
+      - uses: ./.github/actions/j2-integrated-cell
+        with:
+          job: ${{ matrix.job }}
+          slot: '5'
+          driver: measure
+      - name: Prepare the real grid evidence index
+        id: grid
+        run: python3 scripts/j2_measure.py prepare-grid "$J2_INTEGRATED_ROOT"
+      - name: Publish the grid evidence index
+        id: grid-evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.grid.outputs.evidence_name }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/grid-evidence/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Bind the published evidence to the grid
+        env:
+          GRID_EVIDENCE_ID: ${{ steps.grid-evidence.outputs.artifact-id }}
+          GRID_EVIDENCE_DIGEST: ${{ steps.grid-evidence.outputs.artifact-digest }}
+        run: python3 scripts/j2_measure.py publish-grid "$J2_INTEGRATED_ROOT"
+      - name: Publish the real grid
+        id: grid-upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.grid.outputs.grid_name }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/grid/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Compute an independent decision at the barrier
+        id: barrier
+        timeout-minutes: 47
+        env:
+          GRID_ID: ${{ steps.grid-upload.outputs.artifact-id }}
+          GRID_DIGEST: ${{ steps.grid-upload.outputs.artifact-digest }}
+        run: python3 scripts/j2_measure.py barrier "$J2_INTEGRATED_ROOT"
+      - name: Publish the independent decision
+        id: decision
+        if: steps.barrier.outputs.publish_decision == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.grid.outputs.decision_name }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/decision/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Verify the local receipt and follow its decision
+        id: soak
+        if: steps.decision.outcome == 'success'
+        timeout-minutes: 60
+        env:
+          DECISION_ID: ${{ steps.decision.outputs.artifact-id }}
+          DECISION_DIGEST: ${{ steps.decision.outputs.artifact-digest }}
+        run: python3 scripts/j2_measure.py soak "$J2_INTEGRATED_ROOT"
+      - name: Publish a checked continuous episode
+        id: soak-upload
+        if: steps.soak.outputs.sealed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.soak.outputs.checkpoint }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/driver/soak/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Bind the continuous episode to its upload
+        if: steps.soak-upload.outcome == 'success'
+        env:
+          CHECKPOINT_ID: ${{ steps.soak-upload.outputs.artifact-id }}
+          CHECKPOINT_DIGEST: ${{ steps.soak-upload.outputs.artifact-digest }}
+        run: python3 scripts/j2_measure.py receipt "$J2_INTEGRATED_ROOT" "$J2_JOB" soak
+      - name: Verify teardown and seal the dispatch disposition
+        id: finish
+        if: always() && steps.begin.outcome == 'success'
+        timeout-minutes: 12
+        run: python3 scripts/j2_measure.py finish "$J2_INTEGRATED_ROOT"
+      - name: Retain the dispatch, checkpoint index and teardown receipts
+        id: final-upload
+        if: always() && steps.finish.outputs.sealed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.begin.outputs.final_name }}
+          path: ${{ env.J2_INTEGRATED_ROOT }}/final/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retain partial evidence after a stopped job
+        if: always() && steps.begin.outcome == 'success' && (failure() || steps.final-upload.outcome != 'success')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.begin.outputs.final_name }}-partial
+          path: |
+            ${{ env.J2_INTEGRATED_ROOT }}/final/
+            ${{ env.J2_INTEGRATED_ROOT }}/driver/
+            ${{ env.J2_INTEGRATED_ROOT }}/driver.log
+          if-no-files-found: warn
+          compression-level: 1
+          retention-days: 90
+
+  measure-receipts:
+    needs: measure
+    if: always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'measure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify the dispatch receipts and compare the live decisions
+        timeout-minutes: 7
+        run: python3 scripts/j2_measure.py report "$RUNNER_TEMP/j2-measure-receipts" "$J2_CAMPAIGN"
+      - name: Retain the dispatch manifest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-measure-receipts/
+          if-no-files-found: error
+          retention-days: 90
+
+  measure-replay:
+    needs: [measure, measure-receipts]
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private
+      && (inputs.mode == 'measure'
+        || (inputs.mode == 'measure-replay' && (startsWith(inputs.campaign_id, 'eng-')
+          || (inputs.campaign_id == 'j2-load-envelope-v1' && inputs.replay_case == 'release'))))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      J2_MODE: ${{ inputs.mode }}
+      J2_CAMPAIGN: ${{ inputs.campaign_id }}
+      J2_SOURCE_RUN: ${{ inputs.source_run_id }}
+      J2_REPLAY_CASE: ${{ inputs.replay_case }}
+      J2_RELEASE_TAG: ${{ inputs.release_tag }}
+      J2_RELEASE_INDEX: ${{ inputs.release_index }}
+      J2_RELEASE_INDEX_SHA256: ${{ inputs.release_index_sha256 }}
+    steps:
+      - name: Anchor the reporter and its final upload reserve
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          printf 'J2_REPLAY_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/j2-measure-replay"
+          printf '{"status":"partial","reason":"reporter bootstrap has not finished"}\n' \
+            > "$RUNNER_TEMP/j2-measure-replay/reporter-start.json"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        timeout-minutes: 2
+        with:
+          go-version: '1.27.4'
+      - name: Build the frozen checker
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-measure-replay-tooling/checker" \
+            2>&1 | tee "$RUNNER_TEMP/j2-measure-replay/checker-build.log"
+      - name: Replay the complete or partial evidence archive
+        timeout-minutes: 72
+        shell: bash
+        run: |
+          options=(--campaign-id "$J2_CAMPAIGN")
+          if [[ "$J2_MODE" == measure-replay ]]; then
+            options+=(--source-run "${J2_SOURCE_RUN:?Select the frozen source run}" --case "$J2_REPLAY_CASE")
+            if [[ "$J2_REPLAY_CASE" == release ]]; then
+              options+=(--release-tag "$J2_RELEASE_TAG" --release-index "$J2_RELEASE_INDEX")
+              options+=(--release-index-sha256 "$J2_RELEASE_INDEX_SHA256")
+            fi
+          fi
+          python3 scripts/j2_measure_replay.py "$RUNNER_TEMP/j2-measure-replay" \
+            "$RUNNER_TEMP/j2-measure-replay-tooling/checker" "${options[@]}"
+      - name: Seal any partial output and anchor upload timing
+        id: seal
+        if: always()
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-measure-replay"
+          if [[ ! -f "$evidence/freeze.json" ]]; then
+            python3 scripts/j2_harness_evidence.py seal "$evidence"
+          fi
+          printf 'J2_REPLAY_UPLOAD_START=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+      - name: Upload the complete or partial replay report
+        id: upload
+        if: always()
+        timeout-minutes: 3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-measure-replay/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 90
+      - name: Verify uploaded bytes and retain upload timing
+        if: always() && steps.seal.outcome == 'success' && steps.upload.outcome == 'success'
+        timeout-minutes: 4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          receipt="$RUNNER_TEMP/j2-measure-replay-receipt"
+          mkdir "$receipt"
+          archive="$RUNNER_TEMP/j2-measure-replay.zip"
+          trap 'rm -f "$archive"' EXIT
+          endpoint="repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+          python3 scripts/j2_artifact_fetch.py "$endpoint" "$receipt" "$archive"
+          python3 scripts/j2_harness_evidence.py verify-upload "$archive" "$receipt/artifact.json" \
+            "$ARTIFACT_ID" "$ARTIFACT_DIGEST" --mode measure-replay
+          elapsed="$(($(date +%s) - J2_REPLAY_UPLOAD_START))"
+          printf '{"verified_upload_seconds":%s,"reserve_minutes":9}\n' "$elapsed" > "$receipt/upload-timing.json"
+          (( elapsed <= 540 ))
+      - name: Upload the replay verification receipt
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-measure-replay-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-measure-replay-receipt/
+          if-no-files-found: warn
+          retention-days: 90
+
   rehearsal-replay:
     needs: rehearsal
     if: always() && github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'rehearsal'
@@ -664,6 +1239,46 @@ jobs:
           name: j2-rehearsal-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/j2-rehearsal-report/
           if-no-files-found: warn
+          compression-level: 1
+          retention-days: 90
+
+  checked-cut-replay:
+    if: github.event_name == 'workflow_dispatch' && !github.event.repository.private && inputs.mode == 'checked-cut-replay'
+    name: J2 engineering checked-cut replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-go@v5
+        timeout-minutes: 4
+        with:
+          go-version: '1.27.4'
+      - name: Build the locked checker
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          evidence="$RUNNER_TEMP/j2-checked-cut-replay"
+          mkdir "$evidence"
+          python3 scripts/j2_checker.py "$RUNNER_TEMP/j2-checked-cut-tooling/checker" \
+            2>&1 | tee "$evidence/checker-build.log"
+      - name: Check and independently replay the full-clock offline fixtures
+        timeout-minutes: 17
+        run: |
+          python3 scripts/j2_checked_cut_fixture.py "$RUNNER_TEMP/j2-checked-cut-replay" \
+            "$RUNNER_TEMP/j2-checked-cut-tooling/checker"
+      - name: Retain sealed or partial fixture evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-checked-cut-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-checked-cut-replay/
+          if-no-files-found: error
           compression-level: 1
           retention-days: 90
 

@@ -18,6 +18,59 @@ import j2_schedule_rehearsal as hosted  # noqa: E402
 ORIGIN = 1770000000000000123
 
 
+def test_registered_seed_vectors_and_full_clock_grids():
+    seed_vectors = [
+        (1426106575, 1742851801, 1060202648, 70083013, 1033756114, 1095245634),
+        (1109648580, 503431455, 1059041179, 1406386298, 1565863420, 860635896),
+        (847169362, 1011146882, 358256245, 1045617279, 249272679, 1723342071),
+    ]
+    for job, seeds in enumerate(seed_vectors, 1):
+        for cell, seed, count in zip(
+            (*schedule.RATES, "soak"), seeds, (5138, 7267, 10276, 13418, 17519, 26677), strict=True
+        ):
+            plan = schedule.registered_schedule(
+                schedule.MEASURED_CAMPAIGN,
+                f"job-{job}",
+                cell,
+                "run",
+                "app",
+                ORIGIN,
+                "AB" if cell == "soak" else cell,
+            )
+            slots = list(schedule.schedule_slots(plan))
+            assert plan["seed"] == seed and plan["count"] == len(slots) == count
+            assert slots[0][0] == ORIGIN and slots[-1][1] == plan["stop_ns"]
+            assert plan["warmup_end_ns"] == ORIGIN + 120 * schedule.SECOND
+            if cell != "soak":
+                assert plan["stop_ns"] == ORIGIN + 720 * schedule.SECOND
+                assert plan["population_bound"] == count
+
+
+@pytest.mark.parametrize(
+    ("rate", "counts", "bound"),
+    [
+        ("A", [857, 12845, 7300], 21002),
+        ("AB", [1212, 18165, 7300], 26678),
+    ],
+)
+def test_registered_soak_uses_one_uninterrupted_clock(rate, counts, bound):
+    plan = schedule.registered_schedule(
+        schedule.MEASURED_CAMPAIGN, "job-1", "soak", "run", "app", ORIGIN, rate
+    )
+    windows = [ORIGIN, plan["warmup_end_ns"], plan["hold_end_ns"], plan["stop_ns"]]
+    assert windows == [ORIGIN + n * schedule.SECOND for n in (0, 120, 1920, 2220)]
+    slots = list(schedule.schedule_slots(plan))
+    assert [
+        sum(lo <= ts < hi for ts, _ in slots)
+        for lo, hi in zip(windows[:-1], windows[1:], strict=True)
+    ] == counts
+    assert slots[sum(counts[:2])][0] == plan["hold_end_ns"]
+    assert slots[sum(counts[:2]) - 1][1] == plan["hold_end_ns"]
+    assert plan["count"] == sum(counts) and plan["population_bound"] == bound
+    with pytest.raises(ValueError, match="population bound"):
+        schedule.registered_population({**plan, "population_bound": 1}, {})
+
+
 def stock_plan(period):
     rows = []
     for i in range(period["count"]):

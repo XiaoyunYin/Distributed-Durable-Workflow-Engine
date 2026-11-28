@@ -18,12 +18,253 @@ from j2_checker_report import (
     indexed_report,
     require_checker_pass,
 )
-from j2_offline import SECOND, attempt_key, clock_bounds, drain_identities, join
+from j2_offline import SECOND, ClockEvidenceError, attempt_key, clock_bounds, drain_identities, join
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
-from j2_schedule import k4_report, schedule_slots
+from j2_schedule import schedule_slots, sender_report
 
 QUIET_NS = 30 * SECOND
 POLL_SECONDS = 2
+STATE_READ_SCHEMA = "j2.state-reads.v1"
+STATE_READ_LOG = "state-reads.jsonl"
+DRAIN_POLL_LOG = "drain-polls.jsonl"
+STOP_READ = "scheduled-stop-read.json"
+BRACKET_FIELDS = ("lower_mono_ns", "upper_mono_ns", "lower_unix_ns", "upper_unix_ns")
+
+
+class StateReadError(OSError):
+    def __init__(self, record):
+        super().__init__(record["error"])
+        self.record = record
+
+
+def retain_read_error(error, retain, now):
+    record = error.record if isinstance(error, StateReadError) else {"error": str(error)}
+    retain("read-error", {**record, "at_ns": now()})
+
+
+def state_read_members(schedule):
+    version = schedule.get("state_read_evidence")
+    require(version in (None, STATE_READ_SCHEMA), "unknown state-read evidence schema")
+    if version is None:
+        return ()
+    return (STATE_READ_LOG, DRAIN_POLL_LOG, "deadline-anchor.json")
+
+
+def with_state_read_schema(expected, schedule, *, required=False):
+    versioned = bool(state_read_members(schedule))
+    require(versioned or not required, "state-read evidence schema missing")
+    return {**expected, "state_read_evidence": STATE_READ_SCHEMA} if versioned else expected
+
+
+def state_read_binding(root):
+    return {
+        name: file_record(root / name)
+        for name in (STATE_READ_LOG, DRAIN_POLL_LOG, STOP_READ, "initial.json")
+        if (root / name).is_file()
+    }
+
+
+def read_jsonl(path):
+    with path.open(encoding="utf-8") as stream:
+        return [json.loads(line) for line in stream]
+
+
+def verify_read_bracket(row, earliest):
+    require(
+        all(type(row.get(key)) is int for key in (*BRACKET_FIELDS, "duration_ns"))
+        and earliest <= row["lower_mono_ns"] <= row["upper_mono_ns"]
+        and row["lower_unix_ns"] <= row["upper_unix_ns"]
+        and row["duration_ns"] == row["upper_mono_ns"] - row["lower_mono_ns"],
+        "state-read bracket or duration differs",
+    )
+
+
+def verify_contention(row):
+    contention = row.get("contention")
+    if row["timed_out"] is False:
+        require(contention is None, "unexpected contention capture on a non-timeout")
+        return row["upper_mono_ns"]
+    require(
+        row["timed_out"] is True and isinstance(contention, dict),
+        "timed-out state read is missing contention evidence",
+    )
+    verify_read_bracket(contention, row["upper_mono_ns"])
+    if contention["status"] == "ok":
+        for name, fields in (
+            ("pg_stat_activity", {"pid", "wait_event_type", "wait_event"}),
+            ("pg_locks", {"pid", "locktype", "mode", "granted"}),
+        ):
+            require(
+                isinstance(contention.get(name), list)
+                and all(
+                    isinstance(entry, dict) and fields <= entry.keys() for entry in contention[name]
+                ),
+                f"invalid {name} contention evidence",
+            )
+    else:
+        require(
+            contention["status"] == "error" and bool(contention.get("error")),
+            "unexplained contention capture failure",
+        )
+    return contention["upper_mono_ns"]
+
+
+def verify_state_reads(root, schedule, result, final, expected, sender):
+    """Bind the post-stop read attempts to the retained drain decisions."""
+    version = state_read_members(schedule)
+    if not version:
+        require(
+            "state_read_binding" not in result and not (root / STATE_READ_LOG).exists(),
+            "unversioned schedule carries state-read evidence",
+        )
+        return
+    require(
+        result["state_read_binding"] == state_read_binding(root), "state-read evidence hash differs"
+    )
+    anchor = read(root / "deadline-anchor.json")
+    stop = anchor["stop_mono_ns"]
+    deadline = stop + DRAIN_SECONDS * SECOND
+    require(
+        stop - anchor["anchor_mono_ns"] == schedule["stop_ns"] - anchor["anchor_unix_ns"]
+        and result["deadline_mono_ns"] == deadline,
+        "state reads do not bind the scheduled drain clock",
+    )
+    records = read_jsonl(root / STATE_READ_LOG)
+    observed_reads = read_jsonl(root / "terminal-polls.jsonl")
+
+    def bracket_key(row):
+        return tuple(row.get(field) for field in (*BRACKET_FIELDS, "duration_ns"))
+
+    observed_brackets = {bracket_key(row) for row in observed_reads}
+    errors, successful = {}, {}
+    previous = stop
+    sender_phase = True
+    for index, row in enumerate(records, 1):
+        verify_read_bracket(row, previous)
+        phase = row["phase"]
+        # The driver can reach its deadline between the loop's time check and
+        # starting the read. Retain a final refused attempt without crediting it.
+        refused_at_deadline = (
+            index == len(records)
+            and row["status"] == "error"
+            and result.get("classification") == "drain_failure"
+        )
+        require(
+            row["read_id"] == index
+            and (row["lower_mono_ns"] < deadline or refused_at_deadline)
+            and (phase in {"drain", "post-check"} or (sender_phase and phase == "sender"))
+            and type(row["db_duration_ns"]) is int
+            and 0 <= row["db_duration_ns"] <= row["duration_ns"],
+            "state-read identity, phase or database duration differs",
+        )
+        sender_phase &= phase == "sender"
+        previous = row["upper_mono_ns"]
+        if row["status"] == "error":
+            require(
+                isinstance(row["error"], str)
+                and bool(row["error"])
+                and row["source"] in {"database", "witness"},
+                "invalid retained state error",
+            )
+            previous = verify_contention(row)
+            errors[index] = row, previous
+        else:
+            require(
+                row["status"] == "ok"
+                and bracket_key(row) in observed_brackets
+                and isinstance(row["fingerprint"], str)
+                and len(row["fingerprint"]) == 64,
+                "successful state read is missing its terminal poll or fingerprint",
+            )
+            if row["upper_mono_ns"] <= deadline:
+                successful[index] = row
+
+    def linked(snapshot, *, digest=None):
+        index = snapshot.get("read_id")
+        require(type(index) is int and index in successful, "missing in-deadline state read")
+        row = successful[index]
+        require(
+            bracket_key(snapshot) == bracket_key(row)
+            and (digest if digest is not None else fingerprint(snapshot)) == row["fingerprint"],
+            "state snapshot or poll differs from retained read",
+        )
+        return row
+
+    files = result["state_read_binding"]
+    if successful:
+        initial = read(root / STOP_READ)
+        require(
+            initial == read(root / "initial.json")
+            and linked(initial)["read_id"] == min(successful),
+            "initial snapshot is not the first successful post-stop read",
+        )
+    else:
+        require(
+            not ({STOP_READ, "initial.json"} & files.keys()),
+            "initial snapshot exists without a successful read",
+        )
+
+    polled = set()
+    last_event = 0
+    quiet_start = None
+    for entry in read_jsonl(root / DRAIN_POLL_LOG):
+        event, index = entry["event"], entry.get("read_id")
+        if event == "read-error":
+            quiet_start = None
+            if index is None:
+                require(
+                    entry["error"] == "engineering fixture delays the qualifying quiet read"
+                    and stop <= entry["at_ns"] <= deadline,
+                    "unbound state-read error",
+                )
+                continue
+            require(type(index) is int and index in errors, "unbound or repeated state-read error")
+            record, completed = errors.pop(index)
+            require(
+                completed <= entry["at_ns"]
+                and {k: v for k, v in entry.items() if k not in {"event", "at_ns"}} == record,
+                "state-read error differs from its retained bracket or diagnostic",
+            )
+        elif event == "poll":
+            row = linked(entry, digest=entry["fingerprint"])
+            require(row["phase"] == "drain", "drain poll used a non-drain read")
+            polled.add(index)
+            if not entry["ready"] or entry["fingerprint"] != result["final_fingerprint"]:
+                quiet_start = None
+        elif event == "quiet-start":
+            require(linked(entry)["phase"] == "post-check", "quiet used a non-check bracket")
+            quiet_start = (
+                entry
+                if fingerprint(entry) == result["final_fingerprint"]
+                and readiness(entry, expected, sender)["ready"]
+                else None
+            )
+        else:
+            require(event in {"check-invalid", "check-retry"}, "unknown state-read drain event")
+            quiet_start = None
+            continue
+        require(type(index) is int and index > last_event, "unordered state-read drain events")
+        last_event = index
+    require(
+        not errors and polled == {i for i, row in successful.items() if row["phase"] == "drain"},
+        "missing state-read drain events",
+    )
+    if result.get("classification") == "drain_failure":
+        if result["last_verified_read"] is not None:
+            linked(result["last_verified_read"])
+    else:
+        last = linked(final)
+        require(
+            last["read_id"] == last_event
+            and last["read_id"] in polled
+            and quiet_start is not None
+            and readiness(final, expected, sender)["ready"]
+            and quiet_start["upper_mono_ns"] == result["quiet_start_upper_mono_ns"]
+            and final["lower_mono_ns"] == result["quiet_end_lower_mono_ns"]
+            and final["lower_mono_ns"] - quiet_start["upper_mono_ns"] >= QUIET_NS
+            and result["drain_seconds"] == (final["upper_mono_ns"] - stop) / SECOND,
+            "state-read evidence does not prove an uninterrupted quiet interval",
+        )
 
 
 class DrainExpired(TimeoutError):
@@ -38,9 +279,8 @@ def json_bytes(value, *, sort_keys=True):
     return json.dumps(value, separators=(",", ":"), sort_keys=sort_keys).encode()
 
 
-def expected_arrivals(raw, schedule):
-    # k4_report verifies schedule geometry independently of the header rate.
-    report = k4_report(raw, schedule, [])
+def expected_arrivals(raw, schedule, *, schedule_sha256=None):
+    report = sender_report(raw, schedule, [], schedule_sha256=schedule_sha256)
     manifest = json.loads(raw.split(b"\n", 1)[0])["plan"]
     arrivals = {}
     for i, (row, (scheduled, _)) in enumerate(
@@ -91,6 +331,14 @@ def expected_arrivals(raw, schedule):
                 f"journal request hash differs: {key}",
             )
             require(event["status"] != 429, f"unexpected HTTP 429: {key}")
+        elif event["event"] == "intent":
+            key = event["key"]
+            require(
+                event["request_sha256"] == arrivals[key]["request_hash"],
+                f"journal request hash differs: {key}",
+            )
+        elif event["event"] == "outcome":
+            require(event["status"] != 429, f"unexpected HTTP 429: {event['key']}")
     return arrivals, report
 
 
@@ -246,12 +494,18 @@ def quiet_drain(
     expected,
     sender,
     retain,
+    initial=None,
+    observe_after=None,
     now=time.monotonic_ns,
     sleep=time.sleep,
 ):
     """Check a candidate before starting quiet, then verify it through the last read."""
     deadline = stop_ns + DRAIN_SECONDS * SECOND
-    initial = last = None
+    last = None
+    if initial is not None:
+        retain("initial", initial)
+    if observe_after is None:
+        observe_after = observe
     quiet_upper = None
     checked_digest = None
     checker_completed = None
@@ -260,7 +514,7 @@ def quiet_drain(
             state = observe()
         except (OSError, TimeoutError) as error:
             quiet_upper = checked_digest = None
-            retain("read-error", {"error": str(error), "at_ns": now()})
+            retain_read_error(error, retain, now)
         else:
             if state["upper_mono_ns"] > deadline or state["lower_mono_ns"] < stop_ns:
                 break
@@ -275,10 +529,8 @@ def quiet_drain(
                 {
                     **predicates,
                     "fingerprint": digest,
-                    "lower_mono_ns": state["lower_mono_ns"],
-                    "upper_mono_ns": state["upper_mono_ns"],
-                    "lower_unix_ns": state["lower_unix_ns"],
-                    "upper_unix_ns": state["upper_unix_ns"],
+                    **{key: state[key] for key in BRACKET_FIELDS},
+                    **{key: state[key] for key in ("read_id", "duration_ns") if key in state},
                 },
             )
             if not predicates["ready"]:
@@ -294,12 +546,12 @@ def quiet_drain(
                 except (ValueError, RuntimeError, OSError) as error:
                     problem = error
                 checker_completed = now()
-                if checker_completed > deadline:
+                if checker_completed >= deadline:
                     break
                 try:
-                    after = observe()
+                    after = observe_after()
                 except (OSError, TimeoutError) as error:
-                    retain("read-error", {"error": str(error), "at_ns": now()})
+                    retain_read_error(error, retain, now)
                 else:
                     if after["upper_mono_ns"] > deadline:
                         break
@@ -333,14 +585,8 @@ def quiet_drain(
     expire_drain(stop_ns, deadline, last, check_expiry, expected, sender, retain, now=now)
 
 
-def checked_results(
-    report, expected, sender, witness, polls, uncertainty, observed, *, expiry=None
-):
-    require_checker_pass(report)
-    trace = report["trace"]
-    submissions = trace["Submissions"]
-    admitted = [s["WorkflowID"] for s in submissions]
-    admitted_ids = set(admitted)
+def checked_submission_keys(submissions, expected):
+    admitted = []
     for s in submissions:
         key = s["WorkflowID"]
         require(
@@ -350,6 +596,28 @@ def checked_results(
             and s["Namespace"] == expected[key]["namespace"],
             f"checked durable key or payload hash differs: {key}",
         )
+        admitted.append(key)
+    return admitted
+
+
+def checked_results(
+    report,
+    expected,
+    sender,
+    witness,
+    polls,
+    uncertainty,
+    observed,
+    *,
+    expiry=None,
+    snapshot_only=False,
+):
+    require_checker_pass(report)
+    trace = report["trace"]
+    admitted = checked_submission_keys(trace["Submissions"], expected)
+    admitted_ids = set(admitted)
+    if admitted_ids.intersection(sender["explicitly_unsent"]):
+        raise IntegrityError("explicitly refused identity has a checked durable admission")
     pending = report["non_terminal"]
     if expiry is None:
         require(not pending, "locked checker failed terminal checks")
@@ -366,9 +634,14 @@ def checked_results(
             "checked identities or pending set differ from the expiry snapshot",
         )
     completed = admitted_ids - set(pending)
-    identities = drain_identities(
-        admitted, sender["acknowledged"], admitted, report["workflow_ids"]
-    )
+    checked_ids = report.get("workflow_ids")
+    if snapshot_only:
+        require(checked_ids is None, "offline checker unexpectedly supplied a live ID list")
+        checked_ids = [
+            row["workflow_id"] for row in trace["Snapshot"]["engine.workflow_executions"]["rows"]
+        ]
+    require(checked_ids is not None, "locked checker did not identify the live scope")
+    identities = drain_identities(admitted, sender["acknowledged"], admitted, checked_ids)
     require(identities["valid"], f"checked identity mismatch: {identities}")
     events = witness_events(witness)
     starts, finishes = {}, {}
@@ -414,6 +687,8 @@ def checked_results(
         observed,
     ):
         key = row["workflow_id"]
+        if row["status"] == "terminal_clock_or_observation":
+            raise ClockEvidenceError(f"invalid final revision/attempt for {key}: {row['status']}")
         require(
             row["status"] == "observed",
             f"invalid final revision/attempt for {key}: {row['status']}",
@@ -479,22 +754,25 @@ def cohort_counts(schedule, phases):
     }
 
 
-def replay_episode(root):
+def replay_episode(root, *, snapshot_only=False):
     schedule = read(root / "schedule.json")
     raw = (root / "sender-journal.jsonl").read_bytes()
+    binding = file_record(root / "schedule.json")
     require(
-        file_record(root / "schedule.json") == read(root / "schedule-binding.json"),
+        binding == read(root / "schedule-binding.json"),
         "schedule hash differs from journal binding",
     )
-    expected, sender = expected_arrivals(raw, schedule)
+    expected, sender = expected_arrivals(raw, schedule, schedule_sha256=binding["sha256"])
     result = read(root / "drain-result.json")
     expired = result.get("classification") == "drain_failure"
     require(result["status"] == ("FAIL" if expired else "PASS"), "invalid drain replay outcome")
     report, _ = indexed_report(
         root / "live-checker.json", join_trace=True, verify_tables=True, drain_counts=expired
     )
+    require_checker_pass(report)
     first = read_polls(root / "terminal-polls.jsonl")
     final = read(root / "final.json")
+    verify_state_reads(root, schedule, result, final, expected, sender)
     witness = read(root / "witness.json")
     observed = final["upper_unix_ns"]
     require(
@@ -515,9 +793,21 @@ def replay_episode(root):
         require(expiry == final, "expiry snapshot or witness differs from the retained final read")
         residuals = readiness(expiry, expected, sender)
         require(all(result[k] == v for k, v in residuals.items()), "expiry residuals differ")
-    uncertainty = clock_bounds(read(root / "clock.json"), schedule["origin_ns"], observed)
+    try:
+        probes = read(root / "clock.json")
+    except (OSError, ValueError) as error:
+        raise ClockEvidenceError("missing or malformed observer/DB clock bracket") from error
+    uncertainty = clock_bounds(probes, schedule["origin_ns"], observed)
     joined = checked_results(
-        report, expected, sender, witness, first, uncertainty, observed, expiry=expiry
+        report,
+        expected,
+        sender,
+        witness,
+        first,
+        uncertainty,
+        observed,
+        expiry=expiry,
+        snapshot_only=snapshot_only,
     )
     return joined, uncertainty
 
@@ -553,12 +843,22 @@ def replay_archive(archive, output):
                 continue
             with tempfile.TemporaryDirectory(dir=output.parent) as temp:
                 root = Path(temp)
-                for member in REPLAY_FILES:
+                members = list(REPLAY_FILES)
+                for member in members:
                     key = f"{name}/{member}"
                     destination = root / member
                     with bundle.open(key) as source, destination.open("wb") as target:
                         shutil.copyfileobj(source, target)
                     require(file_record(destination) == index[key], f"replay member differs: {key}")
+                    if member == "schedule.json":
+                        scheduled = state_read_members(read(destination))
+                        members.extend(scheduled)
+                        if scheduled:
+                            members.extend(
+                                item
+                                for item in (STOP_READ, "initial.json")
+                                if f"{name}/{item}" in index
+                            )
                 joined, uncertainty = replay_episode(root)
                 require(
                     joined == read(root / "phase-rows.json"), f"offline phase rows differ: {name}"

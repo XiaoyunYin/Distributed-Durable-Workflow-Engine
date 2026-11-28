@@ -13,14 +13,16 @@ import tempfile
 import time
 import zipfile
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from urllib.request import Request
 
 from dur053_pilot import witness_events
-from j2_barrier import JOBS, RetryLater, canonical, decode
+from j2_barrier import JOBS, BarrierStop, Campaign, RetryLater, canonical, decode, digest
 from j2_barrier_rehearsal import client, context, report_round
 from j2_checker import CONTAINER_CHECKER, MOUNTED_CHECKER, verify_binary
-from j2_checker_report import indexed_report, require_checker_pass
+from j2_checker_report import IntegrityError, indexed_report, require_checker_pass
+from j2_drain import with_state_read_schema
 from j2_harness import hosted_dispatch, verify_new_identity
 from j2_harness_evidence import safe_name
 from j2_integrated_evidence import engineering_boundary, summarize_episode
@@ -32,6 +34,7 @@ from j2_integrated_rehearsal import (
     forecast,
     label_name,
 )
+from j2_measure_authorization import control_identity, traffic_disposition
 from j2_offline import SECOND, utc_ns
 from j2_prequalify_checker import WORKER_BASE
 from j2_qualification_evidence import file_record, read, require, verify, write
@@ -42,6 +45,232 @@ QUALIFICATION_HASH = "7e8e5d09f3ca5499b36dd9ddb88afaccb550f6ebaed552d62dd7311915
 QUALIFICATION_HEAD = "03f3c767a8143e47e0cd725fd33f1ce16a72faba"
 ZIP_BOUND = 512 << 20
 UNCOMPRESSED_BOUND = 3 << 30
+CONTROL_RUN = 45986168460
+CONTROL_HEAD = "fc8119bb8747a1b25b8a9f38877d998624c02e38"
+CONTROL_ARTIFACTS = {
+    f"j2-controls-{CONTROL_RUN}-1": (
+        15194936094,
+        "0b83fedd499fe8eccc86a7210c0baf068be22a0449ae54f87baf27b8d19c24ad",
+    ),
+    f"j2-controls-receipt-{CONTROL_RUN}-1": (
+        15194551561,
+        "69f12ef1defb05bc884a97e3b9da4fde0d14849c9119f9b11eed2c900489a1c5",
+    ),
+}
+CONTROL_BYTES = dict(zip(CONTROL_ARTIFACTS, (11615074, 62021), strict=True))
+
+
+def control_applicability(root, campaign):
+    from j2_controls import replay_archive
+    from j2_replay_storage import (
+        run_metadata,
+        supplemental_source,
+        supplemental_verdict,
+        verify_prerequisite,
+    )
+
+    approved = read(root / "authorization.json")["ledger"]["dispatches"][-1]
+    paths = control_identity()
+    approved_digest = digest(canonical(paths))
+    require(
+        approved["head"] == campaign.head and approved["controls_sha256"] == approved_digest,
+        "approved control path applicability has drifted",
+    )
+    historical = Campaign(campaign.repository, CONTROL_RUN, 1, CONTROL_HEAD, "", {}, 0, "")
+    supplemental = supplemental_source()
+    barrier = client(historical, root, time.monotonic() + (250 if supplemental else 150))
+    metadata = barrier.retry(lambda: barrier.api.artifacts(historical, set(CONTROL_ARTIFACTS)))
+    require(set(metadata) == set(CONTROL_ARTIFACTS), "accepted control artifacts unavailable")
+    with tempfile.TemporaryDirectory(dir=root.parent) as tmp:
+        directory = Path(tmp)
+        archives = []
+        for index, (name, (artifact_id, hash_value)) in enumerate(CONTROL_ARTIFACTS.items()):
+            item = metadata[name]
+            require(
+                item["id"] == artifact_id and item["digest"] == "sha256:" + hash_value,
+                "historical control artifact binding differs",
+            )
+            if supplemental is not None:
+                verify_prerequisite(name, item, supplemental)
+            archive = directory / f"{index}.zip"
+            barrier.retry(partial(download, barrier.api, item, archive))
+            archives.append(archive)
+        with zipfile.ZipFile(archives[1]) as receipt:
+            historical_replay = decode(receipt.read("offline-replay.json"))
+            source = decode(receipt.read("artifact.json"))
+        original = metadata[next(iter(CONTROL_ARTIFACTS))]
+        require(
+            source["id"] == original["id"]
+            and source["digest"] == original["digest"]
+            and source["workflow_run"]["head_sha"] == CONTROL_HEAD,
+            "control receipt does not bind the archived inputs",
+        )
+        if supplemental is not None:
+            require(
+                all(
+                    source[key] == original[key]
+                    for key in ("name", "size_in_bytes", "workflow_run")
+                ),
+                "historical control receipt size or source identity differs",
+            )
+        replay = directory / "replay.json"
+        replay_archive(
+            archives[0], replay, source={"run": CONTROL_RUN, "attempt": 1, "head": CONTROL_HEAD}
+        )
+        observed = read(replay)
+        if supplemental is not None:
+            bundle, receipt = (
+                supplemental["artifacts"][role]["name"] for role in ("bundle", "receipt")
+            )
+            info = barrier.retry(lambda: run_metadata(barrier.api, supplemental["run"]))
+            require(
+                info["head_sha"] == supplemental["head"] and info["conclusion"] == "success",
+                "supplemental control run differs or did not pass",
+            )
+            fresh = Campaign(
+                campaign.repository, supplemental["run"], 1, supplemental["head"], "", {}, 0, ""
+            )
+            inputs = barrier.retry(lambda: barrier.api.artifacts(fresh, {bundle, receipt}))
+            require(set(inputs) == {bundle, receipt}, "supplemental controls unavailable")
+            for name in (bundle, receipt):
+                verify_prerequisite(name, inputs[name], supplemental)
+                barrier.retry(partial(download, barrier.api, inputs[name], directory / name))
+            fresh_result = supplemental_verdict(directory / receipt, bundle, inputs, paths)
+            replay_archive(directory / bundle, replay, supplemental=True, source=supplemental)
+            require(
+                canonical(read(replay)) == canonical(fresh_result),
+                "supplemental controls replay differs from archived receipt",
+            )
+            metadata.update(inputs)
+    require(
+        canonical(observed) == canonical(historical_replay), "controls replay at this head differs"
+    )
+    coverage = {
+        "execution_delay": "winning-attempt and latency join",
+        "withheld_terminal": "durable identity and checked drain",
+        "healthy_low_load": "stock K4 delivery, bins and quiet drain",
+        "capped_sender": "stock K4 misses and invalid delivery",
+    }
+    if supplemental is not None:
+        coverage.update(
+            healthy_low_load="precommit request writes, bins and quiet drain",
+            withheld_terminal="fresh precommit control durable identity and checked drain",
+            capped_sender="precommit refusals and invalid delivery",
+        )
+        observed.update(
+            {
+                key: fresh_result[key]
+                for key in ("healthy_low_load", "capped_sender", "withheld_terminal")
+            }
+        )
+    write(
+        root / "controls-applicability.json",
+        {
+            "status": "PASS",
+            "head": campaign.head,
+            "controls_sha256": approved_digest,
+            "reviewer_approved_component_hashes": paths,
+            "artifacts": metadata,
+            "coverage": coverage,
+            **({"supplemental_controls": supplemental} if supplemental else {}),
+            "verdicts": {
+                key: observed[key]
+                for key in (
+                    "execution_delay",
+                    "withheld_terminal",
+                    "healthy_low_load",
+                    "capped_sender",
+                )
+            },
+        },
+    )
+
+
+def measurement_receipts(output, campaign):
+    """Summarize immutable dispatch receipts and compare the live decisions."""
+    output.mkdir(parents=True)
+    gate = client(campaign, output, time.monotonic() + 240)
+    normal = {job: campaign.name("final", job) for job in JOBS}
+    denied = {
+        job: f"j2-measure-authorization-stop-{campaign.run}-{campaign.attempt}-job-{job}"
+        for job in JOBS
+    }
+    jobs = gate.retry(lambda: gate.api.jobs(campaign, allow_failed=True))
+    metadata = gate.retry(
+        lambda: gate.api.artifacts(campaign, {*normal.values(), *denied.values()})
+    )
+    dispatches, errors = {}, {}
+    for job in JOBS:
+        try:
+            require(job in jobs and jobs[job]["status"] == "completed", "matrix job is not closed")
+            require(
+                not (normal[job] in metadata and denied[job] in metadata),
+                "conflicting dispatch receipts",
+            )
+            name = normal[job] if normal[job] in metadata else denied[job]
+            artifact = metadata[name]
+            with tempfile.TemporaryDirectory(dir=output.parent) as temp:
+                directory = Path(temp)
+                archive = directory / "receipt.zip"
+                gate.retry(partial(download, gate.api, artifact, archive))
+                if name == normal[job]:
+                    extract(archive, directory / "verified")
+                    record = read(directory / "verified" / "campaign-dispatch.json")
+                    require(
+                        campaign.matches(record["binding"], job, jobs[job]["id"]),
+                        "dispatch receipt scope differs",
+                    )
+                else:
+                    with zipfile.ZipFile(archive) as bundle:
+                        record = decode(bundle.read("authorization-stop.json"))
+                    require(
+                        record["run"] == str(campaign.run)
+                        and record["job"] == job
+                        and record["campaign"] == campaign.campaign
+                        and record["bootstrap"] == "unperformed"
+                        and record["disposition"] == "no_requests",
+                        "pre-bootstrap refusal scope differs",
+                    )
+                dispatches[job] = {
+                    **record,
+                    "artifact_id": artifact["id"],
+                    "digest": artifact["digest"],
+                }
+        except (KeyError, OSError, ValueError, zipfile.BadZipFile) as error:
+            errors[job] = str(error)
+    disposition = traffic_disposition(
+        [*dispatches.values(), *({"disposition": "unresolved"} for _ in errors)]
+    )
+    agreement = {"status": "unverified"}
+    if len(jobs) == len(JOBS) and all(row["conclusion"] == "success" for row in jobs.values()):
+        try:
+            decision, peers = gate.grids()
+            agreement = {
+                "status": "verified",
+                "decision": decision,
+                "receipts": gate.decisions(decision, peers),
+            }
+        except (BarrierStop, RetryLater) as error:
+            agreement["reason"] = str(error)
+    write(
+        output / "campaign-dispatch-manifest.json",
+        {
+            "campaign": campaign.campaign,
+            "head": campaign.head,
+            "run_id": campaign.run,
+            "attempt": campaign.attempt,
+            "scope": campaign.scope,
+            "disposition": disposition,
+            "reason": {
+                "consumed": "at least one job retained an HTTP send",
+                "no_requests": "all three jobs retained verified no-request dispositions",
+                "unresolved": "the closed job receipts do not establish zero requests",
+            }[disposition],
+            "jobs": dispatches,
+            "errors": errors,
+            "live_grid_agreement": agreement,
+        },
+    )
 
 
 def download(api, metadata, path):
@@ -77,7 +306,7 @@ def download(api, metadata, path):
     )
 
 
-def extract(archive, directory, *, integrated=True):
+def extract(archive, directory, *, integrated=True, binding=None, remaining=None):
     directory.mkdir()
     with zipfile.ZipFile(archive) as bundle:
         entries = [entry for entry in bundle.infolist() if not entry.is_dir()]
@@ -94,7 +323,15 @@ def extract(archive, directory, *, integrated=True):
         raw = bundle.read("freeze.json")
         index = decode(raw)
         require(names == set(index["files"]) | {"freeze.json"}, "archive membership differs")
-        if integrated:
+        if binding is not None:
+            require(
+                index["schema"] == "j2.harness.freeze.v1"
+                and index["head"] == binding.head
+                and index["run_id"] == str(binding.run)
+                and index["run_attempt"] == str(binding.attempt),
+                "archive run, attempt or head drift",
+            )
+        elif integrated:
             require(
                 index["schema"] == "j2.harness.freeze.v1"
                 and index["head"] == os.environ["GITHUB_SHA"]
@@ -109,7 +346,12 @@ def extract(archive, directory, *, integrated=True):
             target = directory / name
             target.parent.mkdir(parents=True, exist_ok=True)
             with bundle.open(name) as source, target.open("wb") as stream:
-                shutil.copyfileobj(source, stream)
+                if remaining is None:
+                    shutil.copyfileobj(source, stream)
+                else:
+                    while chunk := source.read(1 << 20):
+                        remaining()
+                        stream.write(chunk)
             require(file_record(target) == expected, f"archive digest drift: {name}")
     return hashlib.sha256(raw).hexdigest()
 
@@ -157,10 +399,8 @@ def checker_replay(root, checker, timeout, *, qualification=False):
         output, snapshot=snapshot, verify_tables=True, join_trace=not qualification
     )
     live, live_tables = indexed_report(root / "live-checker.json", verify_tables=True)
-    require(
-        file_record(snapshot) == file_record(root / "snapshot.json") and live_tables == tables,
-        "offline checker snapshot differs from the live export",
-    )
+    if file_record(snapshot) != file_record(root / "snapshot.json") or live_tables != tables:
+        raise IntegrityError("offline checker snapshot differs from the live export")
     if qualification:
         durations = check_witness_durations(
             read(root / "witness.json"),
@@ -182,15 +422,15 @@ def checker_replay(root, checker, timeout, *, qualification=False):
         row["workflow_id"]
         for row in reproduced["trace"]["Snapshot"]["engine.workflow_executions"]["rows"]
     ]
-    require(
-        sorted(live["workflow_ids"]) == sorted(offline_ids), "offline checker identity set differs"
-    )
+    if sorted(live["workflow_ids"]) != sorted(offline_ids):
+        raise IntegrityError("offline checker identity set differs")
     for report in (live, reproduced):
         report.pop("trace")
         # Snapshot mode does not receive separate workflow ID flags.
         report.pop("workflow_ids", None)
         report["non_terminal"] = sorted(report["non_terminal"] or [])
-    require(live == reproduced, "locked checker verdict differs")
+    if live != reproduced:
+        raise IntegrityError("locked checker verdict differs")
     return {
         "identities": len(offline_ids),
         "verdict": "PASS",
@@ -289,7 +529,10 @@ def verify_episode(root, job, cell, previous, checker, timeout):
     )
     schedule = read(root / "schedule.json")
     require(
-        schedule == episode_schedule(job, cell, rate, schedule["origin_ns"]),
+        schedule
+        == with_state_read_schema(
+            episode_schedule(job, cell, rate, schedule["origin_ns"]), schedule
+        ),
         "engineering clock drift",
     )
     identity = read(root / "identity.json")
@@ -309,17 +552,13 @@ def verify_episode(root, job, cell, previous, checker, timeout):
         "replayed fresh-state predicates differ",
     )
     checked = checker_replay(root, checker, timeout)
-    summary = summarize_episode(root)
+    summary = verify_episode_reduction(root)
     if cell == "soak":
         require(
             summary["verified_crossing_ids"]
             == read(root / "step-transition.json")["verified_crossing_ids"],
             "retained crossings differ",
         )
-    require(
-        canonical(summary) == canonical(read(root / "episode-replay.json")),
-        "episode replay differs from the checkpoint",
-    )
     if (job, cell) == EXPIRY_FIXTURE:
         require(
             checkpoint["quiet_visibility_fixture"]
@@ -329,6 +568,23 @@ def verify_episode(root, job, cell, previous, checker, timeout):
             "checked grid expiry fixture missing",
         )
     return identity, {"episode": summary, "checker": checked}
+
+
+def verify_episode_reduction(root, *, snapshot_only=False):
+    summary = (
+        summarize_episode(root, snapshot_only=True) if snapshot_only else summarize_episode(root)
+    )
+    require(
+        canonical(summary) == canonical(read(root / "episode-replay.json")),
+        "episode replay differs from the checkpoint",
+    )
+    if summary.get("registered_clock"):
+        require(
+            summary["clock"]["valid"] is True
+            and summary["population"] == read(root / "checkpoint.json")["population"],
+            "registered checkpoint clock or population evidence differs",
+        )
+    return summary
 
 
 def replay_job(barrier, output, checker, job, artifacts, checkpoint_refs):

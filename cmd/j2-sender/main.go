@@ -26,11 +26,35 @@ func main() {
 	flag.DurationVar(&periods[1].Duration, "step-duration", 0, "step duration")
 	start := flag.String("start", "", "absolute RFC3339Nano arrival zero")
 	output := flag.String("output", "", "new fsynced arrival journal path")
+	journal := flag.String("dispatch-journal", "", "opt in to precommit-v1 scheduling")
+	schedule := flag.String("schedule", "", "immutable one- or two-segment schedule for precommit-v1")
 	db := flag.String("database-url", os.Getenv("DATABASE_URL"), "fixture definition database URL")
 	flag.Parse()
 
 	if *output == "" || flag.NArg() != 0 {
 		fatal(fmt.Errorf("output required and positional arguments are unsupported"))
+	}
+	if *journal == "precommit-v1" && *schedule != "" {
+		flag.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "namespace", "run-id", "seed", "hold-rate", "hold-duration", "step-rate", "step-duration", "start":
+				fatal(fmt.Errorf("-%s is bound by the schedule file in precommit-v1", f.Name))
+			}
+		})
+		result, err := dur053.RunJ2Dispatch(context.Background(), c, *db, *output, *schedule)
+		if encodeErr := json.NewEncoder(os.Stdout).Encode(result); encodeErr != nil {
+			fatal(encodeErr)
+		}
+		if err != nil {
+			fatal(err)
+		}
+		if result.Status != "PASS" {
+			os.Exit(1)
+		}
+		return
+	}
+	if *journal != "" || *schedule != "" {
+		fatal(fmt.Errorf("-dispatch-journal=precommit-v1 and -schedule must be provided together"))
 	}
 	result, err := dur053.RunJ2Continuous(context.Background(), c, periods, *db, *output, *start)
 	if err != nil {

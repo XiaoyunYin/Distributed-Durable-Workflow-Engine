@@ -1,0 +1,1096 @@
+{
+  "candidate_approval_evidence": {
+    "full_clock_holds": {
+      "A": "eng-r422-a-final3",
+      "AB": "eng-r422-ab-final3"
+    },
+    "head": "commit containing this packet",
+    "implementation_basis": "2656671dda190ba3c6efef42659a0e1262c4a40e",
+    "prior_supplemental_controls_run": 46121143979,
+    "review_checklist": "approval.md#required-review-before-authorizing-measurement",
+    "short_clock": "eng-r422-final-<first eight characters of the new packet commit SHA>",
+    "status": "pending candidate-head final3 approval lanes and exact-head rehearsal",
+    "supplemental_controls_run": 46148424125
+  },
+  "engineering_release_index": {
+    "browser_download_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/download/eng-inc3-j2-evidence/eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
+    "digest": "sha256:f4ce20637b16c87381183c3cae2f84ffaf012709237d1ee106424499bcedc780",
+    "id": 801558988,
+    "name": "eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
+    "size": 494409,
+    "tag": "eng-inc3-j2-evidence"
+  },
+  "r422_r423_prechecks": {
+    "A": {
+      "artifacts": {
+        "j2-r422-full-clock-replay-46096357188-1": {
+          "freeze": {
+            "bytes": 578,
+            "sha256": "b84279ad8237eaa09a871178f27b930078da325cee0c3b9d58d7a2714fc9558d"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245044648/zip",
+            "created_at": "2026-11-28T03:07:02Z",
+            "digest": "sha256:26c0f28bef9df6434c3fdfa190e4122b9c6cd557569ca6800d2fb6e81fe53b45",
+            "expired": false,
+            "expires_at": "2027-02-26T02:05:43Z",
+            "id": 15245044648,
+            "name": "j2-r422-full-clock-replay-46096357188-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTI0NTA0NDY0OA==",
+            "size_in_bytes": 38040,
+            "updated_at": "2026-11-28T03:07:02Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245044648",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+              "id": 46096357188,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-r422-full-clock-replay-receipt-46096357188-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15246000263/zip",
+            "created_at": "2026-11-28T03:07:06Z",
+            "digest": "sha256:e5c4c96635446dcf07e2447c4604325f95932a17a506b0146bc64ad4b2a3b7ef",
+            "expired": false,
+            "expires_at": "2027-02-26T02:05:43Z",
+            "id": 15246000263,
+            "name": "j2-r422-full-clock-replay-receipt-46096357188-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTI0NjAwMDI2Mw==",
+            "size_in_bytes": 887,
+            "updated_at": "2026-11-28T03:07:06Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15246000263",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+              "id": 46096357188,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "attempt": 1,
+      "campaign": "eng-r422-a-pre2",
+      "common_offering_ns": 2180449157031,
+      "common_step_ns": 260449157031,
+      "head": "bb471298a3404da58dd3df160006072c1767c56a",
+      "jobs": {
+        "1": {
+          "drain": {
+            "checked_export_seconds": 680.993450458,
+            "status": "drain_failure",
+            "unpublished": 7309
+          },
+          "freeze_sha256": "b0db6730a51ca59a37fb62e1552db1a5cee83f3f17bbb3ab70a0adf5b4081299",
+          "intent_to_transport_entry": {
+            "max_ns": 8379358,
+            "p99_9_ns": 4101233,
+            "samples": 21002
+          },
+          "intent_to_write": {
+            "max_ns": 11503380,
+            "p99_9_ns": 4991517,
+            "samples": 21002
+          },
+          "planned": 21002,
+          "precommit": {
+            "bytes": 25865979,
+            "directory_sync_return_ns": -29217046979,
+            "peak_rss_kib": 57904,
+            "resource_evidence_valid": true,
+            "start_ns": -29420293965,
+            "time_ns": 203246986
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 10610376,
+            "p99_9_ns": 2926624,
+            "samples": 21002
+          }
+        },
+        "2": {
+          "drain": {
+            "checked_export_seconds": 633.495970412,
+            "status": "drain_failure",
+            "unpublished": 14244
+          },
+          "freeze_sha256": "b39d518079a0bc9f652b6584829f082994eb3bd87b0db2fdf0c1ace8f6aa1180",
+          "intent_to_transport_entry": {
+            "max_ns": 4221116,
+            "p99_9_ns": 2439184,
+            "samples": 21002
+          },
+          "intent_to_write": {
+            "max_ns": 4713332,
+            "p99_9_ns": 2947381,
+            "samples": 21002
+          },
+          "planned": 21002,
+          "precommit": {
+            "bytes": 25865985,
+            "directory_sync_return_ns": -29470841696,
+            "peak_rss_kib": 59184,
+            "resource_evidence_valid": true,
+            "start_ns": -29619666308,
+            "time_ns": 148824612
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 3265440,
+            "p99_9_ns": 1510316,
+            "samples": 21002
+          }
+        },
+        "3": {
+          "drain": {
+            "checked_export_seconds": 633.476434222,
+            "status": "drain_failure",
+            "unpublished": 13923
+          },
+          "freeze_sha256": "e3707a4856542f836a654379f7baff6cd92336e3be5993ce1e15ee13efc38b6d",
+          "intent_to_transport_entry": {
+            "max_ns": 3800122,
+            "p99_9_ns": 2154976,
+            "samples": 21002
+          },
+          "intent_to_write": {
+            "max_ns": 4707058,
+            "p99_9_ns": 2383861,
+            "samples": 21002
+          },
+          "planned": 21002,
+          "precommit": {
+            "bytes": 25865990,
+            "directory_sync_return_ns": -29451087943,
+            "peak_rss_kib": 58416,
+            "resource_evidence_valid": true,
+            "start_ns": -29602488709,
+            "time_ns": 151400766
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 2368798,
+            "p99_9_ns": 1184575,
+            "samples": 21002
+          }
+        }
+      },
+      "live_artifacts": {
+        "1": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15244384866/zip",
+          "created_at": "2026-11-28T03:02:44Z",
+          "digest": "sha256:2ff360e2b8b6f5184bd698e896aba78fa488f9d8b1d485cb0454e41e63be3561",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:43Z",
+          "id": 15244384866,
+          "job": "job-1",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096357188-1-job-1",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NDM4NDg2Ng==",
+          "size_in_bytes": 147376291,
+          "source_attempt": 1,
+          "source_run": 46096357188,
+          "updated_at": "2026-11-28T03:02:44Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15244384866",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096357188,
+            "repository_id": 1378854023
+          }
+        },
+        "2": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245645175/zip",
+          "created_at": "2026-11-28T03:00:36Z",
+          "digest": "sha256:3133638d36c437ac4c679280789bc7e092b8ecd9a60e75048ea101f1fb5ac1f7",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:43Z",
+          "id": 15245645175,
+          "job": "job-2",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096357188-1-job-2",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NTY0NTE3NQ==",
+          "size_in_bytes": 154352669,
+          "source_attempt": 1,
+          "source_run": 46096357188,
+          "updated_at": "2026-11-28T03:00:36Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245645175",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096357188,
+            "repository_id": 1378854023
+          }
+        },
+        "3": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245505985/zip",
+          "created_at": "2026-11-28T03:00:42Z",
+          "digest": "sha256:e658777e38c2d0a9efc16cbf2d0314c166f0a6408d6aadc4c422e1901dce4d3b",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:43Z",
+          "id": 15245505985,
+          "job": "job-3",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096357188-1-job-3",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NTUwNTk4NQ==",
+          "size_in_bytes": 155534747,
+          "source_attempt": 1,
+          "source_run": 46096357188,
+          "updated_at": "2026-11-28T03:00:42Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245505985",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096357188,
+            "repository_id": 1378854023
+          }
+        }
+      },
+      "report_sha256": "38001f5da2474e33423966c2351f1353e59b31d243162b03a1e3ee09b2edee69",
+      "run": 46096357188,
+      "status": "PASS"
+    },
+    "AB": {
+      "artifacts": {
+        "j2-r422-full-clock-replay-46096366098-1": {
+          "freeze": {
+            "bytes": 578,
+            "sha256": "33126c6b0f7ffa4fcbe8c9e64d134f4b66094e9481843b9b4474c3a252a3c232"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245393520/zip",
+            "created_at": "2026-11-28T03:06:31Z",
+            "digest": "sha256:2ce664cd4fbfe35d033828efa0a1d762667e4608d645a0c329e94023fc77da76",
+            "expired": false,
+            "expires_at": "2027-02-26T02:05:50Z",
+            "id": 15245393520,
+            "name": "j2-r422-full-clock-replay-46096366098-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTI0NTM5MzUyMA==",
+            "size_in_bytes": 37457,
+            "updated_at": "2026-11-28T03:06:31Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245393520",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+              "id": 46096366098,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-r422-full-clock-replay-receipt-46096366098-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245049589/zip",
+            "created_at": "2026-11-28T03:06:34Z",
+            "digest": "sha256:403024c5243d2d4c069c97071c3ff29546e654d2a5fa6383442c41221eb13f36",
+            "expired": false,
+            "expires_at": "2027-02-26T02:05:50Z",
+            "id": 15245049589,
+            "name": "j2-r422-full-clock-replay-receipt-46096366098-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTI0NTA0OTU4OQ==",
+            "size_in_bytes": 885,
+            "updated_at": "2026-11-28T03:06:34Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245049589",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+              "id": 46096366098,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "attempt": 1,
+      "campaign": "eng-r422-ab-pre2",
+      "common_offering_ns": 2180996219106,
+      "common_step_ns": 260996219106,
+      "head": "bb471298a3404da58dd3df160006072c1767c56a",
+      "jobs": {
+        "1": {
+          "drain": {
+            "checked_export_seconds": 651.978484587,
+            "status": "drain_failure",
+            "unpublished": 11495
+          },
+          "freeze_sha256": "f313613085e95ae622ff6d1d12a90285af14e60e82fc7e455c2977f8964eec0d",
+          "intent_to_transport_entry": {
+            "max_ns": 6018166,
+            "p99_9_ns": 2723875,
+            "samples": 26677
+          },
+          "intent_to_write": {
+            "max_ns": 7706767,
+            "p99_9_ns": 3235763,
+            "samples": 26677
+          },
+          "planned": 26677,
+          "precommit": {
+            "bytes": 32964600,
+            "directory_sync_return_ns": -29382012201,
+            "peak_rss_kib": 68920,
+            "resource_evidence_valid": true,
+            "start_ns": -29559780765,
+            "time_ns": 177768564
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 4694014,
+            "p99_9_ns": 1903816,
+            "samples": 26677
+          }
+        },
+        "2": {
+          "drain": {
+            "checked_export_seconds": 649.564076965,
+            "status": "drain_failure",
+            "unpublished": 9959
+          },
+          "freeze_sha256": "a491fd7543aea539fab0d4d43d5411f28e20ea2259c5b3565b0ecc30e8ca752c",
+          "intent_to_transport_entry": {
+            "max_ns": 6098564,
+            "p99_9_ns": 2790799,
+            "samples": 26677
+          },
+          "intent_to_write": {
+            "max_ns": 17397216,
+            "p99_9_ns": 3191325,
+            "samples": 26677
+          },
+          "planned": 26677,
+          "precommit": {
+            "bytes": 32964641,
+            "directory_sync_return_ns": -29414188863,
+            "peak_rss_kib": 69424,
+            "resource_evidence_valid": true,
+            "start_ns": -29593876618,
+            "time_ns": 179687755
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 15506209,
+            "p99_9_ns": 1906609,
+            "samples": 26677
+          }
+        },
+        "3": {
+          "drain": {
+            "checked_export_seconds": 649.88400014,
+            "status": "drain_failure",
+            "unpublished": 12149
+          },
+          "freeze_sha256": "b6b6225bad287f7b26692202fb5ea18bf29fd3afb4e36ab28717bb0ba33697e3",
+          "intent_to_transport_entry": {
+            "max_ns": 11416683,
+            "p99_9_ns": 2799316,
+            "samples": 26677
+          },
+          "intent_to_write": {
+            "max_ns": 11493204,
+            "p99_9_ns": 3157071,
+            "samples": 26677
+          },
+          "planned": 26677,
+          "precommit": {
+            "bytes": 32964608,
+            "directory_sync_return_ns": -29398019120,
+            "peak_rss_kib": 69168,
+            "resource_evidence_valid": true,
+            "start_ns": -29588250343,
+            "time_ns": 190231223
+          },
+          "status": "PASS",
+          "timing_exception_count": 0,
+          "timing_failures": {
+            "cutoff_after_intent": [],
+            "missing_write": [],
+            "outside_slot": [],
+            "refused": [],
+            "slot_margin": []
+          },
+          "transport_entry_to_write": {
+            "max_ns": 4104570,
+            "p99_9_ns": 1726164,
+            "samples": 26677
+          }
+        }
+      },
+      "live_artifacts": {
+        "1": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245233331/zip",
+          "created_at": "2026-11-28T03:01:42Z",
+          "digest": "sha256:54559b52bc6e9133352bd64933d26595808d288345496675dfdb9daac594c5ac",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:50Z",
+          "id": 15245233331,
+          "job": "job-1",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096366098-1-job-1",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NTIzMzMzMQ==",
+          "size_in_bytes": 196981321,
+          "source_attempt": 1,
+          "source_run": 46096366098,
+          "updated_at": "2026-11-28T03:01:42Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245233331",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096366098,
+            "repository_id": 1378854023
+          }
+        },
+        "2": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245466210/zip",
+          "created_at": "2026-11-28T03:01:01Z",
+          "digest": "sha256:aa3cc895312d2ff0d907c11d51dc7a953a207e4289cbbaa0bd48687a60e9b945",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:50Z",
+          "id": 15245466210,
+          "job": "job-2",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096366098-1-job-2",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NTQ2NjIxMA==",
+          "size_in_bytes": 194868577,
+          "source_attempt": 1,
+          "source_run": 46096366098,
+          "updated_at": "2026-11-28T03:01:01Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245466210",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096366098,
+            "repository_id": 1378854023
+          }
+        },
+        "3": {
+          "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245655148/zip",
+          "created_at": "2026-11-28T03:01:09Z",
+          "digest": "sha256:51445435a0b10bddba998432887aae6799bdc9fcd1b386fa6eaf451499b625e1",
+          "expired": false,
+          "expires_at": "2027-02-26T02:05:50Z",
+          "id": 15245655148,
+          "job": "job-3",
+          "kind": "r422-full-clock",
+          "name": "j2-r422-full-clock-46096366098-1-job-3",
+          "node_id": "MDg6QXJ0aWZhY3QxNTI0NTY1NTE0OA==",
+          "size_in_bytes": 197883191,
+          "source_attempt": 1,
+          "source_run": 46096366098,
+          "updated_at": "2026-11-28T03:01:09Z",
+          "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15245655148",
+          "workflow_run": {
+            "head_branch": "codex/j2-slice3",
+            "head_repository_id": 1378854023,
+            "head_sha": "bb471298a3404da58dd3df160006072c1767c56a",
+            "id": 46096366098,
+            "repository_id": 1378854023
+          }
+        }
+      },
+      "report_sha256": "c29b8bbd94b00e5bd3c745a37b435f5fd8f620fb9a0cf910e373f24f518507bd",
+      "run": 46096366098,
+      "status": "PASS"
+    }
+  },
+  "r425_full_clock_baseline": {
+    "checked_export_max_seconds_after_expiry": 80.99345045799998,
+    "completed_job_checked_export_seconds_from_scheduled_stop": {
+      "46096357188": [
+        680.993450458,
+        633.495970412,
+        633.476434222
+      ],
+      "46096366098": [
+        651.978484587,
+        649.564076965,
+        649.88400014
+      ],
+      "46107783664": [
+        633.231264334,
+        628.251983026,
+        632.275662331
+      ],
+      "46107794162": [
+        649.011478357,
+        652.968232965,
+        null
+      ]
+    },
+    "failed_job": {
+      "attempt": 1,
+      "classification": "integrity_stop",
+      "cutoff_ns": 3156703643727,
+      "head": "c4c5fba2bb7f1f8e0c75213bf3a1449c91de64f6",
+      "job": 3,
+      "killed_checker_wall_seconds": 0.0011755619998439215,
+      "last_state_read_id": 146,
+      "last_state_read_lower_ns": 3155861760889,
+      "last_state_read_upper_ns": 3156713036243,
+      "reason": "expiry check failed: qualification stage deadline exceeded",
+      "run": 46107794162
+    },
+    "historical_short_clock_rehearsal": {
+      "attempt": 1,
+      "head": "c4c5fba2bb7f1f8e0c75213bf3a1449c91de64f6",
+      "run": 46107868766,
+      "status": "PASS"
+    }
+  },
+  "r427_r428_final2": {
+    "A": {
+      "job_3_step_capacity_misses_at_cap": 13,
+      "run": 46132556664,
+      "status": "FAIL"
+    },
+    "AB": {
+      "run": 46132565367,
+      "status": "PASS"
+    },
+    "attempt": 1,
+    "head": "b55dd995bcf3a7762df8b0794909ee63739a89d1",
+    "review_round": 648,
+    "short_clock": {
+      "reason": "per-cell expiry reserve omitted",
+      "run": 46132587046,
+      "status": "FAIL"
+    }
+  },
+  "runs": {
+    "46041889944": {
+      "artifacts": {
+        "j2-measure-replay-46041889944-1": {
+          "freeze": {
+            "bytes": 6348,
+            "sha256": "3394f3fdfbfa3bd95f52435334a38bc2a99f63f509ee0440a57d3aef397b8bc2"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221401442/zip",
+            "created_at": "2026-11-27T17:33:26Z",
+            "digest": "sha256:15c6431ace7cf12f3561aef48fc672901ed2b3188557a5dcf972e45d34539b7c",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:45Z",
+            "id": 15221401442,
+            "kind": "replay",
+            "name": "j2-measure-replay-46041889944-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMTQwMTQ0Mg==",
+            "size_in_bytes": 671248,
+            "updated_at": "2026-11-27T17:33:26Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221401442",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041889944,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46041889944-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221541265/zip",
+            "created_at": "2026-11-27T17:33:28Z",
+            "digest": "sha256:e80cba35ff5a350e46181ef7798c5f16a9b17e2220766331f9f2ee9f926d40df",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:45Z",
+            "id": 15221541265,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46041889944-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMTU0MTI2NQ==",
+            "size_in_bytes": 1058,
+            "updated_at": "2026-11-27T17:33:28Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15221541265",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041889944,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "decision": {
+          "grid_sha256": [
+            "386c2c10bfa540dbb94936c5e7b1a7cfba9d6a20cea605987a8db121009cde5c",
+            "619ce76719e7028436ec3d57840c7342544bf5123e3e517d28587296f8ad17c3",
+            "ea11050a64d7038643e2656cb9c23bef082716a1ccb6fb7f40be25565c151bcc"
+          ],
+          "selected_rate": "AB"
+        },
+        "status": "verified"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 3,
+        "grid": 15
+      },
+      "head": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": false,
+      "status": "complete",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621087,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 6628044,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 395.50500673814383,
+        "minimum_free_bytes": 85970436096,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 56.82119680714379,
+          "checker": 285.056104256,
+          "download": 21.71986862499999,
+          "extract": 28.531677181000006,
+          "reduce": 2.008995068000047,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "actions",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 2
+      }
+    },
+    "46041910303": {
+      "artifacts": {
+        "j2-measure-replay-46041910303-1": {
+          "freeze": {
+            "bytes": 6348,
+            "sha256": "6e132bac1e4427ecb2b32be3692b7632a32b88e5b60f7b6519f56a7632a19049"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220408382/zip",
+            "created_at": "2026-11-27T17:39:47Z",
+            "digest": "sha256:28c6f949e5ab284b43663efcba51a1d00c740fa786c9d1f58a73f4e4dd1ccd28",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:55Z",
+            "id": 15220408382,
+            "kind": "replay",
+            "name": "j2-measure-replay-46041910303-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMDQwODM4Mg==",
+            "size_in_bytes": 629997,
+            "updated_at": "2026-11-27T17:39:47Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220408382",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041910303,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46041910303-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220059962/zip",
+            "created_at": "2026-11-27T17:39:51Z",
+            "digest": "sha256:8de058be2610dc46ded1409adb19c87d006194b84af1217448d2d80e40876db6",
+            "expired": false,
+            "expires_at": "2027-02-25T17:26:55Z",
+            "id": 15220059962,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46041910303-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMDA1OTk2Mg==",
+            "size_in_bytes": 1062,
+            "updated_at": "2026-11-27T17:39:51Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15220059962",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+              "id": 46041910303,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "reasons": [
+          "job-1 is missing a verified complete grid",
+          "job-1 grid or decision evidence failed replay"
+        ],
+        "status": "unverifiable"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 1,
+        "grid": 14
+      },
+      "head": "519dd1dc5f28e23bccbddc82671b96f472e67832",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": false,
+      "status": "partial",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621085,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 6170034,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 201.962869645375,
+        "minimum_free_bytes": 89419583488,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 50.59946226137498,
+          "checker": 115.67971385000004,
+          "download": 18.430996643999947,
+          "extract": 15.569839555000044,
+          "reduce": 1.631757455999832,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "actions",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 4
+      }
+    },
+    "46048504084": {
+      "artifacts": {
+        "j2-measure-replay-46048504084-1": {
+          "freeze": {
+            "bytes": 6215,
+            "sha256": "c5c14e3767ce0d7ae7e136fc75868059981a208d985e7baf03c7e452ef02a6e9"
+          },
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15223339276/zip",
+            "created_at": "2026-11-27T18:26:25Z",
+            "digest": "sha256:70e9141e1ea720dfa41f04674b7b1b88acba9fabff2c9673b90b6fca7252f8b8",
+            "expired": false,
+            "expires_at": "2027-02-25T18:18:46Z",
+            "id": 15223339276,
+            "kind": "replay",
+            "name": "j2-measure-replay-46048504084-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMzMzOTI3Ng==",
+            "size_in_bytes": 760889,
+            "updated_at": "2026-11-27T18:26:25Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15223339276",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+              "id": 46048504084,
+              "repository_id": 1378854023
+            }
+          }
+        },
+        "j2-measure-replay-receipt-46048504084-1": {
+          "freeze": null,
+          "source": {
+            "archive_download_url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15222979724/zip",
+            "created_at": "2026-11-27T18:26:27Z",
+            "digest": "sha256:397b0275dd6f3efc96251b535f60226960303c47e88309c73db677dff6623fea",
+            "expired": false,
+            "expires_at": "2027-02-25T18:18:46Z",
+            "id": 15222979724,
+            "kind": "replay-receipt",
+            "name": "j2-measure-replay-receipt-46048504084-1",
+            "node_id": "MDg6QXJ0aWZhY3QxNTIyMjk3OTcyNA==",
+            "size_in_bytes": 1060,
+            "updated_at": "2026-11-27T18:26:27Z",
+            "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15222979724",
+            "workflow_run": {
+              "head_branch": "codex/j2-slice3",
+              "head_repository_id": 1378854023,
+              "head_sha": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+              "id": 46048504084,
+              "repository_id": 1378854023
+            }
+          }
+        }
+      },
+      "authorization": {
+        "decision": {
+          "grid_sha256": [
+            "386c2c10bfa540dbb94936c5e7b1a7cfba9d6a20cea605987a8db121009cde5c",
+            "619ce76719e7028436ec3d57840c7342544bf5123e3e517d28587296f8ad17c3",
+            "ea11050a64d7038643e2656cb9c23bef082716a1ccb6fb7f40be25565c151bcc"
+          ],
+          "selected_rate": "AB"
+        },
+        "status": "verified"
+      },
+      "coverage": {
+        "continuous": 3,
+        "full_volume_qualification_replays": 3,
+        "grid": 15
+      },
+      "head": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+      "raw_to_report_fixture": {
+        "cases": {
+          "conflicting": {
+            "component": "unresolved",
+            "missing": [],
+            "signatures": [
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ],
+              [
+                "postgres",
+                "relay_publication"
+              ]
+            ]
+          },
+          "drain_only": {
+            "component": "unresolved",
+            "reason": "sustained measured growth was not established"
+          },
+          "missing_discriminator": {
+            "component": "unresolved",
+            "missing": [
+              "broker timings/offsets or relay trace"
+            ],
+            "signatures": [
+              [],
+              [],
+              []
+            ]
+          },
+          "supported": {
+            "component": "relay_publication",
+            "signatures": [
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ],
+              [
+                "relay_publication"
+              ]
+            ]
+          }
+        },
+        "scope": "synthetic engineering attribution fixture"
+      },
+      "release_verified": true,
+      "status": "complete",
+      "timing": {
+        "cap_minutes": 90,
+        "disk_high_water": {
+          "checker_scratch_bytes": 1170621087,
+          "extracted_bytes": 1901141328,
+          "retained_report_bytes": 7260307,
+          "zip_bytes": 241102239
+        },
+        "elapsed_seconds": 454.8789887172838,
+        "minimum_free_bytes": 85970554880,
+        "reservations_minutes": {
+          "bootstrap": 8,
+          "checker": 22,
+          "download": 18,
+          "extract": 8,
+          "reduce": 6,
+          "retry": 14,
+          "upload": 9
+        },
+        "reserved_minutes": 85,
+        "retry_events": [],
+        "work_seconds_by_stage": {
+          "bootstrap": 56.898275978283806,
+          "checker": 349.7901896579999,
+          "download": 10.616391688000135,
+          "extract": 34.26549897799964,
+          "reduce": 2.291816501999932,
+          "retry": 0.0,
+          "upload": 0.0
+        }
+      },
+      "transport": "release",
+      "verified_upload": {
+        "reserve_minutes": 9,
+        "verified_upload_seconds": 3
+      }
+    }
+  },
+  "source_campaign": "eng-inc2-real-grid",
+  "source_run": 46028317534,
+  "status": "PASS",
+  "verification_tooling_basis": "bb471298a3404da58dd3df160006072c1767c56a"
+}

@@ -1,0 +1,114 @@
+{
+  "approval_lanes": {
+    "harness_forecast_seconds_with_expiry_reserve": 3970,
+    "harness_work_limit_minutes": 70,
+    "historical_prechecks": "replay/verification.json",
+    "ids": {
+      "A": "eng-r422-a-final3",
+      "AB": "eng-r422-ab-final3"
+    },
+    "job_forecast_margin_minutes": 20,
+    "job_forecast_minutes": {
+      "bootstrap_fresh_state_install_and_precommit": 10,
+      "checked_export_teardown_and_verified_retention": 15,
+      "checkout_restore_build_and_source_checks": 15,
+      "drain": 10,
+      "expiry_evidence_reserve_rounded_up": 3,
+      "traffic": 37
+    },
+    "job_hard_cap_minutes": 110,
+    "job_total_forecast_minutes": 90,
+    "live_step_cap_minutes": 75,
+    "matrix_parallelism": 3,
+    "replay_hard_cap_minutes": 90,
+    "replay_reserved_minutes": 85,
+    "replay_upload_reserve_minutes": 9
+  },
+  "expiry_evidence_reserve": {
+    "basis": "replay/verification.json",
+    "drain_seconds": 600,
+    "export_seconds_from_actual_start": 120,
+    "full_clock_jobs": 12,
+    "handoff_seconds": 10,
+    "margin_seconds_against_observed_max": 39.006549542000016,
+    "max_seconds_after_drain": 130,
+    "observed_max_seconds_after_drain": 80.99345045799998,
+    "observed_max_source": {
+      "job": 1,
+      "run": 46096357188
+    },
+    "preflight": "Reserve the full handoff and export interval inside existing work limits before traffic.",
+    "successful_exports": 11
+  },
+  "fail_fast": false,
+  "live": {
+    "barrier_max_seconds": 2700,
+    "barrier_rule": "verified local grid publication plus 45 minutes, or sooner to preserve the full successor and closeout",
+    "basis": "../slice-2-harness.md#slice-3-per-job-re-forecast",
+    "forecast_margin_minutes": 33,
+    "forecast_minutes": {
+      "barrier": 45,
+      "bootstrap": 25,
+      "closeout": 25,
+      "grid_episodes_including_resets_drains_and_expiry_reserves": 161,
+      "soak_including_setup_drain_and_expiry_reserve": 61
+    },
+    "hard_cap_minutes": 350,
+    "minimum_matrix_free_bytes": 5368709120,
+    "precommit_minimum_completed_lead_seconds": 2,
+    "precommit_schedule_lead_seconds": 30,
+    "runner_stage_limits_seconds": {
+      "bootstrap": 1500,
+      "cap": 21000,
+      "cell": 1930,
+      "closeout": 1500,
+      "episode": 3640
+    },
+    "serial_ceiling_seconds": 18990,
+    "total_forecast_minutes": 317
+  },
+  "matrix_parallelism": 3,
+  "paid_runner_budget_usd": 0,
+  "reporter": {
+    "durable_copy_tool": "scripts/j2_publish_evidence.py",
+    "hard_cap_minutes": 90,
+    "historical_verified_timing": "replay/verification.json",
+    "max_archive_bytes": 536870912,
+    "max_expanded_bytes": 3221225472,
+    "minimum_extra_free_bytes": 268435456,
+    "qualification_fixture_repetitions": 3,
+    "registered_release_tag": "j2-load-envelope-v1-evidence",
+    "required_upload_receipts": [
+      "sealed complete or partial report",
+      "downloaded digest verification and elapsed time"
+    ],
+    "retention_days": 90,
+    "stage_reservations_minutes": {
+      "bootstrap": 8,
+      "checker": 22,
+      "download": 18,
+      "extract": 8,
+      "reduce": 6,
+      "retry": 14,
+      "upload": 9
+    },
+    "total_reserved_minutes": 85
+  },
+  "runner": "ubuntu-24.04",
+  "short_clock_rehearsal": {
+    "barrier_seconds_at_full_grid_and_setup_allowances": 1925,
+    "full_barrier_serial_seconds": 11575,
+    "id": "eng-r422-final-<first eight characters of the new packet commit SHA>",
+    "reporter_hard_cap_minutes": 90,
+    "runner_stage_limits_seconds": {
+      "bootstrap": 1500,
+      "cap": 10800,
+      "cell": 1045,
+      "closeout": 780,
+      "episode": 1370
+    },
+    "serial_ceiling_seconds": 10800
+  },
+  "status": "The measured dispatcher grants the expiry reserve for each episode within the existing job caps. The short-clock barrier uses the existing early cutoff to preserve the full soak and closeout.",
+  "verification_tooling_basis": "2656671dda190ba3c6efef42659a0e1262c4a40e"
+}

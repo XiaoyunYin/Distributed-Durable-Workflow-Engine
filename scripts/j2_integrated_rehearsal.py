@@ -20,7 +20,7 @@ from j2_integrated_diagnostics import attribution_samples
 from j2_integrated_evidence import summarize_episode
 from j2_offline import SECOND
 from j2_qualification_evidence import DRAIN_SECONDS, file_record, read, require, write
-from j2_schedule import ORDERS, RATES, continuous_schedule, stock_schedule
+from j2_schedule import ORDERS, RATES, continuous_schedule, registered_schedule, stock_schedule
 from j2_schedule_rehearsal import JOURNAL, LEAD_SECONDS, STEP_JOURNAL, install_sender
 from j2_step_rehearsal import DrainHarness, exercise_drain
 from j2_verify_overlay import check_network, start_profile
@@ -85,8 +85,12 @@ def label_name(job, label):
     return f"j2-rehearsal-{run_id}-{attempt}-job-{job}-{label}"
 
 
-def episode_schedule(job, cell, rate, origin):
+def episode_schedule(job, cell, rate, origin, *, campaign=None):
     require(rate in RATES and (cell == "soak" or cell == rate), "invalid episode selection")
+    if campaign is not None:
+        return registered_schedule(
+            campaign, f"job-{job}", cell, f"j2-{campaign}-job-{job}-{cell}", APP, origin, rate
+        )
     campaign = f"eng-integrated-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
     run_id = f"j2-{campaign}-job-{job}-{cell}"
     common = (campaign, f"job-{job}", cell, run_id, APP, origin)
@@ -169,47 +173,53 @@ def checkpoint(driver, job, label, identity, rate):
         ),
         "incomplete checked drain returned to the rehearsal",
     )
-    write(
-        root / "checkpoint.json",
-        {
-            "scope": SCOPE,
-            "job": job,
-            "cell": label,
-            "offered_rate": rate,
-            "identity": identity,
-            "drain": result.get("classification", "pass"),
-            "measured_eligible": False,
-            "quiet_visibility_fixture": (job, label) == EXPIRY_FIXTURE,
-        },
-    )
-    write(root / "episode-replay.json", summarize_episode(root))
+    manifest = {
+        "scope": SCOPE,
+        "job": job,
+        "cell": label,
+        "offered_rate": rate,
+        "identity": identity,
+        "drain": result.get("classification", "pass"),
+        "measured_eligible": False,
+        "quiet_visibility_fixture": (job, label) == EXPIRY_FIXTURE,
+    }
+    write(root / "checkpoint.json", manifest)
+    summary = summarize_episode(root)
+    if summary.get("registered_clock"):
+        manifest["population"] = summary["population"]
+        write(root / "checkpoint.json", manifest)
+    write(root / "episode-replay.json", summary)
     seal(root)
     return file_record(root / "freeze.json")["sha256"]
+
+
+def install_episode(driver, cell, previous, binaries, *, precommit=False):
+    if previous is None:
+        check_network(driver, APP)
+        for namespace in (NS, OTHER):
+            driver.k("-n", namespace, "delete", "pod", "unrelated", "--wait=true")
+    stepped = cell == "soak" or precommit
+    driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
+    driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
+    driver.pod_journal = STEP_JOURNAL if stepped else JOURNAL
+    driver.journal_name = "sender-journal.jsonl"
+    driver.install_checker()
+    binary, manifest = binaries[stepped]
+    install_sender(driver, binary, manifest, continuous=stepped, precommit=precommit)
 
 
 def exercise(driver, job, cell, rate, addresses, exporter, previous, binaries):
     with driver.stage(f"fresh-{cell}"):
         current = driver.fresh_episode(cell, addresses, exporter, previous)
     with driver.stage(f"install-{cell}"):
-        if previous is None:
-            check_network(driver, APP)
-            for namespace in (NS, OTHER):
-                driver.k("-n", namespace, "delete", "pod", "unrelated", "--wait=true")
-        stepped = cell == "soak"
-        driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
-        driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
-        driver.pod_journal = STEP_JOURNAL if stepped else JOURNAL
-        driver.journal_name = "sender-journal.jsonl"
-        driver.install_checker()
-        binary, manifest = binaries[stepped]
-        install_sender(driver, binary, manifest, continuous=stepped)
+        install_episode(driver, cell, previous, binaries)
     force_expiry = (job, cell) == EXPIRY_FIXTURE
     try:
         with driver.stage(cell), attribution_samples(driver):
             exercise_drain(
                 driver,
                 lambda: episode_schedule(job, cell, rate, time.time_ns() + LEAD_SECONDS * SECOND),
-                stepped=stepped,
+                stepped=cell == "soak",
                 visibility_delay=DRAIN_SECONDS - 15 if force_expiry else 0,
             )
     except DrainExpired as error:

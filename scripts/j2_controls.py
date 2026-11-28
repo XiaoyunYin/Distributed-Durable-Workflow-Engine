@@ -34,12 +34,22 @@ from j2_control_evidence import (
     worker_spec,
 )
 from j2_control_proxy import PORT
-from j2_drain import REPLAY_FILES
+from j2_drain import REPLAY_FILES, STATE_READ_LOG, STOP_READ
 from j2_harness import APP, hosted_dispatch, run
+from j2_measure_authorization import control_identity
 from j2_offline import SECOND
 from j2_qualification_evidence import file_record, read, require, write
-from j2_schedule import CAP
-from j2_schedule_rehearsal import JOURNAL, LEAD_SECONDS, execute_stock, install_sender
+from j2_schedule import CAP, DISPATCH_JOURNAL
+from j2_schedule_rehearsal import (
+    JOURNAL,
+    LEAD_SECONDS,
+    PRECOMMIT_LEAD_SECONDS,
+    STEP_JOURNAL,
+    execute_stock,
+    install_sender,
+    run_precommitted,
+    verify_precommit_install,
+)
 from j2_step_rehearsal import DrainHarness, exercise_drain
 from j2_verify_overlay import start_profile
 
@@ -62,6 +72,8 @@ with urlopen(sys.argv[1], timeout=1) as result:
 """
 PROXY_IMPORTS = ("http.client", "http.server")
 CONTROL_WORK_MINUTES = 64
+SUPPLEMENTAL_SCHEMA = "j2.r422-controls.v1"
+SUPPLEMENTAL_EPISODES = (HEALTHY, CAPPED)
 
 
 def campaign(run_id, run_attempt):
@@ -79,7 +91,7 @@ def receiver_logs(driver):
 
 
 @contextmanager
-def cap_proxy(driver):
+def cap_proxy(driver, sender=execute_stock):
     exec_in_pod = ("-n", APP, "exec", driver.observer, "--")
     source = Path(__file__).with_name("j2_control_proxy.py")
     write(driver.output / "proxy-source.json", file_record(source))
@@ -119,7 +131,7 @@ def cap_proxy(driver):
 
         def execute(driver, schedule, *, partial):
             require(schedule["cell"] == CAPPED and not partial, "proxy is only for the cap control")
-            return execute_stock(driver, schedule, partial=False, url=PROXY_URL)
+            return sender(driver, schedule, partial=False, url=PROXY_URL)
 
         yield execute
     finally:
@@ -217,34 +229,110 @@ def derive(directory, identifier, retain=None):
     return summary, copies
 
 
-def rehearse(driver, layouts, exporter_layout, binary):
+def derive_supplemental(directory, identifier, head, components):
+    for name in SUPPLEMENTAL_EPISODES:
+        verify_precommit_install(directory / name, directory / "dispatch-build.json", head)
+    healthy = read_episode(directory / HEALTHY, identifier, APP, phase_parity=True)
+    capped = read_episode(directory / CAPPED, identifier, APP)
+    require(
+        all(e["sender"]["schema"] == DISPATCH_JOURNAL for e in (healthy, capped)),
+        "supplemental controls require the precommitted sender",
+    )
+    require(
+        read(directory / HEALTHY / "application-rendered.json")
+        == read(directory / CAPPED / "application-rendered.json"),
+        "supplemental control application configuration differs",
+    )
+    healthy_gate = gate_control(directory / HEALTHY, healthy)
+    cap_gate = gate_control(directory / CAPPED, capped)
+    require(
+        healthy["sender"]["all_accepted_verdict"] == "PASS"
+        and len(healthy["rows"]) == healthy["schedule"]["count"]
+        and healthy_gate["status"] == "pass"
+        and cap_gate["status"] == "sender_invalid",
+        "supplemental controls delivery or gate differs",
+    )
+    withheld = withheld_terminal(healthy)
+    expiry = checked_expiry(healthy)
+    return {
+        "schema": SUPPLEMENTAL_SCHEMA,
+        "campaign": identifier,
+        "covered_components": components,
+        "healthy_low_load": {
+            "status": "PASS",
+            "all_accepted_verdict": "PASS",
+            "gate": healthy_gate,
+            "phase_join_parity": healthy["phase_join_parity"],
+        },
+        "withheld_terminal": {
+            "status": "PASS",
+            **withheld["verdicts"],
+            "checked_expiry": expiry["verdict"],
+            "journal": file_record(directory / HEALTHY / "sender-journal.jsonl"),
+        },
+        "capped_sender": {
+            **capped_control(capped, read_lines(directory / CAPPED / "proxy.jsonl")),
+            "gate": cap_gate,
+        },
+        "episodes": {
+            name: {
+                "schedule": episode["schedule"],
+                "quiet": episode["quiet"],
+                "checked": len(episode["rows"]),
+            }
+            for name, episode in zip(SUPPLEMENTAL_EPISODES, (healthy, capped), strict=True)
+        },
+    }
+
+
+def rehearse(driver, layouts, exporter_layout, binary, *, supplemental=False):
     identifier = campaign(os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"])
     with driver.stage("bootstrap"):
         driver.pod_imports = (*driver.pod_imports, *PROXY_IMPORTS)
         addresses, exporter = start_profile(driver, layouts, exporter_layout)
     previous = None
-    for name in EPISODES:
+    for name in SUPPLEMENTAL_EPISODES if supplemental else EPISODES:
         with driver.stage(f"fresh-{name}"):
             driver.worker_sleep_ms = 2100 if name == DELAY_HIGH else 100
             previous = driver.fresh_episode(name, addresses, exporter, previous)
         with driver.stage(f"install-{name}"):
             driver.observer = driver.pod(APP, "observer")["metadata"]["name"]
             driver.workers = driver.kube("pods", "-n", APP, "-l", "app=worker")["items"]
-            driver.pod_journal = JOURNAL
+            driver.pod_journal = STEP_JOURNAL if supplemental else JOURNAL
             driver.journal_name = "sender-journal.jsonl"
             driver.install_checker()
-            install_sender(driver, binary, driver.evidence / "stock-build.json")
+            manifest = "dispatch-build.json" if supplemental else "stock-build.json"
+            if supplemental:
+                install_sender(
+                    driver, binary, driver.evidence / manifest, continuous=True, precommit=True
+                )
+            else:
+                install_sender(driver, binary, driver.evidence / manifest)
 
         def schedule(name=name):
-            return control_schedule(name, identifier, APP, time.time_ns() + LEAD_SECONDS * SECOND)
+            lead = PRECOMMIT_LEAD_SECONDS if supplemental else LEAD_SECONDS
+            result = control_schedule(name, identifier, APP, time.time_ns() + lead * SECOND)
+            if supplemental:
+                result["dispatch_journal"] = DISPATCH_JOURNAL
+            return result
 
         with driver.stage(name):
             if name == CAPPED:
-                with cap_proxy(driver) as execute:
+                with cap_proxy(
+                    driver, run_precommitted if supplemental else execute_stock
+                ) as execute:
                     exercise_drain(driver, schedule, execute=execute)
             else:
-                exercise_drain(driver, schedule)
+                exercise_drain(driver, schedule, execute=run_precommitted if supplemental else None)
     with driver.stage("control-verdicts"):
+        if supplemental:
+            write(
+                driver.evidence / "control-verdicts.json",
+                derive_supplemental(
+                    driver.evidence, identifier, os.environ["GITHUB_SHA"], control_identity()
+                ),
+            )
+            return
         summary, _ = derive(
             driver.evidence,
             identifier,
@@ -270,16 +358,37 @@ REPLAY_INPUTS = tuple(
 )
 
 
-def replay_archive(archive, output):
+def replay_archive(archive, output, *, supplemental=False, source=None):
     with zipfile.ZipFile(archive) as bundle, tempfile.TemporaryDirectory(dir=output.parent) as temp:
         index = json.loads(bundle.read("freeze.json"))
+        if source is not None:
+            require(
+                index["schema"] == "j2.harness.freeze.v1"
+                and (index["run_id"], index["run_attempt"], index["head"])
+                == (str(source["run"]), str(source["attempt"]), source["head"]),
+                "controls freeze differs from its pinned source identity",
+            )
         status = json.loads(bundle.read("status.json")) if "status.json" in index["files"] else {}
         if "control-verdicts.json" not in index["files"]:
             require(status.get("status") != "PASS", "passing job has no control verdicts")
             write(output, {"status": "unperformed", "retained_status": status})
             return
         root = Path(temp)
-        files = [f"{name}/{member}" for name in EPISODES for member in REPLAY_INPUTS]
+        names = SUPPLEMENTAL_EPISODES if supplemental else EPISODES
+        files = [f"{name}/{member}" for name in names for member in REPLAY_INPUTS]
+        for name in names:
+            files.extend(
+                f"{name}/{member}"
+                for member in (STATE_READ_LOG, STOP_READ, "initial.json", "drain-result.json")
+                if f"{name}/{member}" in index["files"]
+            )
+        if supplemental:
+            files.extend(
+                f"{name}/{member}"
+                for name in names
+                for member in ("sender-install.json", "sender-schedule-install.json")
+            )
+            files.append("dispatch-build.json")
         for key in [*files, f"{CAPPED}/proxy.jsonl"]:
             destination = root / key
             destination.parent.mkdir(exist_ok=True)
@@ -288,7 +397,14 @@ def replay_archive(archive, output):
             require(
                 file_record(destination) == index["files"][key], f"replay member differs: {key}"
             )
-        result, copies = derive(root, campaign(index["run_id"], index["run_attempt"]))
+        identifier = campaign(index["run_id"], index["run_attempt"])
+        if supplemental:
+            result = derive_supplemental(
+                root, identifier, index["head"], control_identity(head=index["head"])
+            )
+            copies = {}
+        else:
+            result, copies = derive(root, identifier)
         for name, expected in {"control-verdicts": result, **copies}.items():
             original = json.loads(bundle.read(f"{name}.json"))
             # Recompute before comparing runner-produced verdicts and fixture copies.
@@ -308,9 +424,11 @@ def main():
     replay = commands.add_parser("replay")
     replay.add_argument("archive", type=Path)
     replay.add_argument("output", type=Path)
+    for command in (hosted, replay):
+        command.add_argument("--supplemental", action="store_true")
     args = parser.parse_args()
     if args.command == "replay":
-        replay_archive(args.archive, args.output)
+        replay_archive(args.archive, args.output, supplemental=args.supplemental)
         return 0
     hosted_dispatch()
     args.evidence.mkdir(parents=True, exist_ok=True)
@@ -322,7 +440,9 @@ def main():
         driver,
         args.layouts,
         args.exporter_layout,
-        scenario=lambda driver, layouts, exporter: rehearse(driver, layouts, exporter, args.stock),
+        scenario=lambda driver, layouts, exporter: rehearse(
+            driver, layouts, exporter, args.stock, supplemental=args.supplemental
+        ),
         scope=SCOPE,
     )
 

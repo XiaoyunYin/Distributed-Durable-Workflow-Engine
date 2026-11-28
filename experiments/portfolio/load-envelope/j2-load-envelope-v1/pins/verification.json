@@ -1,0 +1,552 @@
+{
+  "checker_build": {
+    "bytes": 19132576,
+    "gomemlimit": "1200MiB",
+    "sha256": "823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e",
+    "toolchain": "go1.27.4"
+  },
+  "dependency_images": {
+    "images": {
+      "docker.io/calico/cni:v3.29.3": "docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+      "docker.io/calico/kube-controllers:v3.29.3": "docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+      "docker.io/calico/node:v3.29.3": "docker.io/calico/node:v3.29.3@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+      "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2": "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2@sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
+      "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2": "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2@sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
+      "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2": "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2@sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",
+      "ghcr.io/kedacore/keda-admission-webhooks:2.18.0": "ghcr.io/kedacore/keda-admission-webhooks:2.18.0@sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+      "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0": "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+      "ghcr.io/kedacore/keda:2.18.0": "ghcr.io/kedacore/keda:2.18.0@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2"
+    },
+    "kafka": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
+    "node": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+    "postgres": "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af"
+  },
+  "historical_sender_builds": {
+    "continuous": {
+      "archive_paths": [
+        "go.mod",
+        "go.sum",
+        "cmd/j2-sender",
+        "internal",
+        "migrations"
+      ],
+      "binary": {
+        "bytes": 26290409,
+        "sha256": "e896c145a37a4dad35a6426cbd16aecb939fcb359873fecf920e4e19e19769c1"
+      },
+      "build_info": [
+        "\tpath\tdurable-agent-execution-engine/cmd/j2-sender",
+        "\tmod\tdurable-agent-execution-engine\t(devel)\t",
+        "\tdep\tgithub.com/cenkalti/backoff/v5\tv5.0.3\th1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=",
+        "\tdep\tgithub.com/cespare/xxhash/v2\tv2.3.0\th1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
+        "\tdep\tgithub.com/go-logr/logr\tv1.4.4\th1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=",
+        "\tdep\tgithub.com/go-logr/stdr\tv1.2.2\th1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+        "\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+        "\tdep\tgithub.com/grpc-ecosystem/grpc-gateway/v2\tv2.29.0\th1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=",
+        "\tdep\tgithub.com/jackc/pgpassfile\tv1.0.0\th1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=",
+        "\tdep\tgithub.com/jackc/pgservicefile\tv0.0.0-20240606120523-5a60cdf6a761\th1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=",
+        "\tdep\tgithub.com/jackc/pgx/v5\tv5.9.2\th1:3ZhOzMWnR4yJ+RW1XImIPsD1aNSz4T4fyP7zlQb56hw=",
+        "\tdep\tgithub.com/jackc/puddle/v2\tv2.2.2\th1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=",
+        "\tdep\tgo.opentelemetry.io/auto/sdk\tv1.2.1\th1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=",
+        "\tdep\tgo.opentelemetry.io/otel\tv1.47.0\th1:j7ALJ/zgkS7Z6aeJW09p8VC9804bC+PpeTfCD4XPnOM=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace\tv1.45.0\th1:QRefszxJmfPdjXUUm3j6iDzY03mTPXMjqErFqQ67vUg=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc\tv1.45.0\th1:fG5MCxGz8+2VtrN/WgqSpJFctVz24gpxj8CxkKmc8Ww=",
+        "\tdep\tgo.opentelemetry.io/otel/log\tv1.47.0\th1:cOTS1CcLbSQeZKanGJ+0JpF/+t4PELi3O3bbl2lqCcI=",
+        "\tdep\tgo.opentelemetry.io/otel/metric\tv1.47.0\th1:4PptaldXx3Eat1XjMZ68pPJEs5wrhlemctZE9a3UdWY=",
+        "\tdep\tgo.opentelemetry.io/otel/sdk\tv1.47.0\th1:zWXEr4j2lFefG87TU6Yg8a7ngfohIKFZHKp0Hf5hC6I=",
+        "\tdep\tgo.opentelemetry.io/otel/trace\tv1.47.0\th1:JOjX/Oci8K94QHddo+bbfya/Ai/nf6/dt9ZfrFNWSrM=",
+        "\tdep\tgo.opentelemetry.io/proto/otlp\tv1.11.0\th1:5rrYs0Ykyj50sdU/JU0x8etU+LubXWb+gED6TbEdMIk=",
+        "\tdep\tgolang.org/x/net\tv0.60.0\th1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=",
+        "\tdep\tgolang.org/x/sync\tv0.23.0\th1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=",
+        "\tdep\tgolang.org/x/sys\tv0.48.0\th1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+        "\tdep\tgolang.org/x/text\tv0.42.0\th1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/api\tv0.0.0-20260803160001-6ac0973c030d\th1:FarXi840EJWSHYTN3ERkADbPWjl307+FGrA22KAVjjc=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/rpc\tv0.0.0-20260803160001-6ac0973c030d\th1:IL4hdHzcUv2l/gcg98/Rj3FbtE6axwqslOW8SW0C+S0=",
+        "\tdep\tgoogle.golang.org/grpc\tv1.83.1\th1:HIO0+BEtBP6soyqvqC8sNUjZ7bTs+0hFQuFF+RAy++Y=",
+        "\tdep\tgoogle.golang.org/protobuf\tv1.36.11\th1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=",
+        "\tbuild\t-buildmode=exe",
+        "\tbuild\t-compiler=gc",
+        "\tbuild\t-trimpath=true",
+        "\tbuild\tCGO_ENABLED=0",
+        "\tbuild\tGOARCH=amd64",
+        "\tbuild\tGOOS=linux",
+        "\tbuild\tGOAMD64=v1"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOAMD64": "v1",
+        "GOARCH": "amd64",
+        "GOENV": "off",
+        "GOEXPERIMENT": "",
+        "GOFLAGS": "",
+        "GOOS": "linux",
+        "GOTOOLCHAIN": "go1.27.4",
+        "GOWORK": "off"
+      },
+      "flags": [
+        "-p",
+        "1",
+        "-mod=readonly",
+        "-trimpath",
+        "-buildvcs=false"
+      ],
+      "modules": {
+        "go.mod": {
+          "bytes": 1660,
+          "sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324"
+        },
+        "go.sum": {
+          "bytes": 8285,
+          "sha256": "61f476ff35b34f635b5aba7bc57682b53abef48a967553f5c1182db979f92627"
+        }
+      },
+      "package": "./cmd/j2-sender",
+      "schema": "j2.continuous-build.v1",
+      "source": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+      "tree": "769030285092cac5d161885df60e5076f8ad831e",
+      "version": "go1.27.4"
+    },
+    "stock": {
+      "archive_paths": [
+        "go.mod",
+        "go.sum",
+        "cmd/dur053-loadgen",
+        "internal",
+        "migrations"
+      ],
+      "binary": {
+        "bytes": 26311377,
+        "sha256": "65623d58b98478812dd52f9ab1c854f360dcabfef531091b4d63d7f3366c7e76"
+      },
+      "build_info": [
+        "\tpath\tdurable-agent-execution-engine/cmd/dur053-loadgen",
+        "\tmod\tdurable-agent-execution-engine\t(devel)\t",
+        "\tdep\tgithub.com/cenkalti/backoff/v5\tv5.0.3\th1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=",
+        "\tdep\tgithub.com/cespare/xxhash/v2\tv2.3.0\th1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
+        "\tdep\tgithub.com/go-logr/logr\tv1.4.4\th1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=",
+        "\tdep\tgithub.com/go-logr/stdr\tv1.2.2\th1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+        "\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+        "\tdep\tgithub.com/grpc-ecosystem/grpc-gateway/v2\tv2.29.0\th1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=",
+        "\tdep\tgithub.com/jackc/pgpassfile\tv1.0.0\th1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=",
+        "\tdep\tgithub.com/jackc/pgservicefile\tv0.0.0-20240606120523-5a60cdf6a761\th1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=",
+        "\tdep\tgithub.com/jackc/pgx/v5\tv5.9.2\th1:3ZhOzMWnR4yJ+RW1XImIPsD1aNSz4T4fyP7zlQb56hw=",
+        "\tdep\tgithub.com/jackc/puddle/v2\tv2.2.2\th1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=",
+        "\tdep\tgo.opentelemetry.io/auto/sdk\tv1.2.1\th1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=",
+        "\tdep\tgo.opentelemetry.io/otel\tv1.47.0\th1:j7ALJ/zgkS7Z6aeJW09p8VC9804bC+PpeTfCD4XPnOM=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace\tv1.45.0\th1:QRefszxJmfPdjXUUm3j6iDzY03mTPXMjqErFqQ67vUg=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc\tv1.45.0\th1:fG5MCxGz8+2VtrN/WgqSpJFctVz24gpxj8CxkKmc8Ww=",
+        "\tdep\tgo.opentelemetry.io/otel/log\tv1.47.0\th1:cOTS1CcLbSQeZKanGJ+0JpF/+t4PELi3O3bbl2lqCcI=",
+        "\tdep\tgo.opentelemetry.io/otel/metric\tv1.47.0\th1:4PptaldXx3Eat1XjMZ68pPJEs5wrhlemctZE9a3UdWY=",
+        "\tdep\tgo.opentelemetry.io/otel/sdk\tv1.47.0\th1:zWXEr4j2lFefG87TU6Yg8a7ngfohIKFZHKp0Hf5hC6I=",
+        "\tdep\tgo.opentelemetry.io/otel/trace\tv1.47.0\th1:JOjX/Oci8K94QHddo+bbfya/Ai/nf6/dt9ZfrFNWSrM=",
+        "\tdep\tgo.opentelemetry.io/proto/otlp\tv1.11.0\th1:5rrYs0Ykyj50sdU/JU0x8etU+LubXWb+gED6TbEdMIk=",
+        "\tdep\tgolang.org/x/net\tv0.60.0\th1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=",
+        "\tdep\tgolang.org/x/sync\tv0.23.0\th1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=",
+        "\tdep\tgolang.org/x/sys\tv0.48.0\th1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+        "\tdep\tgolang.org/x/text\tv0.42.0\th1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/api\tv0.0.0-20260803160001-6ac0973c030d\th1:FarXi840EJWSHYTN3ERkADbPWjl307+FGrA22KAVjjc=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/rpc\tv0.0.0-20260803160001-6ac0973c030d\th1:IL4hdHzcUv2l/gcg98/Rj3FbtE6axwqslOW8SW0C+S0=",
+        "\tdep\tgoogle.golang.org/grpc\tv1.83.1\th1:HIO0+BEtBP6soyqvqC8sNUjZ7bTs+0hFQuFF+RAy++Y=",
+        "\tdep\tgoogle.golang.org/protobuf\tv1.36.11\th1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=",
+        "\tbuild\t-buildmode=exe",
+        "\tbuild\t-compiler=gc",
+        "\tbuild\t-trimpath=true",
+        "\tbuild\tCGO_ENABLED=0",
+        "\tbuild\tGOARCH=amd64",
+        "\tbuild\tGOOS=linux",
+        "\tbuild\tGOAMD64=v1"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOAMD64": "v1",
+        "GOARCH": "amd64",
+        "GOENV": "off",
+        "GOEXPERIMENT": "",
+        "GOFLAGS": "",
+        "GOOS": "linux",
+        "GOTOOLCHAIN": "go1.27.4",
+        "GOWORK": "off"
+      },
+      "flags": [
+        "-p",
+        "1",
+        "-mod=readonly",
+        "-trimpath",
+        "-buildvcs=false"
+      ],
+      "modules": {
+        "go.mod": {
+          "bytes": 1660,
+          "sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324"
+        },
+        "go.sum": {
+          "bytes": 8285,
+          "sha256": "61f476ff35b34f635b5aba7bc57682b53abef48a967553f5c1182db979f92627"
+        }
+      },
+      "package": "./cmd/dur053-loadgen",
+      "schema": "j2.stock-k4-build.v1",
+      "source": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+      "tree": "769030285092cac5d161885df60e5076f8ad831e",
+      "version": "go1.27.4"
+    }
+  },
+  "live_evidence_required": [
+    "actual rendered profile and image IDs",
+    "Calico allow/deny",
+    "runner inventory and pressure",
+    "exporter cadence, timeouts and DB sessions",
+    "candidate-head precommit build and hash-verified observer installs for one- and two-segment schedules"
+  ],
+  "oci_archives": {
+    "exporter": {
+      "layouts": {
+        "image": {
+          "blobs": [
+            {
+              "digest": "sha256:6bc188acbd25995ea8deebc34e21d49dd09e1de8ffaaeab118e5195511656f63",
+              "mediaType": "application/vnd.docker.container.image.v1+json",
+              "size": 761
+            },
+            {
+              "digest": "sha256:ab43996222f31a5f248c94866b4db833314e8283efc5b0d4abe5d4e4934d9c98",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 4062680
+            }
+          ],
+          "manifest": {
+            "digest": "sha256:be3665b8cfe802eb86212ce78754dd24fc85846118b6c993f597d3c509e76bf8",
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 527
+          },
+          "reference": "localhost:5001/j2-exporter@sha256:be3665b8cfe802eb86212ce78754dd24fc85846118b6c993f597d3c509e76bf8"
+        }
+      },
+      "source": {
+        "digest": "sha256:319f6b8e269fdd576069010e6bf461a81748fcf6ba4a6196573fe5cc8a220b2e",
+        "expires_at": "2027-02-23T08:15:40Z",
+        "id": 15003881687,
+        "name": "j2-overlay-45574726863-1",
+        "size_in_bytes": 4231049,
+        "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15003881687",
+        "workflow_run": {
+          "head_branch": "codex/j2-slice1",
+          "head_repository_id": 1378854023,
+          "head_sha": "a70be09286a05558a7a0db8a54fcd3aa3eed789c",
+          "id": 45574726863,
+          "repository_id": 1378854023
+        }
+      }
+    },
+    "images": {
+      "layouts": {
+        "runtime": {
+          "blobs": [
+            {
+              "digest": "sha256:379e519155f7d2d12064ddb95b2280c12847a5a8f7dc7d6f091a729084ed0c40",
+              "mediaType": "application/vnd.docker.container.image.v1+json",
+              "size": 1002
+            },
+            {
+              "digest": "sha256:82c515d0f49d61a265165050b8aa5b60f0c33a1e5416ecca34d2e774cf0e501b",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 128347
+            },
+            {
+              "digest": "sha256:a00645afdd1b2b7e2b96c83aa96c28fbdd9428bde581b2318231968ce885ddb5",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 24888261
+            }
+          ],
+          "manifest": {
+            "digest": "sha256:96d4965f839475190bffcf2c812f19c726b41347bcbb0433eed33970a6a1ef7c",
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 739
+          },
+          "reference": "localhost:5001/dur053-runtime@sha256:96d4965f839475190bffcf2c812f19c726b41347bcbb0433eed33970a6a1ef7c"
+        },
+        "worker": {
+          "blobs": [
+            {
+              "digest": "sha256:e74a1023c59ad35780c296f4853a2948f8522c213028e67cadd8e13404aba008",
+              "mediaType": "application/vnd.docker.container.image.v1+json",
+              "size": 7063
+            },
+            {
+              "digest": "sha256:8cf9fb7a0b56cf93bf2502aff8087344f2dd06e29fb027b0c06aa2726ab3eda8",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 29145516
+            },
+            {
+              "digest": "sha256:5e739003c33414360cf2cec9452e1935b1bfcae79f279c33009bf4c0d5596f52",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 3317246
+            },
+            {
+              "digest": "sha256:5f86e0092844f78afa84a3b63059ea82e82fa93a28eedde55386370d924e8cf3",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 13625510
+            },
+            {
+              "digest": "sha256:46271edb89aec00565d974118707aaded82928c7ea7cb0a2bcc94b1f17e17e3d",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 249
+            },
+            {
+              "digest": "sha256:355275dc58f9f919e894a634638e3fa10db00921f9c514e772f3497ae9a5bd22",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 93
+            },
+            {
+              "digest": "sha256:15b07b6b05a666afffe4ac06bc7ac1456b5f5121ab4ff15becd802a29351d7a4",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 407
+            },
+            {
+              "digest": "sha256:b390288b0b70227ad5245d8879a2063d1244b6114db9ea9855bb0c58cd7b6ae5",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 801890
+            },
+            {
+              "digest": "sha256:5496234e4ae9373b15281008001f41c39b33bf932b19f3abd129e49fcb9175bc",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 134791
+            },
+            {
+              "digest": "sha256:85989d3a28f32bad4ac84597f7efd6799825323b1692d4c9a1c6b4ab60b7c783",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 6622510
+            },
+            {
+              "digest": "sha256:0ec1fe0c1a0cd72f41f6e04349f3e1de1201aaed8ef6066c3047405d06a76863",
+              "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+              "size": 6431131
+            }
+          ],
+          "manifest": {
+            "digest": "sha256:139b0cc65e5cc2eefb7442d1129203891733a77b44adf034b493ca9d75485c20",
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 2414
+          },
+          "reference": "localhost:5001/dur053-worker@sha256:139b0cc65e5cc2eefb7442d1129203891733a77b44adf034b493ca9d75485c20"
+        }
+      },
+      "source": {
+        "digest": "sha256:4fffbfeef2a00ae1bbfd9f4d49ad92c082756c467a3512f575f027890c52b199",
+        "expires_at": "2027-02-23T08:03:56Z",
+        "id": 15002748377,
+        "name": "j2-images-45573063538-1",
+        "size_in_bytes": 85136796,
+        "url": "https://api.github.com/repos/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/artifacts/15002748377",
+        "workflow_run": {
+          "head_branch": "codex/j2-slice1",
+          "head_repository_id": 1378854023,
+          "head_sha": "61f731ec39a2d6e204dede267bad14b21eab9ca6",
+          "id": 45573063538,
+          "repository_id": 1378854023
+        }
+      }
+    }
+  },
+  "offline_render": {
+    "db_address_used_for_preview": "192.0.2.10",
+    "db_budget": {
+      "free": 18,
+      "j2_exporter": 1,
+      "prometheus": 0,
+      "unused_monitor_slots": 1,
+      "with_admin": 82,
+      "worst_case": 74
+    },
+    "sha256": "b77d1f3c0fbb8b3962da261a530af0cca3f724efcc2a82f2df5a0a203bb05a9d"
+  },
+  "prometheus": "prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7",
+  "protocol_commit": "588fba51074332d062ee166fcd7a7ad74c6fd0c2",
+  "sender_build_evidence": {
+    "artifact_id": 15245110205,
+    "controls_run": 46096347523,
+    "member": "dispatch-build.json",
+    "member_sha256": "55ce742bbc219f6b3398f871eb5cbce70ac5a5e8f415598a21a59d0fef6da61e"
+  },
+  "sender_builds_on_tooling_basis": {
+    "precommit": {
+      "archive_paths": [
+        "go.mod",
+        "go.sum",
+        "cmd/j2-sender",
+        "internal",
+        "migrations"
+      ],
+      "binary": {
+        "bytes": 26409821,
+        "sha256": "cb4b3d289caacaae00b27e3e67113b86ea5cdae4863ca1bbede30558376fc684"
+      },
+      "build_info": [
+        "\tpath\tdurable-agent-execution-engine/cmd/j2-sender",
+        "\tmod\tdurable-agent-execution-engine\t(devel)\t",
+        "\tdep\tgithub.com/cenkalti/backoff/v5\tv5.0.3\th1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=",
+        "\tdep\tgithub.com/cespare/xxhash/v2\tv2.3.0\th1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
+        "\tdep\tgithub.com/go-logr/logr\tv1.4.4\th1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=",
+        "\tdep\tgithub.com/go-logr/stdr\tv1.2.2\th1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+        "\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+        "\tdep\tgithub.com/grpc-ecosystem/grpc-gateway/v2\tv2.29.0\th1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=",
+        "\tdep\tgithub.com/jackc/pgpassfile\tv1.0.0\th1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=",
+        "\tdep\tgithub.com/jackc/pgservicefile\tv0.0.0-20240606120523-5a60cdf6a761\th1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=",
+        "\tdep\tgithub.com/jackc/pgx/v5\tv5.9.2\th1:3ZhOzMWnR4yJ+RW1XImIPsD1aNSz4T4fyP7zlQb56hw=",
+        "\tdep\tgithub.com/jackc/puddle/v2\tv2.2.2\th1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=",
+        "\tdep\tgo.opentelemetry.io/auto/sdk\tv1.2.1\th1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=",
+        "\tdep\tgo.opentelemetry.io/otel\tv1.47.0\th1:j7ALJ/zgkS7Z6aeJW09p8VC9804bC+PpeTfCD4XPnOM=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace\tv1.45.0\th1:QRefszxJmfPdjXUUm3j6iDzY03mTPXMjqErFqQ67vUg=",
+        "\tdep\tgo.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc\tv1.45.0\th1:fG5MCxGz8+2VtrN/WgqSpJFctVz24gpxj8CxkKmc8Ww=",
+        "\tdep\tgo.opentelemetry.io/otel/log\tv1.47.0\th1:cOTS1CcLbSQeZKanGJ+0JpF/+t4PELi3O3bbl2lqCcI=",
+        "\tdep\tgo.opentelemetry.io/otel/metric\tv1.47.0\th1:4PptaldXx3Eat1XjMZ68pPJEs5wrhlemctZE9a3UdWY=",
+        "\tdep\tgo.opentelemetry.io/otel/sdk\tv1.47.0\th1:zWXEr4j2lFefG87TU6Yg8a7ngfohIKFZHKp0Hf5hC6I=",
+        "\tdep\tgo.opentelemetry.io/otel/trace\tv1.47.0\th1:JOjX/Oci8K94QHddo+bbfya/Ai/nf6/dt9ZfrFNWSrM=",
+        "\tdep\tgo.opentelemetry.io/proto/otlp\tv1.11.0\th1:5rrYs0Ykyj50sdU/JU0x8etU+LubXWb+gED6TbEdMIk=",
+        "\tdep\tgolang.org/x/net\tv0.60.0\th1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=",
+        "\tdep\tgolang.org/x/sync\tv0.23.0\th1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=",
+        "\tdep\tgolang.org/x/sys\tv0.48.0\th1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+        "\tdep\tgolang.org/x/text\tv0.42.0\th1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/api\tv0.0.0-20260803160001-6ac0973c030d\th1:FarXi840EJWSHYTN3ERkADbPWjl307+FGrA22KAVjjc=",
+        "\tdep\tgoogle.golang.org/genproto/googleapis/rpc\tv0.0.0-20260803160001-6ac0973c030d\th1:IL4hdHzcUv2l/gcg98/Rj3FbtE6axwqslOW8SW0C+S0=",
+        "\tdep\tgoogle.golang.org/grpc\tv1.83.1\th1:HIO0+BEtBP6soyqvqC8sNUjZ7bTs+0hFQuFF+RAy++Y=",
+        "\tdep\tgoogle.golang.org/protobuf\tv1.36.11\th1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=",
+        "\tbuild\t-buildmode=exe",
+        "\tbuild\t-compiler=gc",
+        "\tbuild\t-trimpath=true",
+        "\tbuild\tCGO_ENABLED=0",
+        "\tbuild\tGOARCH=amd64",
+        "\tbuild\tGOOS=linux",
+        "\tbuild\tGOAMD64=v1"
+      ],
+      "dispatch_journal": "precommit-v1",
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOAMD64": "v1",
+        "GOARCH": "amd64",
+        "GOENV": "off",
+        "GOEXPERIMENT": "",
+        "GOFLAGS": "",
+        "GOOS": "linux",
+        "GOTOOLCHAIN": "go1.27.4",
+        "GOWORK": "off"
+      },
+      "flags": [
+        "-p",
+        "1",
+        "-mod=readonly",
+        "-trimpath",
+        "-buildvcs=false"
+      ],
+      "modules": {
+        "go.mod": {
+          "bytes": 1660,
+          "sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324"
+        },
+        "go.sum": {
+          "bytes": 8285,
+          "sha256": "61f476ff35b34f635b5aba7bc57682b53abef48a967553f5c1182db979f92627"
+        }
+      },
+      "package": "./cmd/j2-sender",
+      "schema": "j2.continuous-build.v1",
+      "source": "bb471298a3404da58dd3df160006072c1767c56a",
+      "source_archive": {
+        "bytes": 2304000,
+        "sha256": "2e6130fc2e002401158b34bdd8ee3992115d1ede3245215595b96b848b6266d0"
+      },
+      "source_files": {
+        "cmd/j2-sender/main.go": {
+          "bytes": 2712,
+          "sha256": "72f41991fdb894fb1e0a92770b66b6ac288a10f4f9227c76de68f84ebfd13063"
+        },
+        "internal/dur053/j2.go": {
+          "bytes": 5276,
+          "sha256": "00a1179eac12f566bda97023c83600bec0171e066ae8d98f3221f3bf55973739"
+        },
+        "internal/dur053/j2_dispatch.go": {
+          "bytes": 8371,
+          "sha256": "6ae52e172cd4fcec8ed3efd9947cfb317eed06768d64aa6259a31d7590016868"
+        },
+        "internal/dur053/j2_dispatch_journal.go": {
+          "bytes": 6058,
+          "sha256": "6721e0b967fa187de2d20655150d8e8f28e41022680716a2acb9ff822f50e95c"
+        },
+        "internal/dur053/j2_dispatch_rss_other.go": {
+          "bytes": 78,
+          "sha256": "de3e866b5de18dc162aaaa1dbfa743c7ad94a6ed2bfc057ab12530c5a0cd1e13"
+        },
+        "internal/dur053/j2_dispatch_rss_procfs.go": {
+          "bytes": 283,
+          "sha256": "5f3c7b456d7afcafd046dc8c401b39a4aff83d1535c5bf0d302b92fe08274eff"
+        },
+        "internal/dur053/j2_dispatch_test.go": {
+          "bytes": 13529,
+          "sha256": "28487cca7bd47fbbc7e0e91b1eb9c4b1082f4ce9d70cde6f6723f57d138a2555"
+        },
+        "internal/dur053/j2_dispatch_transport.go": {
+          "bytes": 5218,
+          "sha256": "4784688dc5692faaa1316dc866ceefc56eb685760719b9af18e3a33b15674ec1"
+        },
+        "internal/dur053/j2_test.go": {
+          "bytes": 9441,
+          "sha256": "c7038e3e1ffa594ff122f5be96ec1c04303810379ed649f1c2aa7dfdfd2c5758"
+        },
+        "internal/dur053/k3_auth_test.go": {
+          "bytes": 1202,
+          "sha256": "7ef69a5b732becf829b53ddedf0f6c1654ec53d5a17b6f34b41f0a4f9f933745"
+        },
+        "internal/dur053/k4.go": {
+          "bytes": 7352,
+          "sha256": "7679d6e2607cd75b10424da06481fc85d8b7eef6f0e5af0946233a9ffa4127a9"
+        },
+        "internal/dur053/k4_test.go": {
+          "bytes": 6890,
+          "sha256": "7b29ac4c5302b91c2c8d9e686cc8ecb08a240b2cb45b53bf0b4c7185d7d8468a"
+        },
+        "internal/dur053/load.go": {
+          "bytes": 9163,
+          "sha256": "888f234a5c0aaf31d75f1b756b9b67fca44101afe34eb356f4ce9c9e5d1536fa"
+        },
+        "internal/dur053/load_b63_test.go": {
+          "bytes": 3128,
+          "sha256": "5e71864cf42266837f8cd470efed0b8a1ec7e98e44497ba1193f4db01f85d27b"
+        },
+        "internal/dur053/load_test.go": {
+          "bytes": 6343,
+          "sha256": "69fba38a8e62c98a317028c51de098e6b4567bc8533cad25d2e7fe4763fc13d3"
+        }
+      },
+      "tree": "39af87d74d4e2c250366edda3df992546b528769",
+      "version": "go1.27.4"
+    }
+  },
+  "source_locks": {
+    "checker": {
+      "path": "experiments/portfolio/load-envelope/checker.lock.json",
+      "sha256": "562890e98979c82361da65b638dd88fdb4bfe19bfe6368198aba6dd461555338"
+    },
+    "dependencies": {
+      "path": "deploy/k8s/tools.lock.json",
+      "sha256": "ce7e411fa11f25bcf966f9f41710d30b69eb496f2876e901ae5c3d0008c69450"
+    },
+    "exporter": {
+      "path": "experiments/portfolio/load-envelope/exporter.lock.json",
+      "sha256": "22889b506b6c754193a492a825a08cf79b4d7d05ffdcde6b6d8328c3ee9163f0"
+    },
+    "images": {
+      "path": "experiments/portfolio/load-envelope/images.lock.json",
+      "sha256": "38df4cef28f4b86bac69861fcaa1b6eb99c6bf248158000c9deec53ec33ebd5e"
+    },
+    "protocol": {
+      "path": "experiments/portfolio/load-envelope/protocol.md",
+      "sha256": "d8d598906ba3862787cb888f6169253c4f25baec91b3041c27bc8b81947c06cc"
+    },
+    "tooling": {
+      "path": "scripts/j2_barrier.py",
+      "sha256": "0ebb6024c09a917be5404347ad82e6998e1653e6e5d9e5a659bcfb87dc5c27e5"
+    }
+  },
+  "status": "PASS",
+  "verification_tooling_basis": "bb471298a3404da58dd3df160006072c1767c56a"
+}
