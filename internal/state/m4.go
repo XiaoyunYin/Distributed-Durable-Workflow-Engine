@@ -576,6 +576,12 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, input ApprovalDecisi
 	if s.k6Approval {
 		return ApprovalIntent{}, ErrApprovalUnauthorized
 	}
+	if input.Tenant != nil {
+		if input.Tenant.Issuer == "" || input.Tenant.Namespace == "" {
+			return ApprovalIntent{}, ErrApprovalUnauthorized
+		}
+		input.ApproverID = input.Tenant.Subject
+	}
 	if input.IntentID == "" || input.ApproverID == "" || (input.Decision != "APPROVED" && input.Decision != "REJECTED") || input.ProposalHash == "" {
 		return ApprovalIntent{}, ErrApprovalUnauthorized
 	}
@@ -584,8 +590,18 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, input ApprovalDecisi
 		return ApprovalIntent{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	where := ` WHERE intent_id = $1`
+	args := []any{input.IntentID}
+	if input.Tenant != nil {
+		workflowID, err := lockTenantApprovalWorkflow(ctx, tx, input.IntentID, *input.Tenant)
+		if err != nil {
+			return ApprovalIntent{}, err
+		}
+		where += ` AND workflow_id = $2`
+		args = append(args, workflowID)
+	}
 	var intent ApprovalIntent
-	if err := scanApproval(tx.QueryRow(ctx, approvalSelect+` WHERE intent_id = $1 FOR UPDATE`, input.IntentID), &intent); err != nil {
+	if err := scanApproval(tx.QueryRow(ctx, approvalSelect+where+` FOR UPDATE`, args...), &intent); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ApprovalIntent{}, ErrApprovalNotFound
 		}
@@ -820,22 +836,32 @@ func (s *Store) RequestCancellation(ctx context.Context, input CancellationReque
 	if input.WorkflowID == "" || input.ClientKey == "" || input.ObservedRevision < 0 {
 		return CancellationRequest{}, errors.New("cancellation workflow, key, and revision are required")
 	}
-	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM engine.workflow_executions WHERE workflow_id = $1)`, input.WorkflowID).Scan(&exists); err != nil {
-		return CancellationRequest{}, err
-	}
-	if !exists {
-		return CancellationRequest{}, ErrWorkflowNotFound
+	insertSource := `VALUES ($1, $2, $3, $4)`
+	args := []any{NewID(), input.WorkflowID, input.ClientKey, input.ObservedRevision}
+	if input.TenantNamespace != "" {
+		insertSource = `SELECT $1::uuid, workflow_id, $3::text, $4::bigint
+			FROM engine.workflow_executions WHERE workflow_id = $2 AND namespace = $5`
+		args = append(args, input.TenantNamespace)
+	} else {
+		var exists bool
+		if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM engine.workflow_executions WHERE workflow_id = $1)`, input.WorkflowID).Scan(&exists); err != nil {
+			return CancellationRequest{}, err
+		}
+		if !exists {
+			return CancellationRequest{}, ErrWorkflowNotFound
+		}
 	}
 	var request CancellationRequest
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO engine.cancellation_requests (request_id, workflow_id, client_key, observed_revision)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO engine.cancellation_requests (request_id, workflow_id, client_key, observed_revision) `+insertSource+`
 		ON CONFLICT (workflow_id, client_key) DO UPDATE SET client_key = EXCLUDED.client_key
 		RETURNING request_id::text, workflow_id, client_key, observed_revision, status, created_at, applied_at`,
-		NewID(), input.WorkflowID, input.ClientKey, input.ObservedRevision).Scan(
+		args...).Scan(
 		&request.RequestID, &request.WorkflowID, &request.ClientKey, &request.ObservedRevision,
 		&request.Status, &request.CreatedAt, &request.AppliedAt)
+	if input.TenantNamespace != "" && errors.Is(err, pgx.ErrNoRows) {
+		return CancellationRequest{}, ErrWorkflowNotFound
+	}
 	if err != nil {
 		return CancellationRequest{}, fmt.Errorf("record cancellation request: %w", err)
 	}

@@ -162,6 +162,15 @@ type CreateWorkflowInput struct {
 	InitialNodeID         string
 	InitialInput          json.RawMessage
 	ActorID               string
+	Tenant                *TenantPrincipal
+}
+
+// TenantPrincipal comes from the public API's verified token, independent of
+// caller-supplied actor fields and the internal Kubernetes identity.
+type TenantPrincipal struct {
+	Issuer    string
+	Namespace string
+	Subject   string
 }
 
 type Workflow struct {
@@ -517,6 +526,7 @@ type ApprovalDecisionInput struct {
 	Decision       string
 	DecisionReason string
 	ValidUntil     time.Time
+	Tenant         *TenantPrincipal
 }
 
 type ApplyApprovalInput struct {
@@ -541,6 +551,7 @@ type CancellationRequestInput struct {
 	WorkflowID       string
 	ClientKey        string
 	ObservedRevision int64
+	TenantNamespace  string
 }
 
 type CancellationRequest struct {

@@ -35,12 +35,19 @@ from dur053_k6_registry import read_registry  # noqa: E402
 
 def test_k6_j4_modes_require_literal_legacy_evidence() -> None:
     assert legacy_env({"containers": [{"env": []}]}) == {}
-    names = ["J4_PROVIDER_RESILIENCE", "J4_RECORDED_LLM_ACTIVITY", "RUNTIME_TIMEOUT_RETRY_POLICY"]
+    names = [
+        "J4_PROVIDER_RESILIENCE",
+        "J4_RECORDED_LLM_ACTIVITY",
+        "RUNTIME_PUBLIC_API_AUTH",
+        "RUNTIME_TIMEOUT_RETRY_POLICY",
+    ]
     entries = [{"name": name, "value": "0"} for name in names]
     assert legacy_env({"containers": [{"env": entries}]}) == dict.fromkeys(names, "0")
     for entry in (
         {"name": names[0], "value": "1"},
         {"name": names[1], "value": ""},
+        {"name": "RUNTIME_PUBLIC_API_AUTH", "value": "1"},
+        {"name": "RUNTIME_PUBLIC_API_AUTH", "value": ""},
         {"name": names[0], "valueFrom": {"secretKeyRef": {"name": "mode", "key": "mode"}}},
     ):
         with pytest.raises(SmokeFailure, match="K6_LEGACY_ENV_VALUE"):

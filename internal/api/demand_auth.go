@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -42,7 +43,17 @@ func (a *DemandBearerAuthenticator) readSecret() ([]byte, error) {
 	return secret, nil
 }
 
-func (a *DemandBearerAuthenticator) middleware(next http.Handler) http.Handler {
+var opaqueDemandSecret = regexp.MustCompile(`^[A-Za-z0-9_-]{32,}$`)
+
+func (a *DemandBearerAuthenticator) ValidateJ12Secret() error {
+	secret, err := a.readSecret()
+	if err != nil || !opaqueDemandSecret.Match(secret) {
+		return errors.New("J12 demand requires an opaque base64url bearer secret")
+	}
+	return nil
+}
+
+func (a *DemandBearerAuthenticator) middleware(next http.Handler, j12 bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fields := strings.Fields(r.Header.Get("Authorization"))
 		if len(fields) != 2 || fields[0] != "Bearer" || fields[1] == "" {
@@ -51,7 +62,7 @@ func (a *DemandBearerAuthenticator) middleware(next http.Handler) http.Handler {
 		}
 		secret, err := a.readSecret()
 		providedHash, expectedHash := sha256.Sum256([]byte(fields[1])), sha256.Sum256(secret)
-		if err != nil || subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
+		if err != nil || (j12 && !opaqueDemandSecret.Match(secret)) || subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
 			writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "campaign bearer credential rejected", nil)
 			return
 		}

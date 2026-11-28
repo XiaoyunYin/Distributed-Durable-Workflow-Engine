@@ -86,6 +86,9 @@ var envOutsideK6Deployment = map[string]string{
 	"RUNTIME_HEALTH_URL":                "runtime health command uses its default in G",
 	"RUNTIME_PPROF_ADDR":                "optional profiler listener, disabled in G",
 	"RUNTIME_PPROF_ENABLED":             "optional profiler listener, disabled in G",
+	"RUNTIME_PUBLIC_JWT_AUDIENCE":       "J12-only tenant JWT trust configuration",
+	"RUNTIME_PUBLIC_JWT_ISSUER":         "J12-only tenant JWT trust configuration",
+	"RUNTIME_PUBLIC_JWT_JWKS_FILE":      "J12-only tenant JWT public key file",
 	"RUNTIME_SCHEDULER":                 "combined-runtime option, G selects its scheduler through RUNTIME_ROLES",
 	"WORKER_ADDR":                       "worker health listener uses its default in G",
 	"WORKER_HEALTH_URL":                 "worker health command uses its default in G",
@@ -199,8 +202,8 @@ func goEnvReads(path string, raw []byte) ([]string, error) {
 var pythonEnvReader = regexp.MustCompile(`\b(?:os\.)?(?:(?:getenv|environ\.get)\s*\(|environ\s*\[)\s*["']([^"'\r\n]+)["']`)
 
 func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
-	t.Run("RecordedProviderLegacyOnly", func(t *testing.T) {
-		for _, name := range []string{"J4_RECORDED_LLM_ACTIVITY", "J4_PROVIDER_RESILIENCE"} {
+	t.Run("OptInSwitchLegacyOnly", func(t *testing.T) {
+		for _, name := range []string{"J4_RECORDED_LLM_ACTIVITY", "J4_PROVIDER_RESILIENCE", "RUNTIME_PUBLIC_API_AUTH"} {
 			for _, tc := range []struct {
 				names []string
 				proof map[string]string

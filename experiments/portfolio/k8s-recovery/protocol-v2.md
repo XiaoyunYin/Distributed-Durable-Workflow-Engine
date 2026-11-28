@@ -1837,3 +1837,12 @@ publishing a decision from the retained defective `busy_removals` field.
 4. **Pre-data design record.** The [K6 design](k6-design.md) at the commit
    adding this amendment registers the K6 cell bindings, identity/grant
    contract and per-arm I-label expectations before any K6 data.
+
+### D037 disclosure - J12 public API authentication
+
+Pending independent review before use by a registered K job. J12 introduces
+`RUNTIME_PUBLIC_API_AUTH` and the J12-only requester migration 000026. K5/K6
+and J5 select the legacy routes and credentials, with the switch absent or a
+witnessed literal `0` and the J12 migration excluded. J12 JWT trust settings
+are outside the K6 control inventory. The registry lists the profile and links
+to the [J12 listener and credential matrix](../public-api-auth/protocol.md).
