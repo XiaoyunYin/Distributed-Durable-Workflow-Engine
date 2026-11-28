@@ -3,6 +3,7 @@ import io
 import json
 import shutil
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import j2_dispatch_manifest as packet  # noqa: E402
 import j2_measure as measure  # noqa: E402
 import j2_measure_authorization as auth  # noqa: E402
+import j2_step_rehearsal as step  # noqa: E402
 from j2_barrier import NO_RATE, BarrierStop, barrier_deadline, canonical, digest  # noqa: E402
 from j2_checker_report import ResourceEvidenceError  # noqa: E402
 from j2_measure_authorization import (  # noqa: E402
@@ -34,6 +36,7 @@ from j2_measure_telemetry import (  # noqa: E402
 )
 from j2_overlay import PROM, render  # noqa: E402
 from j2_qualification_evidence import read, write  # noqa: E402
+from j2_schedule import RATES, timestamp  # noqa: E402
 from test_j2_schedule import arrival, encoded, stock_plan  # noqa: E402
 
 S = 10**9
@@ -721,3 +724,84 @@ def test_running_telemetry_configuration_must_match_the_profile(bad):
         record = checked_configuration(rendered, config, live, source)
         assert record["budget"]["with_admin"] == 82 and record["budget"]["free"] == 18
         assert record["max_concurrent_queries"] == 1 and record["statement_timeout_ms"] == 2000
+
+
+@pytest.mark.parametrize(
+    ("campaign", "scope", "setup"),
+    [
+        (measure.MEASURED_CAMPAIGN, measure.REGISTERED_GRID_SCOPE, 480),
+        ("eng-r422-final-12345678", measure.ENGINEERING_GRID_SCOPE, 240),
+    ],
+)
+@pytest.mark.parametrize(
+    ("cell", "rate"), [*((rate, rate) for rate in RATES), ("soak", "A"), ("soak", "AB")]
+)
+def test_cell_budget_reaches_checked_expiry_preflight(
+    tmp_path, monkeypatch, campaign, scope, setup, cell, rate
+):
+    class PreflightSucceeded(Exception):
+        pass
+
+    def ready(*_args):
+        raise PreflightSucceeded
+
+    limits = measure.allowances(campaign)
+    stepped = cell == "soak"
+    started = 100.0
+    now = started
+    wall_origin = 1_780_000_000 * S
+    monotonic = lambda: now  # noqa: E731
+    wall = lambda: wall_origin + int(now * S)  # noqa: E731
+    monkeypatch.setattr(step.time, "monotonic", monotonic)
+    monkeypatch.setattr(step.time, "monotonic_ns", lambda: int(now * S))
+    monkeypatch.setattr(step.time, "time_ns", wall)
+    for context in ("prometheus", "observer_resources"):
+        monkeypatch.setattr(step, context, lambda _: nullcontext())
+    monkeypatch.setattr(step, "watch", lambda _: nullcontext(({}, [])))
+    monkeypatch.setattr(step, "container_target", lambda *_: "relay")
+    monkeypatch.setattr(step, "relay_attribution", ready)
+    stamp = timestamp(wall_origin)
+    driver = SimpleNamespace(
+        output=tmp_path,
+        deadline=measure.cell_deadline(
+            started + limits["cap"] - limits["closeout"],
+            limits["episode" if stepped else "cell"],
+        ),
+        clock=lambda: dict(observer_before=stamp, database=stamp, observer_after=stamp),
+        pod=lambda *_: {"metadata": {"name": "relay"}},
+    )
+    # Spend the original setup allowance before the lead and sender window.
+    lead = measure.PRECOMMIT_LEAD_SECONDS
+    now += setup + 180 if stepped else setup - lead
+
+    def schedule():
+        return measure.schedule_for(
+            SimpleNamespace(campaign=campaign, scope=scope),
+            1,
+            cell,
+            rate,
+            wall() + lead * S,
+            precommit=True,
+        )
+
+    with pytest.raises(PreflightSucceeded):
+        measure.exercise_drain(driver, schedule, stepped=stepped)
+    anchor = read(tmp_path / "deadline-anchor.json")
+    assert anchor["expiry_end_by_mono_ns"] == anchor["work_deadline_mono_ns"]
+    driver.deadline -= 1
+    with pytest.raises(ValueError, match="cannot reserve the checked expiry export before traffic"):
+        measure.exercise_drain(driver, schedule, stepped=stepped)
+
+
+@pytest.mark.parametrize(
+    ("campaign", "ceiling", "barrier"),
+    [(measure.MEASURED_CAMPAIGN, 18990, 2700), ("eng-final", 10800, 1925)],
+)
+def test_measure_budget_forecast_fits_with_existing_early_barrier(campaign, ceiling, barrier):
+    limits = measure.allowances(campaign)
+    ready = limits["bootstrap"] + 5 * limits["cell"]
+    cutoff = barrier_deadline(
+        ready, limits["cap"] - limits["closeout"] - limits["episode"], allow_early=True
+    )
+    assert cutoff - ready == barrier
+    assert cutoff + limits["episode"] + limits["closeout"] == ceiling <= limits["cap"]

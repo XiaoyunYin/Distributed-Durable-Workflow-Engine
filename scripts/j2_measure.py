@@ -63,7 +63,13 @@ from j2_schedule import (
     stock_schedule,
 )
 from j2_schedule_rehearsal import PRECOMMIT_LEAD_SECONDS, run_precommitted
-from j2_step_rehearsal import POPULATION_LIMIT, DrainHarness, exercise_drain
+from j2_step_rehearsal import (
+    EXPIRY_EXPORT_SECONDS,
+    EXPIRY_HANDOFF_SECONDS,
+    POPULATION_LIMIT,
+    DrainHarness,
+    exercise_drain,
+)
 from j2_verify_overlay import start_profile
 
 
@@ -99,13 +105,18 @@ def allowances(campaign):
             1500,
             350,
         )
+    drain_budget = DRAIN_SECONDS + EXPIRY_HANDOFF_SECONDS + EXPIRY_EXPORT_SECONDS
     return {
         "bootstrap": 1500,
-        "cell": arrival + DRAIN_SECONDS + extras,
-        "episode": continuous + PRECOMMIT_LEAD_SECONDS + DRAIN_SECONDS + extras + 180,
+        "cell": arrival + drain_budget + extras,
+        "episode": continuous + PRECOMMIT_LEAD_SECONDS + drain_budget + extras + 180,
         "closeout": final,
         "cap": cap * 60,
     }
+
+
+def cell_deadline(work_end, budget):
+    return min(work_end, time.monotonic() + budget)
 
 
 def schedule_for(campaign, job, cell, rate, origin, *, precommit=False):
@@ -243,7 +254,7 @@ def cell_record(summary, scrape):
     gaps = coverage_gaps(scrape)
     if gaps:
         outcome, reason = "invalid", "resource_evidence"
-    elif not summary["sender_valid"]:
+    elif not summary.get("sender_valid_by_window", {}).get("hold", summary["sender_valid"]):
         outcome, reason = "invalid", "sender_invalid"
     elif gate["status"] == "invalid_gate_inputs":
         raise ResourceEvidenceError("gate inputs cannot be verified from the required telemetry")
@@ -251,6 +262,8 @@ def cell_record(summary, scrape):
         outcome, reason = "drain_failure", "checked drain expired"
     elif gate["status"] != "pass":
         outcome, reason = "gate_failure", gate["status"]
+    elif cohorts.get("step", {}).get("gate", {}).get("status") == "sender_invalid":
+        outcome, reason = "invalid", "step_sender_invalid"
     else:
         outcome, reason = "pass", None
     checked = sum(window["checked_success"] for window in cohorts.values())
@@ -314,7 +327,7 @@ def serve(root, layouts, exporter_layout, sender, checker):
                     return
                 rate = request["rate"]
                 require(rate in RATES and (cell == "soak" or rate == cell), "invalid campaign cell")
-                driver.deadline = min(state["work_end"], time.monotonic() + request["budget"])
+                driver.deadline = cell_deadline(state["work_end"], request["budget"])
                 if prepared is None:
                     current, _ = fresh(cell, previous)
                 else:
@@ -433,7 +446,7 @@ def request_cell(root, state, campaign, cell, rate, budget):
     command = root / "commands" / f"{cell}.json"
     require(not command.exists(), "campaign episode already requested")
     emit(checkpoint=campaign.checkpoint(state["job"], cell), cell=cell)
-    end = min(state["work_end"], time.monotonic() + budget)
+    end = cell_deadline(state["work_end"], budget)
     publish(command, {"action": "run", "rate": rate, "budget": budget})
     if cell == "soak":
         wait_for_soak(root, campaign, end)

@@ -1,6 +1,7 @@
 import json
 import sys
 import zipfile
+from contextlib import nullcontext
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,17 +11,21 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 import j2_control_evidence as control  # noqa: E402
+import j2_integrated_evidence as integrated  # noqa: E402
 import j2_measure as measure  # noqa: E402
 import j2_r422_lane as lane  # noqa: E402
 import j2_replay_storage as storage  # noqa: E402
 import j2_schedule_rehearsal as driver  # noqa: E402
-from j2_drain import expected_arrivals  # noqa: E402
+from j2_drain import STATE_READ_SCHEMA, cohort_counts, expected_arrivals  # noqa: E402
+from j2_measure_replay import claim_candidates  # noqa: E402
 from j2_qualification_evidence import file_record, read, write  # noqa: E402
 from j2_schedule import (  # noqa: E402
     DISPATCH_JOURNAL,
     MEASURED_CAMPAIGN,
     SECOND,
     continuous_schedule,
+    sender_report,
+    timestamp,
 )
 from test_j2_dispatch import dispatch_fixture  # noqa: E402
 from test_j2_schedule import ORIGIN  # noqa: E402
@@ -147,7 +152,15 @@ def acceptance_input():
         for n, (at, _) in enumerate(lane.schedule_slots(schedule))
     ]
     sender = {
+        "schema": DISPATCH_JOURNAL,
         "sender_samples": samples,
+        "sent_keys": [row["key"] for row in samples],
+        "durable_admissions": [row["key"] for row in samples],
+        "explicitly_unsent": [],
+        "closed": True,
+        "torn_suffix": False,
+        "remaining_intents": [],
+        "outside_slot": [],
         "timing_exceptions": [],
         "flushes": [
             {
@@ -160,7 +173,7 @@ def acceptance_input():
         ],
     }
     summary = {
-        "sender_valid": True,
+        "sender_valid_by_window": {"hold": True, "step": True},
         "all_accepted_verdict": "PASS",
         "drain": {"status": "drain_failure"},
     }
@@ -185,6 +198,8 @@ def test_margins_include_warmup_transport_and_checked_expiry(acceptance_input):
         (0, "outcome", "unsent", "refused"),
         (-1, "request_written_ns", 3 * SECOND, "outside_slot"),
         (-1, "request_written_ns", 3 * SECOND - 1, "slot_margin"),
+        (0, "error", "cutoff-after-intent", "cutoff_after_intent"),
+        (-1, "error", "missed-send-deadline", "cutoff_after_intent"),
     ],
 )
 def test_engineering_rejects_bad_key_even_when_summary_is_otherwise_valid(
@@ -204,6 +219,201 @@ def test_engineering_rejects_bad_key_even_when_summary_is_otherwise_valid(
 def test_engineering_missing_precommit_rss_fails(acceptance_input):
     acceptance_input[1]["flushes"][0].pop("peak_rss_kib")
     assert lane.acceptance(*acceptance_input)["status"] == "FAIL"
+
+
+@pytest.mark.parametrize(
+    ("sequence", "reason", "in_flight", "hold_valid", "lane_pass"),
+    [
+        (7, "capacity-missed", 16, True, True),
+        (1, "capacity-missed", 16, False, False),
+        (0, "capacity-missed", 16, False, False),
+        (7, "capacity-missed", 15, True, False),
+        (7, "cutoff-after-intent", 16, True, False),
+    ],
+)
+def test_window_delivery_and_lane_replay_agree(
+    tmp_path, monkeypatch, sequence, reason, in_flight, hold_valid, lane_pass
+):
+    root = tmp_path / "soak"
+    root.mkdir()
+    plan = continuous_schedule(
+        "eng-r422-a-fixture",
+        "job-1",
+        "soak",
+        "run",
+        "j2-harness",
+        ORIGIN,
+        ("1", 7),
+        ("40", 1),
+        warmup=1,
+    )
+    plan.update(dispatch_journal=DISPATCH_JOURNAL, campaign_clock=True)
+    schedule = {**plan, "state_read_evidence": STATE_READ_SCHEMA}
+    schedule_path = root / "schedule.json"
+    write(schedule_path, schedule)
+    schedule_hash = file_record(schedule_path)["sha256"]
+
+    def refuse(index, at, cutoff, row):
+        if index == sequence:
+            row.update(
+                outcome="unsent",
+                error=reason,
+                in_flight_at_release=in_flight,
+                refusal_ns=at,
+                transport_entry_ns=None,
+                request_written_ns=None,
+                status=0,
+                write_callbacks=0,
+                acknowledged_workflow_id=None,
+            )
+
+    head, raw = dispatch_fixture(schedule, schedule_hash, changed=refuse, resources=True)
+    (root / "sender-journal.jsonl").write_bytes(raw)
+    missed = head["plan"]["rows"][sequence]["key"]
+    checked = [
+        {
+            "workflow_id": row["key"],
+            "scheduled_ns": ORIGIN + row["scheduled_ns"],
+            "terminal_ns": ORIGIN + row["scheduled_ns"] + lane.MS,
+            "phase_ns": [lane.MS // 4] * 4,
+            "polling_minus_durable_ns": lane.MS,
+        }
+        for row in head["plan"]["rows"]
+        if row["key"] != missed
+    ]
+    ids = [row["workflow_id"] for row in checked]
+    sender = sender_report(raw, schedule, ids, schedule_sha256=schedule_hash)
+    telemetry = {"coverage": {}}
+    write(root / "prometheus-samples.json", {})
+    write(root / "cell-scrape-evidence.json", telemetry)
+    cut = {
+        "db": {"submissions": [{"id": key} for key in ids]},
+        "witness": [],
+        "upper_unix_ns": schedule["stop_ns"],
+    }
+    write(root / "final.json", cut)
+    write(root / "drain-result.json", {"pending": []})
+    write(root / "phase-rows.json", checked)
+    write(root / "cohorts.json", cohort_counts(schedule, checked))
+    write(root / "sender-report.json", sender)
+    write(root / "journal-read.json", {"exit": 0})
+    write(root / "sender-exit.json", {"exec_exit": 1})
+    write(root / "live-checker-read.json", {"exit": 0})
+    write(root / "checker-resource-summary.json", {"exit": 0})
+    write(root / "witness.json", {"ledgers": []})
+    write(
+        root / "step-transition.json",
+        {"worker_uids_before": ["worker"], "worker_uids_after": ["worker"]},
+    )
+    write(root / "clock.json", [])
+    monkeypatch.setattr(integrated, "replay_episode", lambda _root: (checked, 0))
+    monkeypatch.setattr(
+        integrated,
+        "indexed_report",
+        lambda *_args, **_kwargs: (
+            {"trace": {"Snapshot": {"engine.transition_history": {"rows": []}}}},
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        integrated, "checker_resource_summary", lambda *_: {"checker_peak_rss_kib": 1}
+    )
+    monkeypatch.setattr(integrated, "require_checker_resources", lambda _: None)
+    monkeypatch.setattr(integrated, "checked_cut", lambda *_: cut)
+    monkeypatch.setattr(integrated, "quiet_evidence", lambda *_: {"status": "PASS"})
+    monkeypatch.setattr(integrated, "verified_crossings", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(integrated, "clock_evidence", lambda *_: {"uncertainty_ns": 0})
+    monkeypatch.setattr(
+        integrated,
+        "gates_samples",
+        lambda _: [
+            {"observed_at": timestamp(at), "outstanding": 0, "unpublished": 0}
+            for at in range(ORIGIN, schedule["stop_ns"], SECOND // 10)
+        ],
+    )
+    monkeypatch.setattr(lane, "cell_samples", lambda *_: telemetry)
+
+    summary = lane.summarize_episode(root)
+    assert not summary["sender_valid"] and not summary["soak_evidence_eligible"]
+    assert summary["sender_valid_by_window"] == {"hold": hold_valid, "step": sequence < 7}
+    assert summary["cohorts"]["hold"]["gate"]["status"] == (
+        "pass" if hold_valid else "sender_invalid"
+    )
+    if hold_valid:
+        assert summary["cohorts"]["step"]["gate"]["status"] == "sender_invalid"
+        assert summary["hold_diagnostic"]["in_window_completed"] == 6
+        assert measure.cell_record(summary, telemetry)[0]["reason"] == "step_sender_invalid"
+    else:
+        assert "hold_diagnostic" not in summary
+        assert measure.cell_record(summary, telemetry)[0]["reason"] == "sender_invalid"
+    measured = SimpleNamespace(campaign=MEASURED_CAMPAIGN)
+    jobs = {
+        job: {"cells": {"soak": {"episode": summary, "row": {"rate": "A"}}}, "errors": {}}
+        for job in (1, 2, 3)
+    }
+    assert (
+        claim_candidates(
+            measured, jobs, {"status": "verified", "decision": {"selected_rate": "A"}}, True
+        )
+        == []
+    )
+
+    live = lane.episode_report(root, schedule, summary)
+    assert live["status"] == ("PASS" if lane_pass else "FAIL")
+    if lane_pass:
+        (capacity,) = live["step_capacity_misses"]
+        assert capacity["key"] == missed and capacity["in_flight_at_release"] == 16
+        assert live["intent_to_write"]["samples"] == schedule["count"] - 1
+        assert live["sender_reconciled"] and live["timing_exception_count"] == 0
+        assert not any(live["timing_failures"].values())
+    else:
+        assert live["timing_failures"]["refused"] == [missed]
+        assert live["timing_failures"]["missing_write"] == [missed]
+        assert live["step_capacity_misses"] == []
+
+    write(root / "episode-replay.json", summary)
+    write(root / "engineering-acceptance.json", live)
+    campaign = SimpleNamespace(campaign=plan["campaign"], head="head", run=123)
+    write(tmp_path / "runner-inventory.json", {})
+    write(root / "pre-traffic-telemetry.json", {"freshness": {"distinct_samples": 5}})
+    write(
+        root / "sender-release.json",
+        {
+            "run_id": plan["run_id"],
+            "unix_ns": ORIGIN - 3 * SECOND,
+            "telemetry": file_record(root / "pre-traffic-telemetry.json"),
+            "inventory": file_record(tmp_path / "runner-inventory.json"),
+        },
+    )
+    write(
+        root / "fresh-db.json",
+        {
+            "counts": {},
+            "settings": ["on", "on", "on", "100"],
+            "engine_partitions": list(range(16)),
+        },
+    )
+    write(root / "before-workloads-transport.json", {"latest": {}})
+    write(tmp_path / "cleanup.json", {"status": "PASS"})
+    write(
+        tmp_path / "status.json",
+        {
+            "scope": lane.SCOPE,
+            "head": "head",
+            "run_id": "123",
+            "run_attempt": "1",
+            "cleanup_verified": True,
+        },
+    )
+    monkeypatch.setattr(lane, "schedule_for", lambda *_: plan)
+    monkeypatch.setattr(lane, "verify_precommit_install", lambda *_: None)
+    monkeypatch.setattr(lane, "checker_replay", lambda *_: {"identities": len(ids)})
+    budget = SimpleNamespace(stage=lambda *_: nullcontext(lambda: 240))
+    replayed = lane.verify_lane_episode(tmp_path, campaign, 1, "A", None, budget, None)
+    assert {key: replayed[key] for key in live} == live
+    write(root / "engineering-acceptance.json", {**live, "step_capacity_misses": ["tampered"]})
+    with pytest.raises(ValueError, match="independent engineering evidence differs"):
+        lane.verify_lane_episode(tmp_path, campaign, 1, "A", None, budget, None)
 
 
 @pytest.fixture

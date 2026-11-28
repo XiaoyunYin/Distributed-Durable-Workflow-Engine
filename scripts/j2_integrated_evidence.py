@@ -84,14 +84,10 @@ def summarize_episode(root, *, snapshot_only=False):
             "checked_export_seconds": result["checked_export_seconds"],
         }
     sent = sent_keys(sender)
-    sender_valid = (
-        sender["closed"]
-        and not sender["torn_suffix"]
-        and not sender["outside_slot"]
-        and not sender["remaining_intents"]
-        and not sender.get("timing_exceptions")
-        and sent == committed == expected.keys()
-    )
+    sealed = sender["closed"] and not sender["torn_suffix"]
+    invalid_keys = set(sender["outside_slot"]) | set(sender["remaining_intents"])
+    invalid_keys.update(row["key"] for row in sender.get("timing_exceptions", ()))
+    sender_valid = sealed and not invalid_keys and sent == committed == expected.keys()
     attempts = Counter(
         row["workflow_id"]
         for row in report["trace"]["Snapshot"]["engine.transition_history"]["rows"]
@@ -113,7 +109,13 @@ def summarize_episode(root, *, snapshot_only=False):
     boundary = schedule.get("hold_end_ns")
     windows = [("warmup", start, warm), ("hold" if boundary else "grid", warm, boundary or stop)]
     crossing = []
+    sender_valid_by_window = {}
     if boundary is not None:
+        hold = {key for key, entry in expected.items() if entry["scheduled_ns"] < boundary}
+        sender_valid_by_window = {
+            window: sealed and keys <= sent & committed and not keys & invalid_keys
+            for window, keys in (("hold", hold), ("step", expected.keys() - hold))
+        }
         windows.append(("step", boundary, stop))
         probe = read(root / "step-transition.json")
         if (
@@ -168,7 +170,7 @@ def summarize_episode(root, *, snapshot_only=False):
                 samples,
                 lo,
                 hi,
-                sender_valid,
+                sender_valid_by_window.get(name, sender_valid),
                 checked_expiry=campaign and expired,
             )
         if campaign:
@@ -184,6 +186,16 @@ def summarize_episode(root, *, snapshot_only=False):
         "verified_crossing_ids": crossing,
         "measured_eligible": False,
     }
+    if sender_valid_by_window:
+        summary["sender_valid_by_window"] = sender_valid_by_window
+        if sender_valid_by_window["hold"] and not sender_valid_by_window["step"]:
+            hold = cohorts["hold"]
+            summary["hold_diagnostic"] = {
+                "scope": "checked hold diagnostics",
+                "in_window_completed": len(hold["in_window_success"]),
+                "duration_ns": boundary - warm,
+                "end_to_end_quantiles": hold["phases"]["end_to_end_quantiles"],
+            }
     if "all_accepted_verdict" in sender:
         summary["all_accepted_verdict"] = sender["all_accepted_verdict"]
     if not snapshot_only:

@@ -22,7 +22,15 @@ from j2_offline import SECOND
 from j2_prequalify_checker import WORKER_BASE
 from j2_qualification_evidence import file_record, read, require, write
 from j2_qualify_volume import OBSERVER_LIMIT
-from j2_schedule import DISPATCH_JOURNAL, HOLD, WARMUP, registered_schedule, schedule_slots
+from j2_schedule import (
+    CAP,
+    DISPATCH_JOURNAL,
+    HOLD,
+    WARMUP,
+    registered_schedule,
+    schedule_slots,
+    sent_keys,
+)
 from j2_schedule_rehearsal import PRECOMMIT_LEAD_SECONDS, run_precommitted, verify_precommit_install
 from j2_step_rehearsal import DrainHarness, exercise_drain
 from j2_verify_overlay import start_profile
@@ -93,9 +101,26 @@ def acceptance(schedule, sender, summary):
     }
     windows = {name: ([], [], []) for name in ("warmup", "hold", "step")}
     totals, before, transport = [], [], []
+    planned, step_capacity_misses = set(), {}
     for i, (at, cutoff) in enumerate(slots):
         key = prefix + f"{i:06d}"
+        planned.add(key)
         row = rows.get(key, {})
+        if (
+            at >= schedule["hold_end_ns"]
+            and row.get("outcome") == "unsent"
+            and row.get("error") == "capacity-missed"
+            and row.get("in_flight_at_release") == CAP
+        ):
+            step_capacity_misses[key] = {
+                "key": key,
+                "scheduled_ns": at,
+                "dispatch_intent_ns": row["dispatch_intent_ns"],
+                "refusal_ns": row["refusal_ns"],
+                "reason": row["error"],
+                "in_flight_at_release": row["in_flight_at_release"],
+            }
+            continue
         intent, entry, written = (
             row.get(name)
             for name in ("dispatch_intent_ns", "transport_entry_ns", "request_written_ns")
@@ -152,12 +177,26 @@ def acceptance(schedule, sender, summary):
         and type(rss) is int
         and 0 < rss <= OBSERVER_LIMIT // 1024
     )
+    exceptions = [
+        row
+        for row in sender["timing_exceptions"]
+        if not (row["reason"] == "capacity-missed" and row["key"] in step_capacity_misses)
+    ]
+    intended = planned - step_capacity_misses.keys()
+    sender_reconciled = (
+        sender["closed"]
+        and not sender["torn_suffix"]
+        and not sender["remaining_intents"]
+        and not sender["outside_slot"]
+        and sent_keys(sender) == set(sender["durable_admissions"]) == intended
+        and set(sender["explicitly_unsent"]) == step_capacity_misses.keys()
+    )
     pass_ = (
         resources_ok
         and not any(categories.values())
-        and not sender["timing_exceptions"]
-        and summary["sender_valid"]
-        and len(totals) == schedule["count"]
+        and not exceptions
+        and sender_reconciled
+        and len(totals) == len(intended)
         and overall["p99_9_ns"] <= P999_NS
         and overall["max_ns"] <= MAX_NS
         and all(
@@ -191,8 +230,10 @@ def acceptance(schedule, sender, summary):
         "timing_failures": categories,
         "windows": breakdown,
         "all_accepted_verdict": summary["all_accepted_verdict"],
-        "timing_exception_count": len(sender["timing_exceptions"]),
-        "sender_reconciled": summary["sender_valid"],
+        "timing_exception_count": len(exceptions),
+        "sender_reconciled": sender_reconciled,
+        "sender_valid_by_window": summary["sender_valid_by_window"],
+        "step_capacity_misses": list(step_capacity_misses.values()),
         "drain": summary["drain"],
     }
 
@@ -310,7 +351,8 @@ def verify_lane_episode(evidence, campaign, job, hold, checker, budget, api):
         require(
             canonical(summary) == canonical(read(root / "episode-replay.json"))
             and report == read(root / "engineering-acceptance.json")
-            and checked["identities"] == expected["count"],
+            and checked["identities"]
+            == sum(row["admitted"] for row in summary["cohorts"].values()),
             "independent engineering evidence differs from the live reduction",
         )
         cleanup = read(evidence / "cleanup.json")

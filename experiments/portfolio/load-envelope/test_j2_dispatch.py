@@ -34,7 +34,7 @@ def fresh_schedule(*, step=False, origin=ORIGIN):
     return {**raw, "dispatch_journal": schedule.DISPATCH_JOURNAL}
 
 
-def dispatch_fixture(plan_schedule, sha, *, changed=None, crash=False, torn=False):
+def dispatch_fixture(plan_schedule, sha, *, changed=None, crash=False, torn=False, resources=False):
     head = stock_plan(plan_schedule)
     head.update(
         schema=schedule.DISPATCH_JOURNAL, origin_ns=plan_schedule["origin_ns"], schedule_sha256=sha
@@ -115,6 +115,15 @@ def dispatch_fixture(plan_schedule, sha, *, changed=None, crash=False, torn=Fals
             sync_entry_ns=-4 * S,
             sync_return_ns=-3 * S,
             directory_sync_return_ns=-2 * S,
+            **(
+                {
+                    "precommit_bytes": len(precommit),
+                    "precommit_start_ns": -4 * S,
+                    "peak_rss_kib": 19,
+                }
+                if resources
+                else {}
+            ),
         ),
         *outcomes,
         dict(
