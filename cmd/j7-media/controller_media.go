@@ -42,15 +42,15 @@ func (h fixtureHost) postgresCommand(drill string, d controllerDependency) ([]st
 	if !validControllerDrill(drill) || (d.Role != sourceRole && d.Role != "sink-db") {
 		return nil, errors.New("only source engine and sink PostgreSQL may use the normal startup command")
 	}
-	secure := filepath.Join(h.private, drill, "private", d.Role)
+	secure := filepath.Join(h.private, drill+"-private", d.Role)
 	c := []string{"container", "create", "--pull=never", "--name=" + d.Endpoint,
 		"--network=kind", "--network-alias=" + d.Endpoint, "--restart=no",
 		"--cpus=" + strconv.FormatFloat(float64(d.Quota.MilliCPU)/1000, 'f', -1, 64),
 		"--memory=" + strconv.FormatInt(d.Quota.Bytes, 10),
 		"--publish=127.0.0.1:" + strconv.Itoa(d.HostPort) + ":5432",
 		"--env-file=" + filepath.Join(secure, "postgres.env"),
-		"--env=PGDATA=/var/lib/postgresql/data/pgdata",
-		"--mount=type=volume,source=" + d.Volume + ",target=/var/lib/postgresql/data",
+		"--env=PGDATA=/var/lib/postgresql/18/docker",
+		"--mount=type=volume,source=" + d.Volume + ",target=/var/lib/postgresql",
 		bindRO(filepath.Join(secure, "tls"), "/j7/tls")}
 	c = append(c, labelArgs(h.dependencyLabels(drill, d.Role))...)
 	cap := h.plan.Work.SinkConnections
@@ -94,15 +94,24 @@ type controllerStage struct {
 
 type stageFiles struct {
 	Root                                  string
+	ConfigRoot                            string
 	Drill                                 string
 	PGBin                                 string
 	Source, Restore, Fresh, Watch, Engine string
 	OpenNS                                int64
 }
 
+func (f stageFiles) config(name string) string {
+	root := f.ConfigRoot
+	if root == "" {
+		root = filepath.Join(f.Root, "private")
+	}
+	return filepath.Join(root, name+".json")
+}
+
 func (f stageFiles) mediaStage(name string) (controllerStage, error) {
 	cfg := func(group string) []string {
-		return []string{name, "--config", filepath.Join(f.Root, "private", group+".json")}
+		return []string{name, "--config", f.config(group)}
 	}
 	stage := controllerStage{Name: name}
 	switch name {
@@ -136,7 +145,7 @@ func (f stageFiles) mediaStage(name string) (controllerStage, error) {
 			"--watch-sha256", f.Watch, "--engine-snapshot", filepath.Join(f.Root, "engine-final.json"), "--engine-sha256", f.Engine,
 			"--receipt", filepath.Join(f.Root, "redispatch.json"))
 	case "quiet-start", "quiet-end":
-		stage.Args = []string{"observe-quiet", "--config", filepath.Join(f.Root, "private", "quiet.json"),
+		stage.Args = []string{"observe-quiet", "--config", f.config("quiet"),
 			"--phase", strings.TrimPrefix(name, "quiet-"), "--restore-sha256", f.Restore, "--fresh-sha256", f.Fresh}
 	default:
 		return stage, fmt.Errorf("unrecognized J7 media stage %s", name)

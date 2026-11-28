@@ -228,10 +228,7 @@ func buildDrillFixture(t *testing.T) *drillFixture {
 	freshKafka.SourceSHA = f.put("kafka-source.json", oldKafka)
 	freshKafka.RestoreSHA = restoreSHA
 	freshSHA := f.put("kafka-fresh.json", freshKafka)
-	p := readyEndpoint{Schema: "j7.target-endpoint.v1", BootID: h.BootID, Authority: h.Target, RestoreSHA: restoreSHA,
-		KafkaSHA: freshSHA, OpenNS: f.ns(95), OldDeniedNS: f.ns(92), ForeignDeniedNS: f.ns(93),
-		SystemID: r.State.SystemID, Timeline: 2}
-	f.witness(h.Target, "j7-target-endpoint", f.put("endpoint.json", p), 2, p.OldDeniedNS, p.OpenNS)
+	f.exerciseControllerEndpoint(r, restoreSHA, freshSHA)
 	for i, s := range work.NonMarkers[5:] {
 		at := send(s, f.ns(96)+int64(i*10), h.Target)
 		if i == 0 {

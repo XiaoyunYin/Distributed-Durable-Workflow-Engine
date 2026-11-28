@@ -67,6 +67,19 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 		return runQuietObservation(ctx, args, out, diagnostics)
 	case "verify-controls":
 		return runQualificationControls(args, out, diagnostics)
+	case "fixture-worker":
+		if len(args) != 2 {
+			return errors.New("fixture-worker requires its mounted configuration")
+		}
+		return runFixtureWorker(ctx, args[1])
+	case "fixture-install":
+		if len(args) != 1 {
+			return errors.New("fixture-install uses its private mounts")
+		}
+		return installFixtureSecrets()
+	case "fixture-idle":
+		<-ctx.Done()
+		return nil
 	case "hosted-controller":
 		return runHostedController(ctx, args, out)
 	case "hosted-gate":

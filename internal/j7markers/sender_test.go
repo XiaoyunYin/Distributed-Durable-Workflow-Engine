@@ -112,7 +112,19 @@ func TestRunMarkersAndReplay(t *testing.T) {
 		_, _ = io.WriteString(w, createdBody(plan.Fixture, marker))
 	}))
 	defer server.Close()
+	var actions []int
 	sender := Sender{
+		AfterMarker: func(ctx context.Context, sequence int, ack int64) error {
+			if ctx.Err() != nil || len(ledger.report.Exchanges) != sequence ||
+				ledger.report.Exchanges[sequence-1].OutcomeSync != ack {
+				t.Fatal("marker hook ran before the fsynced acknowledgment")
+			}
+			if sequence == archivedMarkers && len(ledger.report.Witnesses) != 1 {
+				t.Fatal("M12 hook preceded the durable cut")
+			}
+			actions = append(actions, sequence)
+			return nil
+		},
 		Client: server.Client(), SourceURL: server.URL,
 		BearerToken: func(context.Context) (string, error) { return "fixture", nil },
 		PlaceCut: func(ctx context.Context, ack int64) (restoreledger.Witness, error) {
@@ -128,6 +140,9 @@ func TestRunMarkersAndReplay(t *testing.T) {
 	lastAck, err := sender.run(t.Context(), ledger, plan, origin, withVirtualWait)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(actions) != markerCount || actions[11] != 12 || actions[14] != 15 {
+		t.Fatal("marker companion stages changed the schedule")
 	}
 	if lastAck != ledger.report.Exchanges[markerCount-1].OutcomeSync {
 		t.Fatalf("reported outage origin %d differs from the last durable ack", lastAck)

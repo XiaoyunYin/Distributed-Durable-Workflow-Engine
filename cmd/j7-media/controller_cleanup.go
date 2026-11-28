@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -90,6 +91,10 @@ func (h fixtureHost) observeTeardown(ctx context.Context, drill string) (hostTea
 		}
 	}
 	if drill == "" {
+		if err := h.removeFixtureImage(ctx); err != nil {
+			w.Residuals = append(w.Residuals, "image:"+fixtureImage(h))
+			attempt(err)
+		}
 		if err := h.checkClusterAbsent(ctx); err != nil {
 			w.Residuals = append(w.Residuals, "kind:"+h.cluster)
 			attempt(err)
@@ -130,4 +135,30 @@ func (h fixtureHost) teardown(ctx context.Context, drill string) error {
 		return errors.Join(teardownErr, err)
 	}
 	return errors.Join(teardownErr, syncDirectory(h.private))
+}
+
+func (h fixtureHost) removeFixtureImage(ctx context.Context) error {
+	filter := "reference=" + fixtureImage(h)
+	list := func() ([]byte, error) { return h.docker(ctx, "image", "ls", "--filter", filter, "--format", "{{.ID}}") }
+	raw, err := list()
+	if err != nil {
+		return err
+	}
+	if len(strings.Fields(string(raw))) == 0 {
+		return nil
+	}
+	labels, err := h.docker(ctx, "image", "inspect", "--format", "{{json .Config.Labels}}", fixtureImage(h))
+	var inventory map[string]string
+	if err != nil || json.Unmarshal(labels, &inventory) != nil ||
+		!matchesLabels(inventory, map[string]string{"j7.restore.run": h.runID, "j7.restore.attempt": "1", "j7.restore.campaign": h.campaign}) {
+		return errors.New("fixture application image is not bound to this run")
+	}
+	if _, err := h.docker(ctx, "image", "rm", fixtureImage(h)); err != nil {
+		return err
+	}
+	raw, err = list()
+	if err != nil || len(strings.Fields(string(raw))) != 0 {
+		return errors.New("fixture image is still present")
+	}
+	return nil
 }

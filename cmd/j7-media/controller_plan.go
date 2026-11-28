@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -175,10 +176,15 @@ func validateControllerPlan(p controllerPlan) error {
 }
 
 type controllerDryRun struct {
-	Plan         controllerPlan         `json:"fixture"`
-	Dependencies []controllerDependency `json:"dependencies"`
-	Commands     [][]string             `json:"dependency_create_commands"`
-	Stages       []controllerStage      `json:"media_stage_commands"`
+	Plan           controllerPlan         `json:"fixture"`
+	Dependencies   []controllerDependency `json:"dependencies"`
+	Commands       [][]string             `json:"dependency_create_commands"`
+	Stages         []controllerStage      `json:"media_stage_commands"`
+	Sequence       []drillStep            `json:"drill_sequence"`
+	Reopen         []string               `json:"target_reopen_command"`
+	SourceActions  map[int]string         `json:"source_acknowledgment_hooks"`
+	WorkloadIDs    map[string]string      `json:"workload_ids"`
+	ResourcePhases []string               `json:"resource_boundaries"`
 }
 
 func controllerOverlayJSON(root string, w io.Writer) error {
@@ -203,7 +209,11 @@ func controllerOverlayJSON(root string, w io.Writer) error {
 		}
 		d.Commands = append(d.Commands, command)
 	}
-	bound := stageFiles{Root: filepath.Join(host.private, "q1"), Drill: "q1", PGBin: filepath.Join(host.private, "pg-bin"), OpenNS: 1}
+	paths, err := ownedDrillPaths(host, "q1", filepath.Join(host.private, "q1"))
+	if err != nil {
+		return err
+	}
+	bound := stageFiles{Root: paths.evidence, ConfigRoot: paths.secret, Drill: "q1", PGBin: paths.bin, OpenNS: 1}
 	bound.Source = restoreledger.SHA256([]byte("dry-run source broker"))
 	bound.Restore = restoreledger.SHA256([]byte("dry-run restore"))
 	bound.Fresh = restoreledger.SHA256([]byte("dry-run fresh broker"))
@@ -216,6 +226,25 @@ func controllerOverlayJSON(root string, w io.Writer) error {
 			return err
 		}
 		d.Stages = append(d.Stages, stage)
+	}
+	if err := driveDrill(context.Background(), func(_ context.Context, s drillStep) error { d.Sequence = append(d.Sequence, s); return nil }); err != nil {
+		return err
+	}
+	work, err := buildFixtureWorkload("dry-run", "q1", "j7-q1", orphanClock{})
+	if err != nil {
+		return err
+	}
+	d.SourceActions = sourceMarkerActions()
+	d.WorkloadIDs = make(map[string]string)
+	for _, s := range work.work.NonMarkers {
+		d.WorkloadIDs[s.Role] = s.ID
+	}
+	d.ResourcePhases = []string{"start", "backup", "outage", "replay", "export"}
+	target := d.Dependencies[1]
+	d.Reopen, err = host.reopenTargetCommand("q1", paths.cfg(targetSecurityDir), target,
+		restoreReceipt{Volume: sourceVolume{Name: target.Volume}, TargetID: restoreledger.SHA256([]byte("dry-run isolated target"))})
+	if err != nil {
+		return err
 	}
 	return json.NewEncoder(w).Encode(d)
 }

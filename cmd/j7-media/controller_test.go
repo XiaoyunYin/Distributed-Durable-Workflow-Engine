@@ -117,6 +117,23 @@ func TestControllerCandidateAdmission(t *testing.T) {
 			tc.edit()
 			putJSON(registryPath, registry)
 			seal()
+			if tc.name == "positive" || tc.name == "premerge" {
+				before, err := evidenceFile(dir, candidatePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = resealCandidate(dir, io.Discard)
+				if tc.name == "positive" {
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					after, readErr := evidenceFile(dir, candidatePath)
+					if err == nil || readErr != nil || !bytes.Equal(before, after) {
+						t.Fatalf("unregistered switch changed the candidate: %v", err)
+					}
+				}
+			}
 			var out bytes.Buffer
 			err := runHostedGate([]string{"hosted-gate", "--root", dir, "--mode", "qualification"}, &out, io.Discard)
 			if tc.want != "" {
@@ -147,7 +164,10 @@ func TestControllerDependencyAndStageCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Plan.Work.Topology.Nodes != 1 || len(p.Dependencies) != 5 ||
-		len(p.Commands) != 3 || len(p.Stages) != 14 || p.Plan.Source.Environment["RUNTIME_KAFKA_GENERATION"] != "" ||
+		len(p.Commands) != 3 || len(p.Stages) != 14 || len(p.WorkloadIDs) != 9 ||
+		!slices.Equal(p.Sequence, drillSequence) || p.SourceActions[12] != "release-e1" ||
+		!slices.Contains(p.Reopen, "--network=kind") || !slices.Contains(p.Reopen, "archive_mode=off") ||
+		!slices.Equal(p.ResourcePhases, []string{"start", "backup", "outage", "replay", "export"}) || p.Plan.Source.Environment["RUNTIME_KAFKA_GENERATION"] != "" ||
 		p.Plan.Target.Environment["RUNTIME_KAFKA_GENERATION"] != "j7-restore" {
 		t.Fatalf("dry run incomplete: %s", out.String())
 	}

@@ -37,6 +37,9 @@ type Sender struct {
 	SourceURL   string
 	BearerToken func(context.Context) (string, error)
 	PlaceCut    PlaceCut
+	// AfterMarker runs after the acknowledgment is durable. For M12, the
+	// archive witness is already durable too. The original schedule stays fixed.
+	AfterMarker func(context.Context, int, int64) error
 }
 
 // Run keeps every offer on the original open-loop schedule and returns M15's
@@ -74,6 +77,11 @@ func (s Sender) run(ctx context.Context, ledger Journal, plan Plan, originNS int
 			next := scheduled + int64(markerCadence)
 			if err := s.archiveCut(ctx, ledger, marker, syncedAck, next); err != nil {
 				return 0, fmt.Errorf("archive cut after M12: %w", err)
+			}
+		}
+		if s.AfterMarker != nil {
+			if err := s.AfterMarker(ctx, marker.Sequence, syncedAck); err != nil {
+				return 0, fmt.Errorf("source stage after M%02d: %w", marker.Sequence, err)
 			}
 		}
 	}

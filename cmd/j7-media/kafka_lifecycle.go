@@ -411,14 +411,16 @@ func awaitNewKafka(ctx context.Context, api *kafka.Client, cluster string) error
 	}
 }
 
+type renderedEnv struct {
+	Name      string          `json:"name"`
+	Value     *string         `json:"value,omitempty"`
+	ValueFrom json.RawMessage `json:"valueFrom,omitempty"`
+}
+
 type renderedConsumer struct {
-	Role    string `json:"role"`
-	EnvFrom bool   `json:"env_from"`
-	Env     []struct {
-		Name      string          `json:"name"`
-		Value     *string         `json:"value,omitempty"`
-		ValueFrom json.RawMessage `json:"valueFrom,omitempty"`
-	} `json:"env"`
+	Role    string        `json:"role"`
+	EnvFrom bool          `json:"env_from"`
+	Env     []renderedEnv `json:"env"`
 }
 
 func verifyGenerationRender(rows []renderedConsumer, endpoint string) error {

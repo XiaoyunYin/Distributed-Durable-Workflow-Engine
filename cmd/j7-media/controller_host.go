@@ -63,8 +63,13 @@ func runHostedController(ctx context.Context, args []string, out io.Writer) erro
 		return errors.New("hosted-controller requires an absolute checkout and a fixed action")
 	}
 	root := args[1]
-	if args[2] == "dry-run" && len(args) == 3 {
-		return controllerOverlayJSON(root, out)
+	if len(args) == 3 {
+		switch args[2] {
+		case "dry-run":
+			return controllerOverlayJSON(root, out)
+		case "reseal":
+			return resealCandidate(root, out)
+		}
 	}
 	if args[2] != "live" || len(args) < 14 {
 		return errors.New("invalid J7 live controller launcher arguments")
@@ -91,7 +96,7 @@ func runHostedController(ctx context.Context, args []string, out io.Writer) erro
 		if !validControllerDrill(action[1]) || action[3] != filepath.Join(private, action[1]) {
 			return errors.New("between requires the exact finished drill directory")
 		}
-		return host.teardown(ctx, action[1])
+		return errors.Join(host.teardownNamespace(ctx, action[1]), host.teardown(ctx, action[1]))
 	}
 	_, seal, err := checkCandidate(root)
 	if err != nil {
@@ -104,7 +109,10 @@ func runHostedController(ctx context.Context, args []string, out io.Writer) erro
 		}
 		return host.bootstrap(ctx, clock, boot, seal, env.revision)
 	}
-	return errors.New("J7_CONTROLLER_ADMISSION: live workload driver and target endpoint deployment are incomplete")
+	if cmd == "pre-arm" {
+		return ctx.Err()
+	}
+	return host.runDrill(ctx, action[1], action[3], action[4], env.revision, seal)
 }
 
 func validControllerDrill(id string) bool {
@@ -306,6 +314,9 @@ func (h fixtureHost) bootstrap(ctx context.Context, clock restoreledger.Clock, b
 	}
 	if err := h.createCluster(ctx, pinned, &w); err != nil {
 		return err
+	}
+	if err := h.loadFixtureImage(ctx); err != nil {
+		return errors.Join(err, h.cleanupAfterFailure())
 	}
 	w.After, err = h.hostCapacity(ctx, false)
 	if err != nil {

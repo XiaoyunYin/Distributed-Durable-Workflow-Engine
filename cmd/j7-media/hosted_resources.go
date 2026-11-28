@@ -67,13 +67,10 @@ func checkResources(r resourceWindow, drillStart, final int64) error {
 		return errors.New("J7_CAPACITY: sampling does not bracket the complete drill")
 	}
 	for i, s := range r.Samples {
-		if s.AtNS <= 0 || (i > 0 && (s.AtNS < r.Samples[i-1].AtNS ||
-			s.AtNS-r.Samples[i-1].AtNS > int64(5*time.Second))) ||
-			s.FreeKiB < 4<<20 || s.AvailableKiB < 2<<20 || s.SwapKiB < 0 || s.SwapKiB > first.SwapKiB ||
-			s.EngineSessions < 0 || 4*s.EngineSessions > 3*r.EngineLimit || s.SinkSessions < 0 ||
-			4*s.SinkSessions > 3*r.SinkLimit || s.UnexpectedKills != 0 || s.OOM != 0 ||
-			min(s.CPUThrottledNS, s.CPUUsageNS, s.WorkingSetBytes, s.IOReadBytes, s.IOWrittenBytes) < 0 {
-			return errors.New("J7_CAPACITY: sample gap, pressure, unexpected termination or less than 25 percent connection reserve")
+		prefix := r
+		prefix.Samples = r.Samples[:i]
+		if err := checkResourceSample(prefix, s); err != nil {
+			return err
 		}
 		if s.Phase != "" {
 			seen = append(seen, s.Phase)
@@ -82,6 +79,22 @@ func checkResources(r resourceWindow, drillStart, final int64) error {
 	for _, phase := range []string{"backup", "outage", "replay", "export"} {
 		if !slices.Contains(seen, phase) {
 			return fmt.Errorf("J7_CAPACITY: resource observation missing at %s", phase)
+		}
+	}
+	return nil
+}
+
+func checkResourceSample(r resourceWindow, s resourceSample) error {
+	if s.AtNS <= 0 || s.FreeKiB < 4<<20 || s.AvailableKiB < 2<<20 || s.SwapKiB < 0 ||
+		s.EngineSessions < 0 || 4*s.EngineSessions > 3*r.EngineLimit || s.SinkSessions < 0 ||
+		4*s.SinkSessions > 3*r.SinkLimit || s.UnexpectedKills != 0 || s.OOM != 0 ||
+		min(s.CPUThrottledNS, s.CPUUsageNS, s.WorkingSetBytes, s.IOReadBytes, s.IOWrittenBytes) < 0 {
+		return errors.New("J7_CAPACITY: pressure, unexpected termination or less than 25 percent connection reserve")
+	}
+	if n := len(r.Samples); n > 0 {
+		last := r.Samples[n-1]
+		if s.AtNS < last.AtNS || s.AtNS-last.AtNS > int64(5*time.Second) || s.SwapKiB > r.Samples[0].SwapKiB {
+			return errors.New("J7_CAPACITY: sample gap or swap growth")
 		}
 	}
 	return nil

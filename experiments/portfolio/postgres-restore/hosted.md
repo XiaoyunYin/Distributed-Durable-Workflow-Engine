@@ -19,12 +19,32 @@ requires no Docker. The separate PostgreSQL tooling fixture still runs in the
 pinned image.
 
 Qualification and measurement require J9a's reviewed registration and runtime
-reader. After PR #102 merges, reseal the candidate against the actual merged
-registry and reader. The tracked controller checks the runner identity and
-owns the sealed kind bootstrap and scoped teardown. `pre-arm` currently stops
-before allocation because the live cohort driver, target reopening and complete
-resource sampling still need wiring. The capability contract for that driver is
-below.
+reader. After PR #102 merges and the controller branch is rebased, run from
+the reviewed checkout:
+
+```sh
+GOMAXPROCS=2 go run -p 1 ./cmd/j7-media hosted-controller "$PWD" reseal
+```
+
+This command validates the registered value and both J7 profiles, then
+atomically replaces the candidate with digests of the merged inputs. The
+command fails before writing if the registration or reader is absent. On
+PowerShell, use the following equivalent.
+
+```powershell
+$env:GOMAXPROCS='2'
+go run -p 1 ./cmd/j7-media hosted-controller (Get-Location).Path reseal
+```
+
+The controller admits only the first attempt of a Linux GitHub-hosted job.
+The runner owns the append-only ledger, PostgreSQL client tools and effect
+ingress witness. The engine and sink PostgreSQL containers and Kafka run
+beside one Calico kind node. The runtime, two fixture worker slots and effect
+sink run inside kind. The target is reopened from the verified, exclusively
+held volume, with TLS and an explicit role allowlist. Old listener refusal
+and a typed foreign-role denial are bracketed by authenticated target
+identity reads. The grant reader rebind and endpoint witness precede target
+application startup.
 
 - Register the reviewed J9a switch for both `J7_source` and `J7_target` and
   select its registered nondefault value. Keep the registered K profiles.
@@ -95,5 +115,5 @@ Physical media replay is witnessed solely inside the running drill.
 Tooling can be dispatched once GitHub has registered the workflow.
 
 ```sh
-gh workflow run j7.yml --ref codex/j7-slice0 -f mode=tooling
+gh workflow run j7.yml --ref codex/j7-controller -f mode=tooling
 ```

@@ -8,7 +8,6 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"durable-agent-execution-engine/internal/restoreledger"
 )
@@ -56,23 +55,35 @@ func selectRelay(registry map[string]registeredSwitch) (string, registeredSwitch
 	return name, row, nil
 }
 
-func checkCandidate(root string) (hostedCandidate, string, error) {
-	var c hostedCandidate
+func readRelayAdmission(root string) (string, registeredSwitch, error) {
+	var row registeredSwitch
 	var registry struct {
 		Schema   int                         `json:"schema_version"`
 		Switches map[string]registeredSwitch `json:"switches"`
 	}
 	raw, err := evidenceFile(root, "deploy/runtime-switches.json")
 	if err != nil {
-		return c, "", err
+		return "", row, err
 	}
 	if err := json.Unmarshal(raw, &registry); err != nil {
-		return c, "", err
+		return "", row, err
 	}
 	if registry.Schema != 1 {
-		return c, "", errors.New("J9A_ADMISSION: unsupported switch registry")
+		return "", row, errors.New("J9A_ADMISSION: unsupported switch registry")
 	}
 	name, row, err := selectRelay(registry.Switches)
+	if err != nil {
+		return "", row, err
+	}
+	if name != repairedRelaySwitch || row.Default != "0" || row.Values["1"] == "" {
+		return "", row, errors.New("J9A_ADMISSION: registry does not declare the reviewed repaired mode")
+	}
+	return name, row, nil
+}
+
+func checkCandidate(root string) (hostedCandidate, string, error) {
+	var c hostedCandidate
+	name, _, err := readRelayAdmission(root)
 	if err != nil {
 		return c, "", err
 	}
@@ -80,32 +91,20 @@ func checkCandidate(root string) (hostedCandidate, string, error) {
 	if err != nil {
 		return c, "", errors.New("J7_CANDIDATE_ADMISSION: tracked reviewed candidate and fixture controller are required")
 	}
-	if c.Schema != "j7.hosted-candidate.v1" || c.RelaySwitch != name || name != repairedRelaySwitch || c.RelayValue != "1" ||
-		row.Default != "0" || row.Values[c.RelayValue] == "" || c.RuntimePath != relayReaderPath {
+	if c.Schema != "j7.hosted-candidate.v1" || c.RelaySwitch != name || c.RelayValue != "1" || c.RuntimePath != relayReaderPath {
 		return c, "", errors.New("J9A_ADMISSION: candidate does not select the registered nondefault repaired mode")
 	}
-	expected := append(slices.Clone(hostedCandidateFiles), c.RuntimePath)
+	expected, err := candidateDigests(root)
+	if err != nil {
+		return c, "", err
+	}
 	if len(c.Files) != len(expected) {
 		return c, "", errors.New("J7_CANDIDATE_ADMISSION: unexpected fixture inventory")
 	}
-	for _, p := range expected {
-		if !filepath.IsLocal(p) || filepath.ToSlash(filepath.Clean(p)) != p {
-			return c, "", errors.New("J7_CANDIDATE_ADMISSION: unsafe candidate path")
-		}
-		if err := checkedEvidenceDir(filepath.Dir(filepath.Join(root, p))); err != nil {
-			return c, "", err
-		}
-		digest, err := fileSHA(root, p)
-		if err != nil || c.Files[p] != digest {
+	for p, digest := range expected {
+		if c.Files[p] != digest {
 			return c, "", fmt.Errorf("J7_CANDIDATE_ADMISSION: candidate file is unbound: %s", p)
 		}
-	}
-	source, err := evidenceFile(root, c.RuntimePath)
-	if err != nil || !strings.Contains(string(source), c.RelaySwitch) {
-		return c, "", errors.New("J9A_ADMISSION: registered switch has no witnessed runtime reader")
-	}
-	if _, err := readControllerPlan(root); err != nil {
-		return c, "", err
 	}
 	return c, sha, nil
 }

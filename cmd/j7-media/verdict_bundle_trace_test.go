@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"durable-agent-execution-engine/internal/invariants"
 	"durable-agent-execution-engine/internal/restoreledger"
@@ -242,19 +242,31 @@ func (f *drillFixture) quietFixtures(trace invariants.Trace, b kafkaSnapshot, si
 }
 
 func (f *drillFixture) resourcesFixture(end int64) {
-	w := resourceWindow{Schema: "j7.resource-samples.v1", CPUs: 4, InstalledKiB: 12 << 20, StartupFreeKiB: 8 << 20,
-		EngineLimit: 100, SinkLimit: 16, RoleLimits: map[string]quota{
-			"engine-db": {1000, 1 << 30}, "sink-db": {500, 512 << 20}, "kafka": {1000, 1536 << 20},
-			"api": {500, 256 << 20}, "scheduler": {500, 256 << 20}, "relay": {500, 256 << 20},
-			"worker-1": {500, 512 << 20}, "worker-2": {500, 512 << 20}, "sink": {500, 512 << 20},
-		}}
-	phases := map[int64]string{10: "backup", 76: "outage", 86: "replay", 148: "export"}
-	for sec := int64(0); f.ns(sec) < end+int64(2*time.Second); sec++ {
+	var at int64
+	s := controllerSampler{now: func() (int64, error) { return at, nil }, window: resourceWindow{
+		Schema: "j7.resource-samples.v1", CPUs: 4, InstalledKiB: 12 << 20, StartupFreeKiB: 8 << 20,
+		EngineLimit: 100, SinkLimit: 16, RoleLimits: j7RoleLimits,
+	}, collect: func(context.Context) (resourceSample, error) {
+		sessions := 12
+		if at == f.ns(76) {
+			sessions = 0
+		}
+		return resourceSample{FreeKiB: 8 << 20, AvailableKiB: 3 << 20, EngineSessions: sessions, SinkSessions: 2}, nil
+	}}
+	phases := map[int64]string{0: "start", 10: "backup", 76: "outage", 86: "replay"}
+	for sec := int64(0); sec < 148; sec++ {
 		if sec%5 != 0 && phases[sec] == "" {
 			continue
 		}
-		w.Samples = append(w.Samples, resourceSample{AtNS: f.ns(sec), Phase: phases[sec], FreeKiB: 8 << 20,
-			AvailableKiB: 3 << 20, EngineSessions: 12, SinkSessions: 2})
+		at = f.ns(sec)
+		if err := s.take(f.t.Context(), phases[sec]); err != nil {
+			f.t.Fatal(err)
+		}
 	}
-	f.put("resource-samples.json", w)
+	at = f.ns(148)
+	window, err := s.finish(f.t.Context(), f.clock.StartNS, end)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.put("resource-samples.json", window)
 }
