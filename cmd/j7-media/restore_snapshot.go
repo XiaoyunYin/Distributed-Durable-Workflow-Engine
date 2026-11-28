@@ -456,7 +456,7 @@ func checkPrewriteOrphan(t invariants.Trace, nodes []nodeAtRestore, attempts []a
 	var approvals int
 	for _, row := range t.Approvals {
 		if row.WorkflowID == id && row.NodeID == e.Attempt.NodeID && row.Iteration == e.Attempt.Iteration &&
-			row.IntentID == e.Intent && row.Decision == "APPROVED" && row.DispatchStatus == "DISPATCHED" &&
+			row.IntentID == e.Intent && row.Decision == "APPROVED" && row.DispatchStatus == "GRANTED" &&
 			row.ExpectedResourceRevision == "0" && row.CanonicalArgumentHash == e.CanonicalHash &&
 			row.GrantScopeHash == e.ScopeHash && row.GrantToken != "" &&
 			restoreledger.SHA256([]byte(row.GrantToken)) == e.GrantSHA {

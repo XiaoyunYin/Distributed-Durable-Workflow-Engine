@@ -212,7 +212,7 @@ func TestPrewriteOrphanRequiresOneRetainedMutation(t *testing.T) {
 		Deadline: e.Attempt.Deadline.Add(5 * time.Second), State: "CLAIMED", Class: "COOPERATING_EFFECT", Current: true, Outcome: "NONE",
 		Fence: e.Fence, LogicalKey: e.LogicalKey, ScopeHash: e.ScopeHash}}
 	trace := invariants.Trace{Approvals: []invariants.ApprovalRecord{{WorkflowID: "e1", NodeID: "effect", IntentID: e.Intent,
-		ExpectedResourceRevision: "0", Decision: "APPROVED", DispatchStatus: "DISPATCHED", GrantToken: "grant",
+		ExpectedResourceRevision: "0", Decision: "APPROVED", DispatchStatus: "GRANTED", GrantToken: "grant",
 		CanonicalArgumentHash: e.CanonicalHash, GrantScopeHash: e.ScopeHash}}}
 	receipt := k6receipt.Receipt{WorkflowID: "e1", IntentID: e.Intent, LogicalKey: e.LogicalKey, ResourceID: e.Resource,
 		CanonicalHash: e.CanonicalHash, ScopeHash: e.ScopeHash, AppliedRevision: 1, ApplicationID: "applied"}
@@ -225,6 +225,11 @@ func TestPrewriteOrphanRequiresOneRetainedMutation(t *testing.T) {
 	if got, err := checkPrewriteOrphan(trace, nil, attempts, e, proof, sink); err != nil || got != receipt {
 		t.Fatalf("expected exact orphan join, got %+v %v", got, err)
 	}
+	trace.Approvals[0].DispatchStatus = "DISPATCHED"
+	if _, err := checkPrewriteOrphan(trace, nil, attempts, e, proof, sink); err == nil {
+		t.Fatal("accepted the source's post-result grant disposition before recovery")
+	}
+	trace.Approvals[0].DispatchStatus = "GRANTED"
 	if _, err := checkPrewriteOrphan(trace, []nodeAtRestore{{ID: "e1", Result: json.RawMessage("{}")}}, attempts, e, proof, sink); err == nil {
 		t.Fatal("accepted surviving source result")
 	}

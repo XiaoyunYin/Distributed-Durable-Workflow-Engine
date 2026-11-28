@@ -414,24 +414,32 @@ func writeReplayManifest(path string, m replayManifest) error {
 }
 
 func exportRetainedSink(ctx context.Context, path string) (k6sink.Snapshot, error) {
-	file, err := openRegular(path, os.O_RDONLY)
+	dsn, err := readPrivateDSN(path)
 	if err != nil {
 		return k6sink.Snapshot{}, err
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || info.Mode().Perm()&0o077 != 0 || info.Size() > 4096 {
-		return k6sink.Snapshot{}, errors.New("retained sink credentials must be a private fixture file")
-	}
-	raw, err := io.ReadAll(io.LimitReader(file, 4097))
-	if err != nil || len(raw) > 4096 || strings.TrimSpace(string(raw)) == "" {
-		return k6sink.Snapshot{}, errors.New("read retained sink fixture connection")
-	}
-	s, err := k6sink.Export(ctx, strings.TrimSpace(string(raw)))
+	s, err := k6sink.Export(ctx, dsn)
 	if err != nil {
 		return s, errors.New("retained sink read-only export failed")
 	}
 	return s, nil
+}
+
+func readPrivateDSN(path string) (string, error) {
+	file, err := openRegular(path, os.O_RDONLY)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || info.Mode().Perm()&0o077 != 0 || info.Size() > 4096 {
+		return "", errors.New("database credentials must be a private fixture file")
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, 4097))
+	if err != nil || len(raw) > 4096 || strings.TrimSpace(string(raw)) == "" {
+		return "", errors.New("read private fixture database connection")
+	}
+	return strings.TrimSpace(string(raw)), nil
 }
 
 var (

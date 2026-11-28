@@ -278,6 +278,7 @@ type dispatchHistory struct {
 	WorkflowID string    `json:"workflow_id"`
 	Revision   int64     `json:"revision"`
 	ActorKind  string    `json:"actor_kind"`
+	Epoch      int64     `json:"scheduler_epoch"`
 	NodeID     string    `json:"node_id"`
 	Iteration  int       `json:"iteration"`
 	Attempt    int64     `json:"attempt_number"`
