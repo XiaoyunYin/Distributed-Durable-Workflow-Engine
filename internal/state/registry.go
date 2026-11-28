@@ -20,6 +20,17 @@ const K6Activity = "dur053.cooperating"
 
 func K6Enabled() bool { return os.Getenv("DUR053_K6_ACTIVITY") == "1" }
 
+const RecordedLLMActivity = "j4.recorded-llm"
+const RecordedLLMMode = "J4_RECORDED_LLM_ACTIVITY"
+
+func ValidateRecordedLLMMode() error {
+	value, present := os.LookupEnv(RecordedLLMMode)
+	if !present || value == "0" || value == "1" {
+		return nil
+	}
+	return fmt.Errorf("%s must be 0 or 1", RecordedLLMMode)
+}
+
 // RuntimeRegistry is the effective allowlist used by dispatch and image export.
 func RuntimeRegistry() []ActivityVersion {
 	entries := []ActivityVersion{{"pure.add", "v1", ""}, {"pure.echo", "v1", ""}}
@@ -31,6 +42,9 @@ func RuntimeRegistry() []ActivityVersion {
 	}
 	if K6Enabled() {
 		entries = append(entries, ActivityVersion{K6Activity, "v1", EffectCooperating})
+	}
+	if os.Getenv(RecordedLLMMode) == "1" {
+		entries = append(entries, ActivityVersion{RecordedLLMActivity, "v1", ""})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries
@@ -51,6 +65,9 @@ func registrySet(entries []ActivityVersion) (map[ActivityVersion]bool, error) {
 		if (entry.Name == K6Activity && (entry.Version != "v1" || entry.Class != EffectCooperating)) ||
 			(entry.Name != K6Activity && entry.Class != "") {
 			return nil, errors.New("invalid activity effect class")
+		}
+		if entry.Name == RecordedLLMActivity && entry.Version != "v1" {
+			return nil, errors.New("invalid recorded-provider activity version")
 		}
 		result[entry] = true
 	}

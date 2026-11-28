@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -51,6 +52,57 @@ func TestK2RegistryParity(t *testing.T) {
 				t.Fatal("effect class guard bypassed")
 			}
 		}
+	}
+}
+
+func TestRecordedLLMRegistryLegacyEquivalence(t *testing.T) {
+	t.Setenv("DUR048_ALLOW_FIXTURE_ACTIVITY", "0")
+	t.Setenv("DUR053_ALLOW_FIXTURE_ACTIVITY", "0")
+	t.Setenv("DUR053_K6_ACTIVITY", "0")
+	t.Setenv(RecordedLLMMode, "0")
+	if err := os.Unsetenv(RecordedLLMMode); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []ActivityVersion{{"pure.add", "v1", ""}, {"pure.echo", "v1", ""}}
+	if err := CheckRegistryParity(legacy, RuntimeRegistry()); err != nil {
+		t.Fatal(err)
+	}
+	def := Definition{
+		ActivityVersions: []byte(`{"j4.recorded-llm":"v1","pure.echo":"v1"}`),
+		EffectClasses:    map[string]EffectClass{RecordedLLMActivity: EffectPure, "pure.echo": EffectPure},
+	}
+	if _, ok := RuntimeVersion(def, "pure.echo"); !ok {
+		t.Fatal("unset mode lost the existing pure.echo activity")
+	}
+	if _, ok := RuntimeVersion(def, RecordedLLMActivity); ok {
+		t.Fatal("unset mode admitted the recorded-provider fixture")
+	}
+	t.Setenv(RecordedLLMMode, "0")
+	if err := CheckRegistryParity(legacy, RuntimeRegistry()); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(RecordedLLMMode, "1")
+	enabled := RuntimeRegistry()
+	if err := CheckRegistryParity(append(legacy, ActivityVersion{RecordedLLMActivity, "v1", ""}), enabled); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := RuntimeVersion(def, RecordedLLMActivity); !ok {
+		t.Fatal("enabled mode did not admit the registered v1")
+	}
+	if CheckRegistryParity(legacy, enabled) == nil || CheckRegistryParity(enabled, legacy) == nil {
+		t.Fatal("one-sided opt-in passed")
+	}
+	badVersion := []ActivityVersion{{RecordedLLMActivity, "v2", ""}}
+	if CheckRegistryParity(badVersion, badVersion) == nil {
+		t.Fatal("unregistered v2 passed")
+	}
+	t.Setenv(RecordedLLMMode, "enabled")
+	if ValidateRecordedLLMMode() == nil {
+		t.Fatal("invalid configuration passed")
+	}
+	t.Setenv(RecordedLLMMode, "")
+	if _, present := os.LookupEnv(RecordedLLMMode); present && ValidateRecordedLLMMode() == nil {
+		t.Fatal("explicit empty configuration passed")
 	}
 }
 

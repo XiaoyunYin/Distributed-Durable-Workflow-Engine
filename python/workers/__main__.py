@@ -86,13 +86,19 @@ def run(
     from faults.client import FailpointClient
 
     from workers.kafka_worker import start_pool
+    from workers.recorded_activity import ProviderConfig, recorded_activity_enabled
 
+    j4 = recorded_activity_enabled()
+    if j4:
+        ProviderConfig.validate_worker()
     host, port_text = os.getenv("WORKER_ADDR", "0.0.0.0:8081").rsplit(":", 1)
     server = ThreadingHTTPServer((host, int(port_text)), HealthHandler)
     logging.basicConfig(level=logging.INFO)
     mode = os.getenv("WORKER_DRAIN_MODE", "drain")
     if mode not in {"drain", "legacy"}:
         raise ValueError("WORKER_DRAIN_MODE must be drain or legacy")
+    if j4 and mode != "drain":
+        raise ValueError("J4 requires the bounded worker executor")
     lifecycle = WorkerLifecycle(float(os.getenv("WORKER_DRAIN_SECONDS", "30")), mode == "legacy")
     HealthHandler.lifecycle = lifecycle
     configured_witness()

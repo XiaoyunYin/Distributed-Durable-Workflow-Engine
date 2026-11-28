@@ -75,6 +75,7 @@ var envOutsideK6Deployment = map[string]string{
 	"HOSTNAME":                          "process-environment fallback, absent from the PodSpec inventory",
 	"INCIDENT_LIVE_APPROVED":            "incident-agent execution entry point",
 	"J2_CHECKER_PHASES":                 "J2 checker phase diagnostics outside the control topology",
+	"J4_RECORDED_LLM_ACTIVITY":          "J4 fixture opt-in, forbidden in the registered K6 controls",
 	"KAFKA_BROKERS":                     "local demo command",
 	"OPENAI_API_KEY":                    "incident-agent provider entry point",
 	"OTEL_EXPORTER_OTLP_ENDPOINT":       "optional external exporter, absent in hosted G controls",
@@ -199,6 +200,12 @@ func goEnvReads(path string, raw []byte) ([]string, error) {
 var pythonEnvReader = regexp.MustCompile(`\b(?:os\.)?(?:(?:getenv|environ\.get)\s*\(|environ\s*\[)\s*["']([^"'\r\n]+)["']`)
 
 func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
+	t.Run("RecordedProviderForbidden", func(t *testing.T) {
+		snapshot := ControlSnapshot{Pods: []ControlPod{{EnvNames: []string{"J4_RECORDED_LLM_ACTIVITY"}}}}
+		if !snapshot.faultConfigured() {
+			t.Fatal("J4 opt-in was admitted into a K6 control")
+		}
+	})
 	t.Run("WrapperFixture", func(t *testing.T) {
 		raw := []byte(`package runtime
 var value = envOrDefault("X", "default")`)

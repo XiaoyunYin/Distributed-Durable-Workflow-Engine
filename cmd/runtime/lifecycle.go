@@ -36,6 +36,10 @@ func main() {
 		}
 		return
 	}
+	if err := state.ValidateRecordedLLMMode(); err != nil {
+		slog.Error("invalid recorded-provider mode", "error", err)
+		os.Exit(1)
+	}
 	mode := envOrDefault("RUNTIME_SHUTDOWN_MODE", "drain")
 	if mode != "drain" && mode != "legacy" {
 		slog.Error("invalid RUNTIME_SHUTDOWN_MODE", "mode", mode)

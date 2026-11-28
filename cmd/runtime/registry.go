@@ -19,6 +19,9 @@ func registryCommand(args []string, output io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("registry command required")
 	}
+	if err := state.ValidateRecordedLLMMode(); err != nil {
+		return err
+	}
 	if args[0] == "activity-registry" {
 		return json.NewEncoder(output).Encode(state.RuntimeRegistry())
 	}
@@ -47,6 +50,9 @@ func registryCommand(args []string, output io.Writer) error {
 	}
 	if (*freshWorkers && len(survivors) > 0) || (state.K6Enabled() && !*freshWorkers && len(survivors) == 0) {
 		return errors.New("K6 compatibility requires a surviving-worker inventory or a fresh consumer group")
+	}
+	if os.Getenv(state.RecordedLLMMode) == "1" && !*freshWorkers && len(survivors) == 0 {
+		return errors.New("J4 compatibility requires a surviving-worker inventory or a fresh consumer group")
 	}
 	for _, path := range survivors {
 		lineage, err := readWorkerRegistry(path)

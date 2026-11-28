@@ -57,7 +57,12 @@ def test_traceparent_is_propagated_as_http_header_not_delivery_json(
     assert seen[0][2].startswith("00-")
 
 
-def test_inbox_precedes_offset_and_claim(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("j4_enabled", [False, True])
+def test_inbox_precedes_offset_and_claim(monkeypatch: pytest.MonkeyPatch, j4_enabled: bool) -> None:
+    if j4_enabled:
+        monkeypatch.setenv("J4_RECORDED_LLM_ACTIVITY", "1")
+    else:
+        monkeypatch.delenv("J4_RECORDED_LLM_ACTIVITY", raising=False)
     calls: list[str] = []
     bodies: list[dict[str, Any]] = []
 
@@ -66,6 +71,7 @@ def test_inbox_precedes_offset_and_claim(monkeypatch: pytest.MonkeyPatch) -> Non
         bodies.append(body)
         if path.endswith("worker-deliveries"):
             return {
+                "disposition": "ACCEPTED",
                 "commit_offset": True,
                 "next_offset": 5,
                 "task": {
@@ -89,10 +95,22 @@ def test_inbox_precedes_offset_and_claim(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(ControlClient, "_post", post)
     consumer = SimpleNamespace(commit=lambda offsets: calls.append("commit"))
+
+    def hook(name: str, fields: dict[str, str]) -> None:
+        if name == "j4_offset_committed":
+            assert fields["next_offset"] == "5"
+            assert fields["offset"] == "4"
+            calls.append(name)
+
     handle_delivery(
-        consumer, message(), RetryingControl("http://unused", threading.Event()), "worker"
+        consumer,
+        message(),
+        RetryingControl("http://unused", threading.Event()),
+        "worker",
+        deployment_hook=hook,
     )
-    assert calls == ["worker-deliveries", "commit", "claim", "result"]
+    after_commit = ["j4_offset_committed"] if j4_enabled else []
+    assert calls == ["worker-deliveries", "commit", *after_commit, "claim", "result"]
     assert bodies[1]["expected_attempt"] == 3
     assert bodies[2]["payload"] == {"value": 8}
 
