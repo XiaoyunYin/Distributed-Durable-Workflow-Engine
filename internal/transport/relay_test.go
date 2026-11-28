@@ -22,7 +22,7 @@ func TestKafkaWriterOneProducePerRelayAttempt(t *testing.T) {
 func TestRelayRunReportsPassErrors(t *testing.T) {
 	callbackCalls := 0
 	relay := NewRelay(nil, nil, RelayConfig{OnError: func(error) { callbackCalls++ }})
-	relay.runOnceAndReportError(context.Background())
+	relay.runWakeup(context.Background(), relay.RunOnce)
 	if relay.ErrorCount() != 1 || callbackCalls != 1 {
 		t.Fatalf("relay errors = %d callback calls = %d, want one each", relay.ErrorCount(), callbackCalls)
 	}

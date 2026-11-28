@@ -1837,3 +1837,15 @@ publishing a decision from the retained defective `busy_removals` field.
 4. **Pre-data design record.** The [K6 design](k6-design.md) at the commit
    adding this amendment registers the K6 cell bindings, identity/grant
    contract and per-arm I-label expectations before any K6 data.
+
+### J9a runtime switch disclosure (2026-11-28, pending review)
+
+The [runtime registry](../../../deploy/runtime-switches.json) records
+`RUNTIME_RELAY_FULL_BATCH_LOOP`. K5, K6 and J5 profiles require absent or
+literal `0` under the existing rendered and running environment checks.
+Unset and `0` select one pass per wakeup. Literal `1` enables the
+[J9a relay loop](../relay-throughput/protocol.md) for registered J
+profiles outside the K campaign ledger. The existing K manifests,
+database migrations, routes and scrape contract receive no change in
+this slice. Review this disclosure before running registered K profiles
+from the changed checkout.

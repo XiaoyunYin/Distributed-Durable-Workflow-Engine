@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/transport"
 )
 
 func validateJ4Listener(routes api.RouteSet, workerAddr string, fixedDelay bool) error {
@@ -33,10 +35,12 @@ func validateJ4Listener(routes api.RouteSet, workerAddr string, fixedDelay bool)
 }
 
 type j4Deployment struct {
-	bootID    string
-	clock     func() (int64, error)
-	resilient bool
-	hold      *j4ReceiptGate
+	bootID               string
+	clock                func() (int64, error)
+	resilient            bool
+	hold                 *j4ReceiptGate
+	expectsRepairedRelay bool
+	relay                atomic.Pointer[transport.Relay]
 }
 
 func newJ4Deployment(workerAddr, workflow string, scheduler bool) (*j4Deployment, error) {
@@ -67,16 +71,27 @@ func (j *j4Deployment) health(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		relay := j.relay.Load()
+		if j.expectsRepairedRelay && relay == nil {
+			http.Error(w, "J4 relay is starting", http.StatusServiceUnavailable)
+			return
+		}
 		ns, err := j.clock()
 		if err != nil {
 			http.Error(w, "J4 clock unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		report := map[string]any{
 			"boot_id": j.bootID, "monotonic_ns": ns, "status": "ok",
 			"recorded_activity": true, "provider_resilience": j.resilient,
-		})
+		}
+		if relay != nil && relay.FullBatchLoopEnabled() {
+			report["relay_switch"] = transport.RelayFullBatchLoopEnv
+			report["relay_value"] = "1"
+			report["effective_relay_mode"] = "repaired"
+		}
+		_ = json.NewEncoder(w).Encode(report)
 	})
 }
 

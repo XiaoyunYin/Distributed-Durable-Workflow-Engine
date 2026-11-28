@@ -165,11 +165,12 @@ type RelayConfig struct {
 }
 
 type Relay struct {
-	Store     *state.Store
-	Broker    Broker
-	Config    RelayConfig
-	errorMu   sync.Mutex
-	runErrors uint64
+	Store         *state.Store
+	Broker        Broker
+	Config        RelayConfig
+	fullBatchLoop bool
+	errorMu       sync.Mutex
+	runErrors     uint64
 }
 
 type RelayReport struct {
@@ -195,7 +196,7 @@ func NewRelay(store *state.Store, broker Broker, config RelayConfig) *Relay {
 	if config.PollInterval <= 0 {
 		config.PollInterval = DefaultPollPeriod
 	}
-	return &Relay{Store: store, Broker: broker, Config: config}
+	return &Relay{Store: store, Broker: broker, Config: config, fullBatchLoop: RelayFullBatchLoopRequested()}
 }
 
 func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
@@ -323,7 +324,7 @@ func (r *Relay) Run(ctx context.Context) error {
 		return nil
 	default:
 	}
-	r.runOnceAndReportError(ctx)
+	r.runWakeup(ctx, r.RunOnce)
 	ticker := time.NewTicker(r.Config.PollInterval)
 	defer ticker.Stop()
 	for {
@@ -333,21 +334,9 @@ func (r *Relay) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			r.runOnceAndReportError(ctx)
 		case <-wakeups:
-			r.runOnceAndReportError(ctx)
 		}
-	}
-}
-
-func (r *Relay) runOnceAndReportError(ctx context.Context) {
-	if _, err := r.RunOnce(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		r.errorMu.Lock()
-		r.runErrors++
-		r.errorMu.Unlock()
-		if r.Config.OnError != nil {
-			r.Config.OnError(err)
-		}
+		r.runWakeup(ctx, r.RunOnce)
 	}
 }
 

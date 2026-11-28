@@ -14,6 +14,7 @@ import (
 	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/transport"
 )
 
 func TestJ4ServeRejectsInvalidModesBeforeBootstrapping(t *testing.T) {
@@ -112,5 +113,36 @@ func TestJ4StartupRequiresPrivateWorkerListener(t *testing.T) {
 	t.Setenv(state.RecordedLLMMode, "0")
 	if err := validateJ4Listener(api.RoutesCombined, "", false); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestJ4HealthReportsConstructedRelayMode(t *testing.T) {
+	j4 := &j4Deployment{clock: func() (int64, error) { return 42, nil }}
+	probe := func() *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		j4.health(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		return w
+	}
+	if w := probe(); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "effective_relay_mode") {
+		t.Fatalf("legacy health before relay construction = %d %s", w.Code, w.Body)
+	}
+	j4.expectsRepairedRelay = true
+	if w := probe(); w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("repaired health before relay construction = %d", w.Code)
+	}
+	t.Setenv(transport.RelayFullBatchLoopEnv, "0")
+	j4.relay.Store(transport.NewRelay(nil, nil, transport.RelayConfig{}))
+	if w := probe(); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "effective_relay_mode") {
+		t.Fatalf("legacy health = %d %s", w.Code, w.Body)
+	}
+	t.Setenv(transport.RelayFullBatchLoopEnv, "1")
+	j4.relay.Store(transport.NewRelay(nil, nil, transport.RelayConfig{}))
+	t.Setenv(transport.RelayFullBatchLoopEnv, "0")
+	w := probe()
+	body := w.Body.String()
+	if w.Code != http.StatusOK || !strings.Contains(body, `"effective_relay_mode":"repaired"`) ||
+		!strings.Contains(body, `"relay_switch":"`+transport.RelayFullBatchLoopEnv+`"`) ||
+		!strings.Contains(body, `"relay_value":"1"`) {
+		t.Fatalf("repaired health = %d %s", w.Code, body)
 	}
 }

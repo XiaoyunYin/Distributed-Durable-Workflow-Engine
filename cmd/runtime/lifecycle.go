@@ -276,6 +276,9 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
+	if j4 != nil {
+		j4.expectsRepairedRelay = roles["relay"] && transport.RelayFullBatchLoopRequested()
+	}
 	server := &http.Server{Addr: *addr, Handler: j4.health(handler), TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -382,10 +385,14 @@ func serveLifecycle(signalCtx context.Context) error {
 				if err != nil {
 					return err
 				}
-				return transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: owner, Tracing: tracing, Drain: drain,
+				relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: owner, Tracing: tracing, Drain: drain,
 					AfterClaimBoundary: hook,
 					OnError:            func(err error) { metrics.RecordRelayFailure(); slog.Warn("relay pass failed", "error", err) },
-					OnSuccess:          func(transport.RelayReport) { metrics.MarkDurableReady() }}).Run(ctx)
+					OnSuccess:          func(transport.RelayReport) { metrics.MarkDurableReady() }})
+				if j4 != nil {
+					j4.relay.Store(relay)
+				}
+				return relay.Run(ctx)
 			})
 		}
 	}
