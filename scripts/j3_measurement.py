@@ -11,7 +11,17 @@ from pathlib import Path
 from j3_evidence import jsonl, notifications
 from j3_overlay import J3
 from j3_prometheus import evaluation_rows
-from j3_replay import DEADLINE, DOMAIN, SECOND, burn, on_time, reconcile, replay, require
+from j3_replay import (
+    DEADLINE,
+    DOMAIN,
+    SECOND,
+    burn,
+    on_time,
+    reconcile,
+    replay,
+    replay_matches,
+    require,
+)
 from j3_runner_gate import campaign_id
 from j3_schedule import CALIBRATION_ARMS, FORECAST_CAP, verify_seal
 
@@ -243,7 +253,12 @@ def replay_episode(root, target):
     )
     require(rebuilt == data["evaluations"], "offline Prometheus evaluations differ")
     result = replay(data, jsonl(root / "visibility.jsonl"))
-    require(result == read(root / "replay.json"), "offline alert or attainment replay differs")
+    require(
+        replay_matches(
+            result, read(root / "replay.json"), legacy=target["campaign"].startswith("j3-r421-")
+        ),
+        "offline alert or attainment replay differs",
+    )
     transitions = result["alert_inputs"]["transitions"]
     delivery = notifications(
         list(jsonl(root / "notifications.jsonl")),

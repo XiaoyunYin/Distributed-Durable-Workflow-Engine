@@ -1,6 +1,6 @@
 # J3 registered campaign runbook
 
-Slice 3 uses the [reviewed slice 2b qualification](j3-r421-46050616178/results.md). Protocol 2026-11-27 requires sealing before confirmation and measurement. The measurement job uses the passing seal from run 46050616178, attempt 1. It checks the original ZIP SHA-256, the inner schedule hash, the qualification campaign and head, the passing confirmation's seal receipt, and the confirmed forecast. Qualification and measurement use distinct run-derived campaign IDs. The measurement ID is `j3-r421-<measurement Actions run ID>`.
+Slice 3 uses the [reviewed slice 2b qualification](j3-r421-46050616178/results.md). Protocol 2026-11-27 requires sealing before confirmation and measurement. The measurement job uses the passing seal from run 46050616178, attempt 1. It checks the original ZIP SHA-256, the inner schedule hash, the qualification campaign and head, the passing confirmation's seal receipt, and the confirmed forecast. Qualification and measurement use distinct run-derived campaign IDs. After the [Round 630 replay clarification](protocol.md), the measurement ID is `j3-r426-<measurement Actions run ID>`. Reproduce earlier archives from their recorded head to preserve the retained verdicts.
 
 ## Before dispatch
 

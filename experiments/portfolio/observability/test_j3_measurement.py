@@ -117,7 +117,7 @@ def test_measurement_runs_four_arms_and_retains_failed_or_unperformed_arms(
     monkeypatch.setattr(driver_module, "retain_monitor_logs", lambda *_a, **_kw: None)
 
     def run_episode(_d, _p, target, arm, _run, _s, _o, _b, duration, bounds, outcome):
-        assert target["campaign"] == "j3-r421-42"
+        assert target["campaign"] == "j3-r426-42"
         calls.append((driver.output.name, arm, duration))
         if case == "fail" and driver.output.name == "matched-healthy":
             raise driver_module.EpisodeFailure("registered deadline missed")
@@ -135,9 +135,9 @@ def test_measurement_runs_four_arms_and_retains_failed_or_unperformed_arms(
     if case in {"fail", "volume"}:
         message = "registered deadline" if case == "fail" else "sealed arrival volume"
         with pytest.raises(ValueError, match=message):
-            driver_module.run_qualification(driver, args, {}, {}, "j3-r421-42", schedule, forecast)
+            driver_module.run_qualification(driver, args, {}, {}, "j3-r426-42", schedule, forecast)
     else:
-        driver_module.run_qualification(driver, args, {}, {}, "j3-r421-42", schedule, forecast)
+        driver_module.run_qualification(driver, args, {}, {}, "j3-r426-42", schedule, forecast)
     verdict = measurement.read(tmp_path / "verdict.json")
     assert (
         verdict["status"]
@@ -166,7 +166,7 @@ def test_offline_finalize_keeps_live_verdict_and_indexes_partial_evidence(
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     stage = {"fail": "FAIL", "not_armed": "NOT_ARMED"}.get(case, "PASS")
     names = measurement.EPISODES if stage == "PASS" else ()
-    target = {"namespace": "target", "campaign": "j3-r421-42"}
+    target = {"namespace": "target", "campaign": "j3-r426-42"}
     measurement.save(
         tmp_path / "verdict.json",
         {
@@ -195,7 +195,7 @@ def test_offline_finalize_keeps_live_verdict_and_indexes_partial_evidence(
                 "run": "42",
                 "head": "head",
                 "attempt": "1",
-                "campaign": "j3-r421-42",
+                "campaign": "j3-r426-42",
             },
         )
         measurement.seal_arm_inputs(path, 2)

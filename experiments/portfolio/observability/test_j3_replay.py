@@ -21,6 +21,76 @@ SETUP, CLOSING = 1_000_000, 3_000_000
 HERE = Path(__file__).parent
 
 
+@pytest.fixture
+def r426_trace():
+    path = HERE / "fixtures" / "r426-demand-timestamp.json"
+    return json.loads(path.read_bytes())
+
+
+def verify_r426(trace):
+    ev, snapshot = trace["evaluation"], trace["snapshot"]
+    source = snapshot["sample_ns"]
+    rows, admissions, seen = {}, {}, {}
+    for number, (scheduled_ns, terminal_ns, revision, visible_revision) in enumerate(
+        trace["cohort"]
+    ):
+        key = str(number)
+        rows[key] = {
+            "submission_key": key,
+            "scheduled_ns": source + scheduled_ns,
+            "terminal_ns": source + terminal_ns,
+            "state": "SUCCEEDED",
+            "revision": revision,
+        }
+        admissions[key] = key
+        if visible_revision is not None:
+            seen[key] = visible_revision
+    snapshot.update(
+        admissions={"set": admissions, "delete": []}, successes={"set": seen, "delete": []}
+    )
+    return j3.verify_alerts(rows, snapshot["u_ns"], [snapshot], [ev], ev["at_ns"], ev["at_ns"])
+
+
+def test_r426_replays_the_archived_evaluation(r426_trace):
+    ev = r426_trace["evaluation"]
+    assert ev["at_ns"] == 1795847022246000000
+    assert ev["demand_ns"] - ev["scrape_ns"] == 161_000
+    result = verify_r426(r426_trace)
+    assert result["scrape_timestamp_resolution_ns"] == 1_000_000
+    assert result["transitions"] == [] and result["ambiguous_count"] == 0
+
+
+@pytest.mark.parametrize("field", ["sample_ns", "demand_ns"])
+@pytest.mark.parametrize("offset", [999_000, 1_000_000, 1_001_000])
+def test_r426_scrape_upper_bound_is_exclusive(r426_trace, field, offset):
+    ev, snapshot = r426_trace["evaluation"], r426_trace["snapshot"]
+    value = ev["scrape_ns"] + offset
+    ev[field] = value
+    if field == "sample_ns":
+        snapshot[field] = value
+    else:
+        seconds, nanos = divmod(value, j3.SECOND)
+        snapshot["demand"]["sampled_at"] = (
+            datetime.fromtimestamp(seconds, UTC).replace(microsecond=nanos // 1000).isoformat()
+        )
+    if offset < 1_000_000:
+        assert verify_r426(r426_trace)["transitions"] == []
+    else:
+        with pytest.raises(ValueError, match="incoherent live input"):
+            verify_r426(r426_trace)
+
+
+def test_historical_replay_comparison_ignores_only_missing_resolution():
+    data = fixture_data()
+    result = j3.replay(data, [visibility(data)])
+    recorded = copy.deepcopy(result)
+    del recorded["alert_inputs"]["scrape_timestamp_resolution_ns"]
+    assert not j3.replay_matches(result, recorded)
+    assert j3.replay_matches(result, recorded, legacy=True)
+    recorded["alert_inputs"]["ambiguous_count"] += 1
+    assert not j3.replay_matches(result, recorded, legacy=True)
+
+
 @pytest.mark.parametrize("invalid_interruption", [False, True])
 def test_alert_replay_requires_24_consecutive_valid_clear_evaluations(invalid_interruption):
     evaluations, visibility_rows = [], []

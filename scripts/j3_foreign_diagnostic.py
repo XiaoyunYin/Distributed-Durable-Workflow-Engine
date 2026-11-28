@@ -13,14 +13,14 @@ from j3_evidence import (
     target_only_attainment,
 )
 from j3_overlay import FOREIGN
-from j3_replay import DEADLINE, SECOND, replay, require
+from j3_replay import DEADLINE, SECOND, replay, replay_matches, require
 
 
 def diagnostic(episode):
     data = json.loads((episode / "replay-input.json").read_bytes())
     stored = json.loads((episode / "replay.json").read_bytes())
     result = replay(data, jsonl(episode / "visibility.jsonl"))
-    require(result == stored, "retained alert replay differs")
+    require(replay_matches(result, stored, legacy=True), "retained alert replay differs")
     run = json.loads((episode / "run.json").read_bytes())
     original = json.loads((episode.parent / "verdict.json").read_bytes())
     seeds = list(jsonl(episode / "foreign-seed.jsonl"))
