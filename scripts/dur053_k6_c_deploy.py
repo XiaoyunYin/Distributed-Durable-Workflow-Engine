@@ -66,7 +66,6 @@ class Deployment(Smoke):
         self.engine_created = False
         self.identity_created = False
         self.provisioned = False
-        self.trace_denials: list[tuple[str, str, float, float]] = []
         self.sink_admin_password = self.password()
         self.sink_password = self.password()
         self.export_password = self.password()

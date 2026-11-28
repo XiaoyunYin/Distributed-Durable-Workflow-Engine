@@ -596,21 +596,7 @@ def test_phase_c_unregistered_pod_cannot_explain_startup(
         pytest.fail("accepted a vanished startup from an unregistered pod")
 
 
-@pytest.mark.parametrize(
-    "variant",
-    [
-        "authorized",
-        "probe_rejected",
-        "wrong_port",
-        "wrong_pid",
-        "outside_probe",
-        "other_app",
-        "wrong_host",
-        "wrong_role",
-        "wrong_server",
-        "wrong_sqlstate",
-    ],
-)
+@pytest.mark.parametrize("variant", ["authorized", "wrong_port", "wrong_pid", "other_app"])
 def test_phase_c_startup_server_outcomes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
 ) -> None:
@@ -620,34 +606,14 @@ def test_phase_c_startup_server_outcomes(
     )
     smoke: Any = trace.smoke
     seconds = int(datetime.fromisoformat(backend["backend_start"]).timestamp())
-    smoke.trace_host = "192.0.2.8" if variant == "wrong_host" else backend["client_addr"]
-    role = SINK_ROLE if variant == "wrong_role" else "durable"
-    server = "engine" if variant == "wrong_server" else "sink"
-    smoke.trace_denials = [(server, role, seconds + 0.01, seconds + 0.09)]
-    rejection = variant in {
-        "probe_rejected",
-        "outside_probe",
-        "wrong_host",
-        "wrong_role",
-        "wrong_server",
-        "wrong_sqlstate",
-    }
     app = "other" if variant == "other_app" else "dur053-k6-sink-exporter"
-    code = "28P01" if rejection and variant != "wrong_sqlstate" else "00000"
-    message = (
-        'FATAL:  password authentication failed for user "durable"'
-        if rejection
-        else (
-            f"LOG:  connection authorized: user={EXPORTER} database=effects application_name={app}"
-        )
-    )
     port = 45679 if variant == "wrong_port" else 45678
-    when = seconds + (0.1 if variant == "outside_probe" else 0.02)
     pid = "2b" if variant == "wrong_pid" else "2a"
     smoke.startup_logs.return_value = (
-        f"dur053-k6 {seconds:x}.{pid} 172.18.0.1({port}) {code} {when:.3f}|{message}"
+        f"dur053-k6 {seconds:x}.{pid} 172.18.0.1({port}) 00000 {seconds}.020|"
+        f"LOG:  connection authorized: user={EXPORTER} database=effects application_name={app}"
     )
-    if variant in {"authorized", "probe_rejected"}:
+    if variant == "authorized":
         sample_synthetic(trace)
         [outcome] = trace.startups[0]["terminal_startups"]
         assert outcome["resolution"] == variant and trace.rows[0]["sink"]["total"] == 1
@@ -661,6 +627,93 @@ def test_phase_c_startup_server_outcomes(
         assert str(error) == expected
     else:
         pytest.fail("accepted invalid startup authorization evidence")
+
+
+@pytest.mark.parametrize(
+    ("server", "variant"),
+    [
+        ("sink", "matched"),
+        *(
+            ("engine", variant)
+            for variant in (
+                "matched",
+                "before_window",
+                "after_window",
+                "wrong_role",
+                "wrong_app",
+                "wrong_server",
+                "wrong_port",
+                "wrong_host",
+                "wrong_sqlstate",
+                "missing_socket",
+            )
+        ),
+    ],
+)
+def test_phase_c_vanished_denial_probe_requires_witness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, server: str, variant: str
+) -> None:
+    backend = {
+        **trace_backend(504, start="1970-01-01T00:01:40.020000Z"),
+        "client_addr": "172.18.0.1",
+        "client_port": 50572,
+    }
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(50_000, backend, server=server),
+        trace_snapshot(100_000, server=server),
+    )
+    start = 100_030_000 if variant == "before_window" else 100_000_000
+    end = 100_010_000 if variant == "after_window" else 100_080_000
+    monkeypatch.setattr(
+        phase_c.time, "time_ns", Mock(side_effect=[start * 1000, end * 1000]), raising=False
+    )
+    smoke: Any = trace.smoke
+    smoke.trace_host = "192.0.2.8" if variant == "wrong_host" else "172.18.0.1"
+    probe_server = "sink" if variant == "wrong_server" else server
+    role, app = phase_c.DENIAL_PROBES[probe_server]
+    code = "42501" if variant == "wrong_sqlstate" else "28P01"
+    socket_witness = {
+        "client_addr": backend["client_addr"],
+        "client_port": 50573 if variant == "wrong_port" else 50572,
+        "role": "unexpected" if variant == "wrong_role" else role,
+        "application": "unexpected" if variant == "wrong_app" else app,
+    }
+    smoke.go.return_value = {
+        "code": code,
+        "rejected_connection": None if variant == "missing_socket" else socket_witness,
+    }
+    assert trace.denial_probe(probe_server, "probe-dsn?sslmode=verify-full", {}) == code
+    smoke.go.assert_called_once_with(
+        "probe",
+        DSN=f"probe-dsn?sslmode=verify-full&application_name={app}",
+        Probe="update",
+        Grant={},
+        TraceSocket=True,
+    )
+
+    if variant == "matched":
+        sample_synthetic(trace, server)
+        trace.finish()
+        result = json.loads((tmp_path / phase_c.TRACE_FILE).read_bytes())
+        [witness] = result["denial_probes"]
+        [terminal] = result["startups"][0]["terminal_startups"]
+        assert result["rejections"] == []
+        assert terminal["resolution"] == "probe_rejected"
+        assert terminal["sqlstate"] == witness["sqlstate"] == "28P01"
+        assert (terminal["role"], terminal["application"]) == (role, app)
+        assert (terminal["probe_started_us"], terminal["probe_ended_us"]) == (start, end)
+        assert trace.rows[0][server]["total"] == 1
+        smoke.startup_logs.assert_not_called()
+    else:
+        try:
+            sample_synthetic(trace, server)
+        except SmokeFailure as error:
+            assert str(error) == "DB_STARTUP_VANISHED_" + server.upper()
+        else:
+            pytest.fail("accepted invalid denial-probe startup evidence")
+        assert trace.startups[0]["terminal_startups"] == []
 
 
 def test_phase_c_attributed_startup_vanish_budget(

@@ -1837,3 +1837,19 @@ publishing a decision from the retained defective `busy_removals` field.
 4. **Pre-data design record.** The [K6 design](k6-design.md) at the commit
    adding this amendment registers the K6 cell bindings, identity/grant
    contract and per-arm I-label expectations before any K6 data.
+
+### B.9 K6 CI reliability disclosure for R432 and R433 (pending review)
+
+- Phase C can attribute a vanished startup to a registered write-denial probe
+  when the backend started within the recorded probe window and its runner-side
+  address and port match the probe's single TCP connection. The probe records
+  the configured role and application and must receive `28P01` on that connection.
+  The sampler continues to count starting backends against the connection budget
+  and rejects unexplained vanishes.
+- The Kafka fresh-topic reads in setup may retry exit 1 or a subprocess timeout
+  up to two times before fault injection. Every direct-read attempt records its
+  stderr and exit status, subject to the credential scan. Reads used as verdict
+  evidence are single-shot.
+
+These CI reliability changes preserve the registered K values, verdict rules,
+and evidence semantics apart from the precise Phase C attribution above.

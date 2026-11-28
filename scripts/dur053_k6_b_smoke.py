@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -137,6 +137,7 @@ class Smoke:
         isolated: bool = False,
         codes: tuple[int, ...] = (0,),
         kubectl_exec: bool = False,
+        capture_status: Callable[[int | None, bytes], None] | None = None,
     ) -> bytes:
         remaining = (self.deadline - datetime.now(UTC)).total_seconds()
         require(remaining > 0, "ENGINEERING_DEADLINE")
@@ -150,10 +151,14 @@ class Smoke:
                 timeout=min(timeout, remaining),
                 check=False,
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error:
+            if capture_status is not None:
+                capture_status(None, error.stderr or b"")
             raise SmokeFailure(f"{stage}_TIMEOUT") from None
         except OSError:
             raise SmokeFailure(f"{stage}_UNAVAILABLE") from None
+        if capture_status is not None:
+            capture_status(result.returncode, result.stderr)
         if result.returncode not in codes:
             # Credential-bearing subprocesses can print arbitrary data.
             # Keep only fixed diagnostics and never their stdout/stderr.
