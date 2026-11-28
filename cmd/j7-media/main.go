@@ -17,7 +17,7 @@ import (
 
 func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: j7-media archive ARCHIVE_DIR SOURCE FILE, prepare [flags], or {source-preflight|cut|source-loss} --config FILE")
+		return errors.New("usage: j7-media archive ARCHIVE_DIR SOURCE FILE, prepare [flags], or {source-preflight|cut|source-loss|restore} --config FILE")
 	}
 	switch args[0] {
 	case "archive":
@@ -51,12 +51,33 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 		return json.NewEncoder(out).Encode(receipt)
 	case "source-preflight", "cut", "source-loss":
 		return runFault(ctx, args, out, diagnostics)
+	case "restore":
+		return runRestore(ctx, args[1:], out, diagnostics)
+	case "stage-target":
+		if len(args) != 1 {
+			return errors.New("stage-target uses the sealed mounts")
+		}
+		return stageTarget(ctx)
+	case "observe-target":
+		if len(args) != 3 {
+			return errors.New("observe-target requires engine database and namespace")
+		}
+		ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		result, err := observeTarget(ctx, args[1], args[2])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(out).Encode(result)
 	default:
 		return fmt.Errorf("unknown j7-media command %q", args[0])
 	}
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "restore-wal" {
+		os.Exit(runReplayWAL(os.Args[2:]))
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil && !errors.Is(err, flag.ErrHelp) {

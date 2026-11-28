@@ -107,11 +107,11 @@ full_page_writes = on
 		t.Fatalf("incomplete real media evidence: %+v", receipt)
 	}
 	t.Run("final_archive_cut", func(t *testing.T) {
-		testPostgresBoundary(t, ctx, pgBin, archive, receipt)
+		testPostgresBoundary(t, ctx, pgBin, archive, filepath.Join(root, "base"), receipt, shellWord)
 	})
 }
 
-func testPostgresBoundary(t *testing.T, ctx context.Context, pgBin, archive string, backup backupReceipt) {
+func testPostgresBoundary(t *testing.T, ctx context.Context, pgBin, archive, backupDir string, backup backupReceipt, shellWord func(string) string) {
 	t.Helper()
 	f := fixtureForFault(t, 12)
 	source := f.source
@@ -159,5 +159,92 @@ INSERT INTO engine.activity_attempts VALUES ('e1', 'effect', 0, 1, true, 'COOPER
 	if err != nil || flushErr != nil || endErr != nil || flush <= end || flush-end >= walSegmentBytes ||
 		!restoreledger.IsSHA256(sample.EffectSHA256) {
 		t.Fatalf("pinned PostgreSQL did not expose the unarchived tail: %+v, %v", sample, err)
+	}
+	t.Run("isolated_archive_replay", func(t *testing.T) {
+		testPostgresReplay(t, ctx, source, cut, backup, backupDir, shellWord)
+	})
+}
+
+func testPostgresReplay(t *testing.T, ctx context.Context, source mediaSource, cut cutReceipt,
+	backup backupReceipt, backupDir string, shellWord func(string) string) {
+	t.Helper()
+	wal, err := verifyReplayMedia(ctx, source, backup, cut, outageReceipt{Inventory: cut.Inventory}, backupDir)
+	if err != nil {
+		t.Fatalf("verify actual PostgreSQL WAL through C: %v", err)
+	}
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	if err := copyBaseBackup(backupDir, target, os.Getuid(), os.Getgid()); err != nil {
+		t.Fatal(err)
+	}
+	// This opt-in fixture runs PostgreSQL without Docker. The production
+	// helper's allowlist and checked copy have their own platform tests.
+	cmd := filepath.Join(root, "restore-segment")
+	script := "#!/bin/sh\nset -eu\ncase \"$1\" in\n"
+	for _, file := range cut.Inventory {
+		script += shellWord(file.Name) + "|\n"
+	}
+	script = strings.TrimSuffix(script, "|\n") + ")\n" +
+		"cp -- " + shellWord(source.archive) + "/\"$1\" \"$2\"\nprintf 'j7-archive restored %s\\n' \"$1\";;\n" +
+		"*) printf 'j7-archive absent %s\\n' \"$1\"; exit 1;;\nesac\n"
+	script = strings.ReplaceAll(script, "|\n", "|")
+	if err := os.WriteFile(cmd, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	quote := func(v string) string {
+		return "'" + strings.ReplaceAll(strings.ReplaceAll(v, "\\", "\\\\"), "'", "''") + "'"
+	}
+	config := strings.Replace(recoveryConf, "unix_socket_directories = '/tmp'", "unix_socket_directories = "+quote(root), 1)
+	config = strings.Replace(config, "'/j7/bin/j7-media restore-wal \"%f\" \"%p\"'", quote(shellWord(cmd)+" '%f' '%p'"), 1)
+	for name, value := range map[string]string{"postgresql.conf": config, "postgresql.auto.conf": "",
+		"pg_hba.conf": "local all j7_fixture trust\n", "recovery.signal": ""} {
+		if err := os.WriteFile(filepath.Join(target, name), []byte(value), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	log := filepath.Join(root, "target.log")
+	t.Cleanup(func() {
+		if _, err := os.Stat(filepath.Join(target, "postmaster.pid")); err != nil {
+			return
+		}
+		stop, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if out, err := exec.CommandContext(stop, filepath.Join(source.pgBin, "pg_ctl"), "-D", target, "-w", "-m", "immediate", "stop").CombinedOutput(); err != nil {
+			t.Errorf("stop isolated PostgreSQL fixture: %v\n%s", err, out)
+		}
+	})
+	if raw, err := exec.CommandContext(ctx, filepath.Join(source.pgBin, "pg_ctl"), "-D", target, "-l", log, "-w", "start").CombinedOutput(); err != nil {
+		logs, _ := os.ReadFile(log)
+		t.Fatalf("start isolated PostgreSQL fixture: %v\n%s\n%s", err, raw, logs)
+	}
+	service := "host=" + quote(root) + " user=j7_fixture dbname=postgres"
+	raw, err := exec.CommandContext(ctx, filepath.Join(source.pgBin, "psql"), "--no-psqlrc",
+		"--no-password", "--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1", "--dbname="+service,
+		"--command=SELECT pg_last_wal_replay_lsn(), (SELECT timeline_id FROM pg_control_checkpoint()), pg_is_in_recovery(), (SELECT count(*) FROM engine.workflow_executions);").CombinedOutput()
+	if err != nil {
+		t.Fatalf("observe restored fixture: %v\n%s", err, raw)
+	}
+	fields := strings.Split(strings.TrimSpace(string(raw)), "|")
+	if len(fields) != 4 || fields[1] != "2" || fields[2] != "f" || fields[3] != "12" {
+		t.Fatalf("replayed unexpected population or timeline: %q", raw)
+	}
+	replayed, replayErr := parseLSN(fields[0])
+	end, endErr := parseLSN(wal.End)
+	if replayErr != nil || endErr != nil || replayed != end {
+		t.Fatalf("padded replay LSN %s differs from archive end %s", fields[0], wal.End)
+	}
+	logs, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkReplaySegments(string(logs), cut, wal); err != nil {
+		t.Fatalf("recovery process did not witness sealed archive: %v\n%s", err, logs)
+	}
+	history, err := os.ReadFile(filepath.Join(target, "pg_wal", "00000002.history"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := matchTimelineHistory(string(history), backup.Source.Timeline, end); err != nil {
+		t.Fatal(err)
 	}
 }
