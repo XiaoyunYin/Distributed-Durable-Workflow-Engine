@@ -34,6 +34,24 @@ class RelaySelection:
         }:
             raise ValueError("J4 requires proof that this runtime selected repaired relay mode")
 
+    def confirm_health(
+        self, report: object, source_revision: str, runtime_image_id: str, expected_image_id: str
+    ) -> dict[str, object]:
+        if (
+            not isinstance(report, dict)
+            or not {"relay_switch", "relay_value", "effective_relay_mode"} <= report.keys()
+        ):
+            raise ValueError("J4 runtime health requires an explicit relay switch, value and mode")
+        proof = {
+            "source_revision": source_revision,
+            "runtime_image_id": runtime_image_id,
+            "switch": report["relay_switch"],
+            "value": report["relay_value"],
+            "effective_relay_mode": report["effective_relay_mode"],
+        }
+        self.confirm(proof, source_revision, expected_image_id)
+        return proof
+
 
 def relay_selection(registry: object, name: str, value: str) -> RelaySelection:
     if not isinstance(registry, dict) or registry.get("schema_version") != 1:

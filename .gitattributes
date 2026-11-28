@@ -11,6 +11,9 @@
 *.md text eol=lf
 *.ps1 text eol=crlf
 
+# Scrape contract fixture is compared as raw bytes.
+internal/telemetry/testdata/k_scrape_a0e065a.prom -text
+
 # Immutable pilot evidence is hashed as raw artifact bytes.
 experiments/portfolio/k8s-recovery/k3-pilot-v1/** -text
 experiments/portfolio/k8s-recovery/k3b-tooling-v1/** -text

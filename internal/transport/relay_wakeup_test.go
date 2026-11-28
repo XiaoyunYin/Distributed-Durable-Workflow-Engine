@@ -12,11 +12,12 @@ import (
 const relayTestBatchSize = 10
 
 func TestRelayUnsetModeLegacyEquivalence(t *testing.T) {
-	for _, mode := range []string{"unset", "0", "", "true"} {
+	for _, mode := range []string{"unset", "1"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Setenv(RelayFullBatchLoopEnv, mode)
+			const env = "RUNTIME_RELAY_FULL_BATCH_LOOP"
+			t.Setenv(env, "1")
 			if mode == "unset" {
-				if err := os.Unsetenv(RelayFullBatchLoopEnv); err != nil {
+				if err := os.Unsetenv(env); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -29,16 +30,20 @@ func TestRelayUnsetModeLegacyEquivalence(t *testing.T) {
 				}
 				return RelayReport{Claimed: relayTestBatchSize, Published: relayTestBatchSize}, nil
 			})
-			if relay.FullBatchLoopEnabled() || passes != 1 {
-				t.Fatalf("full batch mode = %t, passes = %d", relay.FullBatchLoopEnabled(), passes)
+			if relay.Config.FullBatchLoop || passes != 1 {
+				t.Fatalf("full batch mode = %t, passes = %d", relay.Config.FullBatchLoop, passes)
 			}
 		})
 	}
 }
 
 func TestRelayRepairedDrainsWithoutAnotherWakeup(t *testing.T) {
-	t.Setenv(RelayFullBatchLoopEnv, "1")
-	relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize})
+	const env = "RUNTIME_RELAY_FULL_BATCH_LOOP"
+	t.Setenv(env, "0")
+	if err := os.Unsetenv(env); err != nil {
+		t.Fatal(err)
+	}
+	relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize, FullBatchLoop: true})
 	remaining := 10*relayTestBatchSize + 3
 	passes := 0
 	relay.runWakeup(context.Background(), func(context.Context) (RelayReport, error) {
@@ -65,11 +70,10 @@ func TestRelayRepairedStopsAfterFailedWakeup(t *testing.T) {
 		{"one_publish_fails", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(RelayFullBatchLoopEnv, "1")
 			broker := &MemoryBroker{Failures: tc.failures}
 			rows := make([]state.OutboxEvent, backlog)
 			passes := 0
-			relay := NewRelay(nil, broker, RelayConfig{BatchSize: relayTestBatchSize})
+			relay := NewRelay(nil, broker, RelayConfig{BatchSize: relayTestBatchSize, FullBatchLoop: true})
 			relay.runWakeup(context.Background(), func(ctx context.Context) (RelayReport, error) {
 				passes++
 				if passes > 1 {
@@ -106,10 +110,9 @@ func TestRelayRepairedStopsAfterFailedWakeup(t *testing.T) {
 }
 
 func TestRelayRepairedStopsOnPassError(t *testing.T) {
-	t.Setenv(RelayFullBatchLoopEnv, "1")
 	passErr := errors.New("injected pass error")
 	var reported []error
-	relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize,
+	relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize, FullBatchLoop: true,
 		OnError: func(err error) { reported = append(reported, err) }})
 	passes := 0
 	relay.runWakeup(context.Background(), func(context.Context) (RelayReport, error) {
@@ -127,11 +130,10 @@ func TestRelayRepairedStopsOnPassError(t *testing.T) {
 func TestRelayRepairedChecksShutdownBetweenPasses(t *testing.T) {
 	for _, signal := range []string{"cancel", "drain"} {
 		t.Run(signal, func(t *testing.T) {
-			t.Setenv(RelayFullBatchLoopEnv, "1")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			drain := make(chan struct{})
-			relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize, Drain: drain})
+			relay := NewRelay(nil, nil, RelayConfig{BatchSize: relayTestBatchSize, Drain: drain, FullBatchLoop: true})
 			passes := 0
 			relay.runWakeup(ctx, func(context.Context) (RelayReport, error) {
 				passes++

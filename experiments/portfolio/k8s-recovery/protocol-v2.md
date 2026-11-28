@@ -1849,3 +1849,13 @@ profiles outside the K campaign ledger. The existing K manifests,
 database migrations, routes and scrape contract receive no change in
 this slice. Review this disclosure before running registered K profiles
 from the changed checkout.
+
+### J9a stage timing disclosure (2026-11-28, pending review)
+
+The [runtime registry](../../../deploy/runtime-switches.json) registers
+`RUNTIME_J9A_STAGE_TIMINGS` separately from the relay loop. K5, K6 and J5
+require absence or literal `0`. The disabled setting preserves the
+legacy Prometheus response bytes. The J9a comparison enables literal `1`
+in both candidate arms. The registered K overlays continue to use their
+existing settings. Review this disclosure before running registered K
+profiles from the changed checkout.

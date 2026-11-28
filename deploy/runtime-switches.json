@@ -23,6 +23,15 @@
       "routes_added": [],
       "migrations_added": []
     },
+    "RUNTIME_J9A_STAGE_TIMINGS": {
+      "task": "J9a stage timings",
+      "unset_default": "0",
+      "values": {"0": "legacy scrape contract", "1": "expose J9a relay stage histograms"},
+      "permitted_enabled_profiles": ["J9a"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
+      "routes_added": [],
+      "migrations_added": []
+    },
     "J4_RECORDED_LLM_ACTIVITY": {
       "task": "J4",
       "unset_default": "0",

@@ -9,9 +9,9 @@ requalification and soak require a separate reviewed registration.
 ## Modes and failure model
 
 - `RUNTIME_RELAY_FULL_BATCH_LOOP` unset or literally `0` selects one pass
-  per wakeup. Literally `1` selects the repaired relay. The runtime enables
-  the loop only for that exact value. Campaign admission accepts only
-  absent or literal `0` for legacy and literal `1` for repaired.
+  per wakeup. Literally `1` selects the repaired relay. All other
+  present values fail runtime startup. J4 reports the canonical value
+  and effective mode from the constructed relay.
 - A pass may run immediately again only if
   `err == nil && Claimed == BatchSize && Failed == 0`. Check context
   cancellation and drain before each repaired pass, including between
@@ -159,6 +159,30 @@ arm. A valid checked expiry is a result alongside seeded relay service.
   histograms, bounded labels, the current telemetry renderer, and an opt-in
   distinct from this relay mode. Verify the K scrape contract with
   instrumentation disabled. Treat missing required coverage as invalid.
+- Set `RUNTIME_J9A_STAGE_TIMINGS=1` on the candidate relay in **both**
+  arms. Absent or literal `0` preserves the legacy scrape. Other
+  values fail startup. This independent switch gives the off/on arms
+  the same instrumentation while the historical J2 bridge uses its
+  pinned runtime and external evidence.
+- Scrape `durable_j9a_relay_stage_seconds` by runtime role and fixed
+  stage. Claim, capture, synchronous broker publish, and finalize count
+  each call to that stage, including errors. For the seeded arm retain
+  the start and end scrape cuts and the startup, poll and NOTIFY counts.
+  The startup trigger contributes a zero duration. The poll and NOTIFY
+  waits run from entering the select to consuming the trigger. An
+  immediate follow-on pass adds no wakeup observation.
+- Replay the J2 checker and phase join first. Feed each checked
+  `phase-rows.json` array to `cmd/j9a-stage-histograms` on stdin and
+  archive the resulting `durable_j9a_workflow_stage_seconds` text beside
+  the runtime scrapes. This renders the four raw winning-attempt spans
+  and scheduled-to-success total with a fixed offline role. Publish
+  censoring, uncertainty and J2's quantitative results from the checked
+  evidence. The histogram projection counts the complete joined rows
+  only and leaves the raw durations available for replay.
+- Both families use bucket upper bounds of 0.0001, 0.0005, 0.001, 0.005,
+  0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300 and
+  600 seconds, plus `+Inf`. Check counts, sums and cumulative buckets
+  against the witnessed fixture and joined phase rows.
 - In matched diagnostic runs during qualification, take relay CPU profiles
   and goroutine stacks while the queue is nonempty using the existing
   private pprof listener. Use equal five-second CPU captures and two

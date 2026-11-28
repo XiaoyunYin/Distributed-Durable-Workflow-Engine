@@ -2,9 +2,12 @@ package transport
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 )
 
 func TestJ9aRelayWakeupPostgresBacklog(t *testing.T) {
@@ -20,7 +23,6 @@ func TestJ9aRelayWakeupPostgresBacklog(t *testing.T) {
 		{"failing_broker", backlog, 1, 0, relayTestBatchSize},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(RelayFullBatchLoopEnv, "1")
 			ctx, store := openM3TransportDatabase(t)
 			defer store.Close()
 			definitionID, workflowID, lease := createM3TransportWorkflow(t, ctx, store)
@@ -36,7 +38,9 @@ func TestJ9aRelayWakeupPostgresBacklog(t *testing.T) {
 				t.Fatal(err)
 			}
 			broker := &MemoryBroker{Failures: tc.brokerErrors}
-			relay := NewRelay(store, broker, RelayConfig{PartitionID: &lease.PartitionID,
+			metrics := telemetry.NewWithStageTimings("relay", true)
+			relay := NewRelay(store, broker, RelayConfig{PartitionID: &lease.PartitionID, FullBatchLoop: true,
+				Metrics: metrics,
 				OnError: func(err error) { t.Fatalf("unexpected relay pass error: %v", err) }})
 			passes := 0
 			relay.runWakeup(ctx, func(ctx context.Context) (RelayReport, error) {
@@ -69,6 +73,16 @@ func TestJ9aRelayWakeupPostgresBacklog(t *testing.T) {
 			}
 			if attempts != tc.wantAttempts || published != tc.wantPublished {
 				t.Fatalf("durable attempts = %d, published = %d", attempts, published)
+			}
+			scrape := metrics.Render()
+			for stage, count := range map[string]int{
+				"claim": tc.wantPasses, "capture_publication_start": tc.wantAttempts,
+				"broker_publish": tc.wantAttempts, "finalize": tc.wantAttempts,
+			} {
+				want := fmt.Sprintf("durable_j9a_relay_stage_seconds_count{role=\"relay\",stage=%q} %d\n", stage, count)
+				if !strings.Contains(scrape, want) {
+					t.Errorf("missing witnessed stage count %s", want)
+				}
 			}
 		})
 	}

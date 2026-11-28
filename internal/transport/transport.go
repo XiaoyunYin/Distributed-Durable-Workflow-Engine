@@ -141,6 +141,7 @@ func cloneEvent(event state.OutboxEvent) state.OutboxEvent {
 }
 
 type RelayConfig struct {
+	FullBatchLoop      bool
 	OwnerID            string
 	PartitionID        *int16
 	BatchSize          int
@@ -161,16 +162,16 @@ type RelayConfig struct {
 	// the poll fallback still owns correctness.
 	OnNotification func()
 	Tracing        *telemetry.Tracing
+	Metrics        *telemetry.Metrics
 	Drain          <-chan struct{}
 }
 
 type Relay struct {
-	Store         *state.Store
-	Broker        Broker
-	Config        RelayConfig
-	fullBatchLoop bool
-	errorMu       sync.Mutex
-	runErrors     uint64
+	Store     *state.Store
+	Broker    Broker
+	Config    RelayConfig
+	errorMu   sync.Mutex
+	runErrors uint64
 }
 
 type RelayReport struct {
@@ -196,7 +197,7 @@ func NewRelay(store *state.Store, broker Broker, config RelayConfig) *Relay {
 	if config.PollInterval <= 0 {
 		config.PollInterval = DefaultPollPeriod
 	}
-	return &Relay{Store: store, Broker: broker, Config: config, fullBatchLoop: RelayFullBatchLoopRequested()}
+	return &Relay{Store: store, Broker: broker, Config: config}
 }
 
 func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
@@ -205,12 +206,14 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 	}
 	var events []state.OutboxEvent
 	var err error
+	started := r.Config.Metrics.StartStage()
 	if r.Config.PartitionID == nil {
 		events, err = r.Store.ClaimOutbox(ctx, r.Config.OwnerID, r.Config.BatchSize, r.Config.ClaimLease)
 	} else {
 		events, err = r.Store.ClaimOutboxForPartition(ctx, r.Config.OwnerID, r.Config.BatchSize,
 			r.Config.ClaimLease, *r.Config.PartitionID)
 	}
+	r.Config.Metrics.RecordStageSince(telemetry.StageRelayClaim, started)
 	if err != nil {
 		return RelayReport{}, err
 	}
@@ -243,13 +246,16 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 			}
 			return report, err
 		}
-		if err := r.Store.CapturePublicationStart(eventCtx, event); err != nil {
+		started := r.Config.Metrics.StartStage()
+		err := r.Store.CapturePublicationStart(eventCtx, event)
+		r.Config.Metrics.RecordStageSince(telemetry.StageRelayCaptureStart, started)
+		if err != nil {
 			if span != nil {
 				span.End()
 			}
 			return report, err
 		}
-		publishErr := r.Broker.Publish(eventCtx, event)
+		publishErr := r.publish(eventCtx, event)
 		if publishErr == nil {
 			if err := r.publicationBoundary("after_broker_ack", event); err != nil {
 				if span != nil {
@@ -257,8 +263,7 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 				}
 				return report, err
 			}
-			if err := r.Store.FinalizeOutboxPublication(eventCtx, event.EventID, r.Config.OwnerID,
-				event.RelayAttempts, true, "", 0); err != nil {
+			if err := r.finalizePublication(eventCtx, event, true, "", 0); err != nil {
 				if span != nil {
 					span.End()
 				}
@@ -270,8 +275,7 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 			report.Published++
 			continue
 		}
-		if err := r.Store.FinalizeOutboxPublication(eventCtx, event.EventID, r.Config.OwnerID,
-			event.RelayAttempts, false, publishErr.Error(), r.Config.RetryBackoff); err != nil {
+		if err := r.finalizePublication(eventCtx, event, false, publishErr.Error(), r.Config.RetryBackoff); err != nil {
 			if span != nil {
 				span.End()
 			}
@@ -324,10 +328,13 @@ func (r *Relay) Run(ctx context.Context) error {
 		return nil
 	default:
 	}
+	r.Config.Metrics.RecordStage(telemetry.StageRelayStartup, 0)
 	r.runWakeup(ctx, r.RunOnce)
 	ticker := time.NewTicker(r.Config.PollInterval)
 	defer ticker.Stop()
 	for {
+		started := r.Config.Metrics.StartStage()
+		stage := telemetry.StageRelayWaitPoll
 		select {
 		case <-r.Config.Drain:
 			return nil
@@ -335,7 +342,9 @@ func (r *Relay) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 		case <-wakeups:
+			stage = telemetry.StageRelayWaitNotify
 		}
+		r.Config.Metrics.RecordStageSince(stage, started)
 		r.runWakeup(ctx, r.RunOnce)
 	}
 }

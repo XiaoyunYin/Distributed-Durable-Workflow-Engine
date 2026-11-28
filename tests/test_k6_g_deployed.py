@@ -50,8 +50,8 @@ def test_k6_j4_modes_require_literal_legacy_evidence() -> None:
 
 
 @pytest.mark.parametrize("field", ["containers", "initContainers", "ephemeralContainers"])
-def test_k6_j9a_mode_requires_literal_legacy_evidence(field: str) -> None:
-    name = "RUNTIME_RELAY_FULL_BATCH_LOOP"
+@pytest.mark.parametrize("name", ["RUNTIME_RELAY_FULL_BATCH_LOOP", "RUNTIME_J9A_STAGE_TIMINGS"])
+def test_k6_j9a_mode_requires_literal_legacy_evidence(field: str, name: str) -> None:
     assert legacy_env({field: [{"env": []}]}) == {}
     assert legacy_env({field: [{"env": [{"name": name, "value": "0"}]}]}) == {name: "0"}
     for entry in (

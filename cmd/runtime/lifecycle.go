@@ -159,6 +159,14 @@ func lifecycleRoles(value string) (map[string]bool, error) {
 }
 
 func serveLifecycle(signalCtx context.Context) error {
+	relayConfig, err := runtimeRelayConfigFromEnvironment()
+	if err != nil {
+		return err
+	}
+	return serveLifecycleWithRelayConfig(signalCtx, relayConfig)
+}
+
+func serveLifecycleWithRelayConfig(signalCtx context.Context, relayConfig runtimeRelayConfig) error {
 	if err := state.ValidateRecordedLLMMode(); err != nil {
 		return err
 	}
@@ -229,7 +237,7 @@ func serveLifecycle(signalCtx context.Context) error {
 		return err
 	}
 	roleName := envOrDefault("RUNTIME_ROLE", "runtime")
-	metrics := telemetry.New(roleName)
+	metrics := telemetry.NewWithStageTimings(roleName, relayConfig.stageTimings)
 	tracing, err := telemetry.NewTracing(context.Background(), "durable-runtime-"+roleName, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 	if err != nil {
 		return err
@@ -277,7 +285,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
 	if j4 != nil {
-		j4.expectsRepairedRelay = roles["relay"] && transport.RelayFullBatchLoopRequested()
+		j4.expectsRelay = roles["relay"] || relayConfig.fullBatchLoop
 	}
 	server := &http.Server{Addr: *addr, Handler: j4.health(handler), TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
@@ -386,6 +394,8 @@ func serveLifecycle(signalCtx context.Context) error {
 					return err
 				}
 				relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: owner, Tracing: tracing, Drain: drain,
+					FullBatchLoop:      relayConfig.fullBatchLoop,
+					Metrics:            metrics,
 					AfterClaimBoundary: hook,
 					OnError:            func(err error) { metrics.RecordRelayFailure(); slog.Warn("relay pass failed", "error", err) },
 					OnSuccess:          func(transport.RelayReport) { metrics.MarkDurableReady() }})

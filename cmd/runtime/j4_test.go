@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -117,32 +118,34 @@ func TestJ4StartupRequiresPrivateWorkerListener(t *testing.T) {
 }
 
 func TestJ4HealthReportsConstructedRelayMode(t *testing.T) {
-	j4 := &j4Deployment{clock: func() (int64, error) { return 42, nil }}
+	j4 := &j4Deployment{expectsRelay: true, clock: func() (int64, error) { return 42, nil }}
 	probe := func() *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		j4.health(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 		return w
 	}
-	if w := probe(); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "effective_relay_mode") {
-		t.Fatalf("legacy health before relay construction = %d %s", w.Code, w.Body)
-	}
-	j4.expectsRepairedRelay = true
 	if w := probe(); w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("repaired health before relay construction = %d", w.Code)
+		t.Fatalf("health before relay construction = %d", w.Code)
 	}
-	t.Setenv(transport.RelayFullBatchLoopEnv, "0")
-	j4.relay.Store(transport.NewRelay(nil, nil, transport.RelayConfig{}))
-	if w := probe(); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "effective_relay_mode") {
-		t.Fatalf("legacy health = %d %s", w.Code, w.Body)
-	}
-	t.Setenv(transport.RelayFullBatchLoopEnv, "1")
-	j4.relay.Store(transport.NewRelay(nil, nil, transport.RelayConfig{}))
-	t.Setenv(transport.RelayFullBatchLoopEnv, "0")
-	w := probe()
-	body := w.Body.String()
-	if w.Code != http.StatusOK || !strings.Contains(body, `"effective_relay_mode":"repaired"`) ||
-		!strings.Contains(body, `"relay_switch":"`+transport.RelayFullBatchLoopEnv+`"`) ||
-		!strings.Contains(body, `"relay_value":"1"`) {
-		t.Fatalf("repaired health = %d %s", w.Code, body)
+	for _, tc := range []struct {
+		mode, value string
+		repaired    bool
+	}{{"legacy", "0", false}, {"repaired", "1", true}} {
+		t.Run(tc.mode, func(t *testing.T) {
+			j4.relay.Store(transport.NewRelay(nil, nil, transport.RelayConfig{FullBatchLoop: tc.repaired}))
+			w := probe()
+			var report struct {
+				Switch string `json:"relay_switch"`
+				Value  string `json:"relay_value"`
+				Mode   string `json:"effective_relay_mode"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &report); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != http.StatusOK || report.Switch != relayFullBatchLoopEnv ||
+				report.Value != tc.value || report.Mode != tc.mode {
+				t.Fatalf("health = %d %s", w.Code, w.Body)
+			}
+		})
 	}
 }

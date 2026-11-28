@@ -76,6 +76,11 @@ def test_j9a_runtime_switch_is_admitted_by_j4_and_j7() -> None:
     }
     assert row["routes_added"] == row["migrations_added"] == []
     assert relay_selection(registry, name, "1").environment() == {name: "1"}
+    timing = registry["switches"]["RUNTIME_J9A_STAGE_TIMINGS"]
+    assert timing["unset_default"] == "0" and set(timing["values"]) == {"0", "1"}
+    assert timing["permitted_enabled_profiles"] == ["J9a"]
+    assert timing["required_unset_profiles"] == row["required_unset_profiles"]
+    assert timing["routes_added"] == timing["migrations_added"] == []
 
 
 def overlay(arm: str = "C2") -> Overlay:

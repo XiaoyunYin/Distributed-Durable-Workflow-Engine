@@ -3,24 +3,11 @@ package transport
 import (
 	"context"
 	"errors"
-	"os"
 )
-
-const RelayFullBatchLoopEnv = "RUNTIME_RELAY_FULL_BATCH_LOOP"
-
-// RelayFullBatchLoopRequested reads the configured relay mode.
-func RelayFullBatchLoopRequested() bool {
-	return os.Getenv(RelayFullBatchLoopEnv) == "1"
-}
-
-// FullBatchLoopEnabled reports the mode selected when this relay was built.
-func (r *Relay) FullBatchLoopEnabled() bool {
-	return r.fullBatchLoop
-}
 
 func (r *Relay) runWakeup(ctx context.Context, runPass func(context.Context) (RelayReport, error)) {
 	for {
-		if r.fullBatchLoop {
+		if r.Config.FullBatchLoop {
 			select {
 			case <-ctx.Done():
 				return
@@ -41,7 +28,7 @@ func (r *Relay) runWakeup(ctx context.Context, runPass func(context.Context) (Re
 			}
 			return
 		}
-		if !r.fullBatchLoop || report.Claimed != r.Config.BatchSize || report.Failed != 0 {
+		if !r.Config.FullBatchLoop || report.Claimed != r.Config.BatchSize || report.Failed != 0 {
 			// Retry failed rows only on a later wakeup.
 			return
 		}
