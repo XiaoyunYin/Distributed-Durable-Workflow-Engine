@@ -685,6 +685,7 @@
       }
     }
   },
+  "candidate_replay": "Re-run the locked checker from the original archive in the exact-head engineering rehearsal.",
   "final_pod_status": {
     "j2-telemetry-final.json": [
       {
@@ -805,7 +806,7 @@
   },
   "freeze_sha256": "1178f01ee16f1dda1c40a5d400c5755f53f71b59618c11f0ffae1828b12119b6",
   "frozen_members": 144,
-  "method": "existing qualification verifier on frozen live and offline checker reports; no new checker execution",
+  "method": "Rechecked frozen ZIP and each member at bb47129, and ran the existing qualification verifier on the archived live and offline locked-checker reports.",
   "published_qualification_metrics": {
     "failed_queries": 0,
     "failed_scrapes": 0,
@@ -999,7 +1000,7 @@
     "witness_events": 53356
   },
   "status": "PASS",
-  "verification_tooling_basis": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+  "verification_tooling_basis": "bb471298a3404da58dd3df160006072c1767c56a",
   "witness_durations": {
     "busy_seconds": 2164.844620135,
     "reexecuted_seconds": 0.0

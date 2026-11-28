@@ -1,4 +1,26 @@
 {
+  "approval_lanes": {
+    "historical_prechecks": "replay/verification.json",
+    "ids": {
+      "A": "eng-r422-a-final",
+      "AB": "eng-r422-ab-final"
+    },
+    "job_forecast_margin_minutes": 23,
+    "job_forecast_minutes": {
+      "bootstrap_fresh_state_install_and_precommit": 10,
+      "checked_export_teardown_and_verified_retention": 15,
+      "checkout_restore_build_and_source_checks": 15,
+      "drain": 10,
+      "traffic": 37
+    },
+    "job_hard_cap_minutes": 110,
+    "job_total_forecast_minutes": 87,
+    "live_step_cap_minutes": 75,
+    "matrix_parallelism": 3,
+    "replay_hard_cap_minutes": 90,
+    "replay_reserved_minutes": 85,
+    "replay_upload_reserve_minutes": 9
+  },
   "fail_fast": false,
   "live": {
     "barrier_max_seconds": 2700,
@@ -19,14 +41,16 @@
     },
     "hard_cap_minutes": 350,
     "minimum_matrix_free_bytes": 5368709120,
+    "precommit_minimum_completed_lead_seconds": 2,
+    "precommit_schedule_lead_seconds": 30,
     "runner_stage_limits_seconds": {
       "bootstrap": 1500,
       "cap": 21000,
       "cell": 1800,
       "closeout": 1500,
-      "episode": 3488
+      "episode": 3510
     },
-    "serial_ceiling_seconds": 18188,
+    "serial_ceiling_seconds": 18210,
     "total_forecast_minutes": 292
   },
   "matrix_parallelism": 3,
@@ -57,5 +81,18 @@
     "total_reserved_minutes": 85
   },
   "runner": "ubuntu-24.04",
-  "status": "forecast; exact candidate rehearsal review pending"
+  "short_clock_rehearsal": {
+    "id": "eng-r422-final-<first eight characters of the candidate SHA>",
+    "reporter_hard_cap_minutes": 90,
+    "runner_stage_limits_seconds": {
+      "bootstrap": 1500,
+      "cap": 10800,
+      "cell": 915,
+      "closeout": 780,
+      "episode": 1240
+    },
+    "serial_ceiling_seconds": 10795
+  },
+  "status": "forecast with A, AB and short-clock approval evidence pending at the packet commit",
+  "verification_tooling_basis": "bb471298a3404da58dd3df160006072c1767c56a"
 }

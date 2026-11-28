@@ -1,15 +1,15 @@
 {
-  "approval_state": "pending exact-head engineering review and separate written approval",
+  "approval_state": "pending exact-candidate A and AB lanes, short-clock rehearsal and separate written approval",
   "campaign_id": "j2-load-envelope-v1",
   "evidence": {
-    "approval.md": "8161e657a19856ba99dd6c543a23e2d56fd804bb34bb27ba54e9707d509b9809",
-    "budget.json": "d727ae494a6c40d453fddc027d0c3900ae38be1e04ea56ec45edf62e8702c2f8",
-    "controls/verification.json": "d92938a39c3efc4e01ae35e443f172401aa25ddd004f31065b76abd0f879bcd2",
-    "pins/verification.json": "263eab04bb77e8ee48b5593dc0cb256998bdc3ad96d136772f0ee666ea010397",
-    "qualification/verification.json": "eee3958531ea1146bc364b2cf0aa20096ede23536fd52a214fb2564198784556",
-    "replay/verification.json": "5a8037ee35f1bd1fadb6cd19638d62630f0790ac75d509003bd9ec192be4fdf6",
+    "approval.md": "d96e56054dad9ae8ea3f69e06f74b579878bbda9402b317d2f7bb977ecad6203",
+    "budget.json": "e5fadbf59251cd66eaeeb836b968f7f9674c1dfbcb94e35863a221ed3ee02f8b",
+    "controls/verification.json": "7ef74103a702c1f5f7c076691853452f44cb67e10257a1b94ea9382366237cae",
+    "pins/verification.json": "2e4ff7819c72f111840369fe6b250d0bd61cdde663df0ec737d9edac34c65563",
+    "qualification/verification.json": "150a1aff3d1becde2b4d027667626afa1ccc5697ea3cb36021f354ccb8df4425",
+    "replay/verification.json": "b89925ab4ec9d6378c8088f745099df9189cddc3a9dffae52f475d280e005e70",
     "seed-vectors.json": "58e0eed682e5e2f1ea8729256c82afc299571ad26eefd54ff55c225cad6caf45",
-    "test-inventory.md": "379eebc2afdf18ef5c1f2143a4f72cbeed1020de49c8ba893d13360458599bde"
+    "test-inventory.md": "de3005306e98c53740eb32bea2671b4a515fad5f746fd80a30daffe21a9652f5"
   },
   "live_artifact_slots": {
     "job-1": {
@@ -60,13 +60,21 @@
     "dependencies": "ce7e411fa11f25bcf966f9f41710d30b69eb496f2876e901ae5c3d0008c69450",
     "exporter": "22889b506b6c754193a492a825a08cf79b4d7d05ffdcde6b6d8328c3ee9163f0",
     "images": "38df4cef28f4b86bac69861fcaa1b6eb99c6bf248158000c9deec53ec33ebd5e",
-    "protocol": "c1be3e47f5e8f9a15584ff8af7def3d23be55f48d4970a4999f99b5cbfab73e5",
+    "protocol": "d8d598906ba3862787cb888f6169253c4f25baec91b3041c27bc8b81947c06cc",
     "tooling": "0ebb6024c09a917be5404347ad82e6998e1653e6e5d9e5a659bcfb87dc5c27e5"
   },
   "prerequisites": {
     "j2-controls-45986168460-1": {
       "digest": "sha256:0b83fedd499fe8eccc86a7210c0baf068be22a0449ae54f87baf27b8d19c24ad",
       "id": 15194936094
+    },
+    "j2-controls-r422-46096347523-1": {
+      "digest": "sha256:5f70a2d7cc07186dd11d6fba1ae1bd9eab325305bcc702b4b58d1fadedc4e51a",
+      "id": 15245110205
+    },
+    "j2-controls-r422-receipt-46096347523-1": {
+      "digest": "sha256:b1174e756a5157b6144c58b852f0b2053e25f8f633c27ca31a0e3e7e47a51c99",
+      "id": 15244861858
     },
     "j2-controls-receipt-45986168460-1": {
       "digest": "sha256:69f12ef1defb05bc884a97e3b9da4fde0d14849c9119f9b11eed2c900489a1c5",
@@ -137,7 +145,7 @@
     "tool_and_dependency_lock": "deploy/k8s/tools.lock.json",
     "worker_sleep_ms": 100
   },
-  "protocol_commit": "361f4ad0f67c3add94c1cf77127189e6e3c08be7",
+  "protocol_commit": "588fba51074332d062ee166fcd7a7ad74c6fd0c2",
   "qualification_history": "../slice-1b-qualification.md",
   "registered_dispatches": [],
   "registered_replays": [],
@@ -238,16 +246,16 @@
   "tooling": {
     "candidate_identity": "full SHA of the commit containing this packet, recorded by the reviewer and bound before bootstrap",
     "control_component_index": "controls/verification.json",
-    "implementation_basis": "39cf47889b20c68dcfa2962fecef4a5ad2ca2589",
+    "implementation_basis": "bb471298a3404da58dd3df160006072c1767c56a",
     "source_hashes": {
       ".github/actions/j2-integrated-cell/action.yml": "a1d9f18fba2a9e34658fde48b5d692b338a6f4f69db198a917557d3279ea3ac3",
-      ".github/workflows/j2-load-envelope.yml": "556b2952fed474e434d1ee9d752f5fe713f2d047ac28f0cd106d4a2680906ded",
-      "scripts/j2_dispatch_manifest.py": "6c298c153ff762a7cdb19fc0d10e86fba356dc4abaac3d0895c11658fc6e2af5",
-      "scripts/j2_measure.py": "ac6b761b7ab116277db921b213f278d7c5c7337e5f9bdf3d5ac88368f4f0262a",
-      "scripts/j2_measure_authorization.py": "63f6723628703f38474489b4dd042cd2ab7f6af5c3bcec2c973ada7fb9b70582",
-      "scripts/j2_measure_replay.py": "46773db1f592bb70a8f98ef16b99ae6fa0dcde22ba215c4d8720c66f3f405e32",
-      "scripts/j2_publish_evidence.py": "6ed9f5c5838e7dd9194cbe580512573a80b1e4f1b9115a43ad377c041d87d865",
-      "scripts/j2_replay_storage.py": "8d218304d223a506e4c3a5fe3219fae14ce5f75fc0ac30cf3c85196b1ab446c5"
+      ".github/workflows/j2-load-envelope.yml": "17c57c740fe7ed514363ba682c29e43c7b5b97ac8b4997a6386291103fea4f0e",
+      "scripts/j2_dispatch_manifest.py": "7556ea24c5d67206bab4055b4afe6d3f790e777ebcc48272b3fae0f8123a9132",
+      "scripts/j2_measure.py": "bdd4aa44dbcd1b313443f8865f81b5da73ac0736e03e42c34acc03cf555d4c99",
+      "scripts/j2_measure_authorization.py": "f9bd5fd18e507305d5594a8af8eb7191cc7c5ca37dba0bb08194f8aa47dda393",
+      "scripts/j2_measure_replay.py": "c270d76f23a86d293e56862b9b1fb29fc0026d4a4545d6764b89c9fffb17d698",
+      "scripts/j2_publish_evidence.py": "0cf59ef48e209704b62d968fa2785ce16a40f9c983a18aa23357aa798ed771ee",
+      "scripts/j2_replay_storage.py": "ba40eee959eecc7cae1ee2b3a013796437a2dccbba05651fb46dff8264d9639c"
     }
   }
 }
