@@ -31,6 +31,10 @@ and full-volume confirmation with the sealed tail.
 Each episode starts with fresh database, broker, witness and telemetry state.
 The real partition-lease probe runs only in the unmeasured `pilot` mode.
 
+The [registered measurement runbook](measurement.md) binds slice 3 to the
+passing qualification seal and describes the single hosted job, expected
+evidence and review before the public claim.
+
 Episode artifacts retain the exporter and Prometheus container logs. The
 exporter's `J3_CYCLE` records include SQL and demand durations, JSON decode time,
 wire bytes, total cycle time and failure classes. The qualification sampler also
