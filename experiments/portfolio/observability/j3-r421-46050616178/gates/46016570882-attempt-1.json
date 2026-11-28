@@ -1,0 +1,22 @@
+{
+  "run": "46016570882",
+  "head": "428197e2c2d5d254e5424b3b74639f4265b34232",
+  "workflow_attempt": 1,
+  "stage": "calibration",
+  "window_seconds": 120,
+  "runner": {
+    "cpu_models": [
+      "AMD EPYC 9V74 80-Core Processor"
+    ],
+    "online_cores": 4,
+    "image_version": "20261122.23.1"
+  },
+  "stage_attempt": 1,
+  "prior_rejections": 0,
+  "io_full_share_pct": 10.768440393276157,
+  "io_full_share_ratio": "1292214200000/120000125627",
+  "x_pct": 0.5,
+  "decision": "not-armed",
+  "reason": "io_full_at_or_above_threshold",
+  "campaign": "j3-r420-46016570882"
+}

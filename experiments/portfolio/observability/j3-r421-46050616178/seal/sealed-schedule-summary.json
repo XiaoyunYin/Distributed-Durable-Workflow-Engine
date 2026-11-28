@@ -1,0 +1,173 @@
+{
+  "R_ns": [
+    479245852399,
+    476245847862,
+    469245908436
+  ],
+  "R_s": [
+    479.245852399,
+    476.245847862,
+    469.245908436
+  ],
+  "T_ratio": "5112116110403578342634585700/22990862965321405524551381",
+  "T_s": 222.35425082192484,
+  "arrival_rate_per_second": 7.136100570066256,
+  "arrival_volume": 19268,
+  "baseline_arrivals": 15843,
+  "calibration_measured_seconds": {
+    "bootstrap": 338,
+    "final_evidence": 2,
+    "foreign": 1801,
+    "foreign_closeout": 129,
+    "outage-1": 2821,
+    "outage-1_closeout": 220,
+    "outage-2": 2821,
+    "outage-2_closeout": 221,
+    "outage-3": 2821,
+    "outage-3_closeout": 220,
+    "scrape-loss": 1321,
+    "scrape-loss_closeout": 180
+  },
+  "delta_s": 480,
+  "forecast_allowance_seconds": {
+    "bootstrap": 1500,
+    "final_evidence": 1500,
+    "foreign": 1801,
+    "foreign_export_reset": 600,
+    "matched_healthy": 2821,
+    "matched_healthy_export_reset": 600,
+    "primary": 2821,
+    "primary_export_reset": 600,
+    "scrape_loss": 1321
+  },
+  "forecast_base_minutes": 242,
+  "forecast_cap_minutes": 350,
+  "forecast_extended_arm_seconds": {
+    "matched_healthy": 3301,
+    "primary": 3301
+  },
+  "forecast_measured_seconds": {
+    "bootstrap": 338,
+    "final_evidence": 182,
+    "foreign": 1801,
+    "foreign_export_reset": 129,
+    "matched_healthy": 2821,
+    "matched_healthy_export_reset": 221,
+    "primary": 2821,
+    "primary_export_reset": 221,
+    "scrape_loss": 1321
+  },
+  "forecast_minutes": 242.06666666666666,
+  "forecast_seconds": 14524,
+  "matched_healthy": {
+    "drain_and_observation_end_s": 3300,
+    "final_healthy_window_s": [
+      2100,
+      2700
+    ],
+    "quiet_drain_s": 30,
+    "stop_s": 2700
+  },
+  "mu_per_second": 16.764116059342363,
+  "mu_ratio": "640500000000/38206607359",
+  "outages": [
+    {
+      "elapsed_ns": 153532520399,
+      "evidence": "/home/runner/work/_temp/j3-qualification/outage-1/outage.json",
+      "pre_restore_workflow_count": 6423,
+      "recovery_evidence": "/home/runner/work/_temp/j3-qualification/outage-1/calibration-recovery.json",
+      "restore_ns": 1795808428000147601,
+      "restored_rate_per_second": 16.75215122708786,
+      "restored_rate_ratio": "2572000000000/153532520399",
+      "scale_down_ns": 1795808128000170368,
+      "stop_ns": 1795808581532668000,
+      "stop_rule": "all_pre_restore_finished",
+      "succeeded_workflow_count": 2572
+    },
+    {
+      "elapsed_ns": 152614370862,
+      "evidence": "/home/runner/work/_temp/j3-qualification/outage-2/outage.json",
+      "pre_restore_workflow_count": 6423,
+      "recovery_evidence": "/home/runner/work/_temp/j3-qualification/outage-2/calibration-recovery.json",
+      "restore_ns": 1795811466000152138,
+      "restored_rate_per_second": 16.885696841290432,
+      "restored_rate_ratio": "429500000000/25435728477",
+      "scale_down_ns": 1795811166000150179,
+      "stop_ns": 1795811618614523000,
+      "stop_rule": "all_pre_restore_finished",
+      "succeeded_workflow_count": 2577
+    },
+    {
+      "elapsed_ns": 152826429436,
+      "evidence": "/home/runner/work/_temp/j3-qualification/outage-3/outage.json",
+      "pre_restore_workflow_count": 6423,
+      "recovery_evidence": "/home/runner/work/_temp/j3-qualification/outage-3/calibration-recovery.json",
+      "restore_ns": 1795814508000091564,
+      "restored_rate_per_second": 16.764116059342363,
+      "restored_rate_ratio": "640500000000/38206607359",
+      "scale_down_ns": 1795814208000168242,
+      "stop_ns": 1795814660826521000,
+      "stop_rule": "all_pre_restore_finished",
+      "succeeded_workflow_count": 2562
+    }
+  ],
+  "over_cap": [],
+  "primary": {
+    "burn_clear_by_s": 2050,
+    "burn_fire_by_s": 765,
+    "catchup_before_s": 1920,
+    "drain_and_observation_end_s": 3300,
+    "final_healthy_window_s": [
+      2100,
+      2700
+    ],
+    "oldest_clear_by_s": 1930,
+    "oldest_fire_by_s": 700,
+    "quiet_drain_s": 30,
+    "ready_and_first_progress_by_s": 960,
+    "restore_s": 900,
+    "scale_down_s": 600,
+    "stop_s": 2700,
+    "zero_workers_by_s": 660
+  },
+  "qualification_cap_minutes": 300,
+  "qualification_forecast": {
+    "calibration": {
+      "allowance_seconds": {
+        "bootstrap": 1500,
+        "final_evidence": 1500,
+        "foreign": 1801,
+        "foreign_closeout": 600,
+        "outage-1": 2821,
+        "outage-1_closeout": 600,
+        "outage-2": 2821,
+        "outage-2_closeout": 600,
+        "outage-3": 2821,
+        "outage-3_closeout": 600,
+        "scrape-loss": 1321,
+        "scrape-loss_closeout": 600
+      },
+      "forecast_minutes": 293.0833333333333,
+      "forecast_seconds": 17585
+    },
+    "confirmation": {
+      "allowance_seconds": {
+        "bootstrap": 1500,
+        "final_evidence": 1500,
+        "full-volume": 3301,
+        "full-volume_closeout": 600,
+        "matched-healthy": 3301,
+        "matched-healthy_closeout": 600
+      },
+      "forecast_minutes": 180.03333333333333,
+      "forecast_seconds": 10802
+    }
+  },
+  "reason": null,
+  "restored_rates_per_second": [
+    16.75215122708786,
+    16.885696841290432,
+    16.764116059342363
+  ],
+  "status": "SEALED"
+}

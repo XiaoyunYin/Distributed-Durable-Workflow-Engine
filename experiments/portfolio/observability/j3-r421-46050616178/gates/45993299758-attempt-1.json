@@ -1,0 +1,22 @@
+{
+  "run": "45993299758",
+  "head": "ebb3b2a45d2487ba1a9fc6a4162dea00d7103d67",
+  "workflow_attempt": 1,
+  "stage": "calibration",
+  "window_seconds": 120,
+  "runner": {
+    "cpu_models": [
+      "AMD EPYC 7763 64-Core Processor"
+    ],
+    "online_cores": 4,
+    "image_version": "20261122.23.1"
+  },
+  "stage_attempt": 1,
+  "prior_rejections": 0,
+  "io_full_share_pct": 0.06462326706809675,
+  "io_full_share_ratio": "7754800000/120000123049",
+  "x_pct": 0.5,
+  "decision": "admitted",
+  "reason": null,
+  "campaign": "j3-r419-45993299758"
+}

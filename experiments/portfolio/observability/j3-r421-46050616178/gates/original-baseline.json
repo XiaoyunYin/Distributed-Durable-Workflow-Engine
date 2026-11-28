@@ -1,0 +1,172 @@
+[
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "Intel(R) Xeon(R) 6975P-C"
+      ],
+      "online_cores": 4,
+      "image_version": "20261116.133.1"
+    },
+    "baseline_index": 1,
+    "io_full_share_pct": 0.0062158263989574025,
+    "io_full_share_ratio": "46618750/7500008367"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "AMD EPYC 7763 64-Core Processor"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 10,
+    "io_full_share_pct": 0.02470831206565372,
+    "io_full_share_ratio": "296500000/12000010329"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "Intel(R) Xeon(R) 6975P-C"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 2,
+    "io_full_share_pct": 0.006595824236317581,
+    "io_full_share_ratio": "158300000/24000033101"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "AMD EPYC 9V74 80-Core Processor"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 3,
+    "io_full_share_pct": 9.0113580902488,
+    "io_full_share_ratio": "1081363900000/120000103111"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "Intel(R) Xeon(R) 6975P-C"
+      ],
+      "online_cores": 4,
+      "image_version": "20261116.133.1"
+    },
+    "baseline_index": 4,
+    "io_full_share_pct": 0.008501657522708919,
+    "io_full_share_ratio": "510100000/60000064533"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "AMD EPYC 7763 64-Core Processor"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 5,
+    "io_full_share_pct": 0.04709245435524618,
+    "io_full_share_ratio": "5651100000/120000116311"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "AMD EPYC 7763 64-Core Processor"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 6,
+    "io_full_share_pct": 0.150422351462942,
+    "io_full_share_ratio": "564084375/3750003703"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "AMD EPYC 9V45 96-Core Processor"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 7,
+    "io_full_share_pct": 5.664774699000481,
+    "io_full_share_ratio": "97110500000/17142870663"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "Intel(R) Xeon(R) 6975P-C"
+      ],
+      "online_cores": 4,
+      "image_version": "20261116.133.1"
+    },
+    "baseline_index": 8,
+    "io_full_share_pct": 0.005345828069340982,
+    "io_full_share_ratio": "641500000/120000118163"
+  },
+  {
+    "run": "45988661821",
+    "head": "5712492924a8054dbac9eeb3e7618114b377a509",
+    "workflow_attempt": 1,
+    "stage": "baseline",
+    "window_seconds": 120,
+    "runner": {
+      "cpu_models": [
+        "Intel(R) Xeon(R) 6975P-C"
+      ],
+      "online_cores": 4,
+      "image_version": "20261122.23.1"
+    },
+    "baseline_index": 9,
+    "io_full_share_pct": 0.0058708283529628705,
+    "io_full_share_ratio": "704500000/120000101799"
+  }
+]

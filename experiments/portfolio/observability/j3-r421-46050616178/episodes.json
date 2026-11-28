@@ -1,0 +1,745 @@
+{
+  "foreign": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "committed_timeout_count": 0,
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "isolation": {
+      "claims": 0,
+      "outbox_rows": 0,
+      "positive": {
+        "claimable_attempts": 1726,
+        "namespace": "j3-foreign",
+        "oldest_claimable_age_ns": 241787076000.0,
+        "sample_ns": 1795806380792027000,
+        "visible_admissions": 1726,
+        "windows": {
+          "10m": {
+            "bad": 1726,
+            "eligible": 1726
+          },
+          "2m": {
+            "bad": 856,
+            "eligible": 856
+          }
+        }
+      },
+      "quiet_target_evaluations": 1,
+      "revision_changes": 0,
+      "seeded": 2141,
+      "synthetic_foreign_database_state": true,
+      "target_slot_occupancy_equal": true,
+      "with_foreign": {
+        "attainment": 1.0,
+        "eligible": 8564,
+        "incomplete": 0,
+        "on_time": 8564
+      },
+      "without_foreign": {
+        "attainment": 1.0,
+        "eligible": 8564,
+        "incomplete": 0,
+        "on_time": 8564
+      }
+    },
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 11.258346032646385,
+      "elapsed_monotonic_ns": 1198499811684,
+      "end_ns": 1795806738082526569,
+      "io_full_percent": 0.3461711015348829,
+      "start_ns": 1795805539582715014
+    },
+    "published_attainment": {
+      "attainment": 1.0,
+      "closing_width_ns": 65866418,
+      "eligible": 8564,
+      "incomplete": 0,
+      "on_time": 8564,
+      "setup_width_ns": 56393110,
+      "width_sensitivity": 0
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 0,
+      "export_end_ns": 1795807359598730521,
+      "periodic_heartbeats": 373,
+      "start_heartbeat_ns": 1795805494999576857
+    },
+    "run": "46050616178",
+    "runtime_profile": "rebuilt registered profile",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "calibration",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-foreign"
+    },
+    "timing": {
+      "arrival_count": 8564,
+      "observe_end_ns": 1795807339000000000,
+      "origin_ns": 1795805539000000000,
+      "stop_ns": 1795806739000000000
+    },
+    "transitions": []
+  },
+  "full-volume": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "clear_evidence": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795823387246000000,
+        "firing": false,
+        "first_clear_input_ns": 1795823272246000000,
+        "seconds_from_origin": 1388.246,
+        "seconds_from_restore": 488.24579024
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795823442246000000,
+        "firing": false,
+        "seconds_from_origin": 1443.246,
+        "seconds_from_restore": 543.24579024
+      }
+    ],
+    "committed_timeout_count": 0,
+    "faults": [
+      {
+        "command_ns": 1795822599000248003,
+        "planned_ns": 1795822599000000000,
+        "replicas": 0,
+        "returned_ns": 1795822599060549845
+      },
+      {
+        "command_ns": 1795822899000209760,
+        "planned_ns": 1795822899000000000,
+        "replicas": 2,
+        "returned_ns": 1795822899076468460
+      }
+    ],
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 19.371791103412217,
+      "elapsed_monotonic_ns": 2699239709992,
+      "end_ns": 1795824698868590208,
+      "io_full_percent": 0.5244616455365484,
+      "start_ns": 1795821999628880261
+    },
+    "published_attainment": {
+      "attainment": 0.7277870043595599,
+      "closing_width_ns": 84181275,
+      "eligible": 19268,
+      "incomplete": 0,
+      "on_time": 14023,
+      "setup_width_ns": 61922100,
+      "width_sensitivity": 0
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 4,
+      "export_end_ns": 1795825418943903276,
+      "periodic_heartbeats": 691,
+      "start_heartbeat_ns": 1795821960260497130
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "confirmation",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-full-volume"
+    },
+    "timing": {
+      "arrival_count": 19268,
+      "observe_end_ns": 1795825299000000000,
+      "origin_ns": 1795821999000000000,
+      "stop_ns": 1795824699000000000
+    },
+    "transitions": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795822632246000000,
+        "firing": true
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795822692246000000,
+        "firing": true
+      },
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795823387246000000,
+        "firing": false
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795823442246000000,
+        "firing": false
+      }
+    ],
+    "worker_witness": {
+      "first_restored_progress_ns": 1795822905479456000,
+      "restored_ready_ns": 1795822903046706848,
+      "zero_workers_ns": 1795822601008366278
+    }
+  },
+  "matched-healthy": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "committed_timeout_count": 0,
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 13.53063733331311,
+      "elapsed_monotonic_ns": 2699137158165,
+      "end_ns": 1795821165226241039,
+      "io_full_percent": 0.32574613607177494,
+      "start_ns": 1795818466089082630
+    },
+    "published_attainment": {
+      "attainment": 1.0,
+      "closing_width_ns": 69560965,
+      "eligible": 19268,
+      "incomplete": 0,
+      "on_time": 19268,
+      "setup_width_ns": 58656642,
+      "width_sensitivity": 0
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 0,
+      "export_end_ns": 1795821831161952752,
+      "periodic_heartbeats": 681,
+      "start_heartbeat_ns": 1795818420866147077
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "confirmation",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-matched-healthy"
+    },
+    "timing": {
+      "arrival_count": 19268,
+      "observe_end_ns": 1795821766000000000,
+      "origin_ns": 1795818466000000000,
+      "stop_ns": 1795821166000000000
+    },
+    "transitions": []
+  },
+  "outage-1": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "calibration_recovery": {
+      "R_ns": 479245852399,
+      "age_endpoint_ns": 1795808907246000000,
+      "first_clear_input": {
+        "at_ns": 1795808792246000000,
+        "claimable_attempts": 185,
+        "demand_ns": 1795808790881585000,
+        "firing": [
+          "OldestClaimable",
+          "DeadlineBudgetBurn"
+        ],
+        "oldest_claimable_age_seconds": 26.480303,
+        "ready_slots": 4,
+        "rule_ok": true,
+        "sample_ns": 1795808790798351000,
+        "scrape_ns": 1795808791348000000,
+        "sql_oldest_claimable_seconds": 26.397069,
+        "up": 1,
+        "valid": true,
+        "windows": {
+          "10m": {
+            "bad": 4282,
+            "eligible": 4282
+          },
+          "2m": {
+            "bad": 857,
+            "eligible": 857
+          },
+          "all": {
+            "bad": 4710,
+            "eligible": 8992
+          }
+        }
+      },
+      "last_pre_restore_terminal_ns": 1795808581532668000,
+      "oldest_refires_before_stop": []
+    },
+    "clear_evidence": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795808907246000000,
+        "firing": false,
+        "first_clear_input_ns": 1795808792246000000,
+        "seconds_from_origin": 1379.246,
+        "seconds_from_restore": 479.245852399
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795808952246000000,
+        "firing": false,
+        "seconds_from_origin": 1424.246,
+        "seconds_from_restore": 524.245852399
+      }
+    ],
+    "committed_timeout_count": 0,
+    "faults": [
+      {
+        "command_ns": 1795808128000170368,
+        "planned_ns": 1795808128000000000,
+        "replicas": 0,
+        "returned_ns": 1795808128070888036
+      },
+      {
+        "command_ns": 1795808428000147601,
+        "planned_ns": 1795808428000000000,
+        "replicas": 2,
+        "returned_ns": 1795808428084451657
+      }
+    ],
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 18.365859818624298,
+      "elapsed_monotonic_ns": 2218936946185,
+      "end_ns": 1795809747827633094,
+      "io_full_percent": 0.5603345791946348,
+      "start_ns": 1795807528890686907
+    },
+    "published_attainment": {
+      "attainment": 0.6775231963643249,
+      "closing_width_ns": 70308839,
+      "eligible": 15843,
+      "incomplete": 0,
+      "on_time": 10734,
+      "setup_width_ns": 57516464,
+      "width_sensitivity": 0
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 4,
+      "export_end_ns": 1795810397952922994,
+      "periodic_heartbeats": 581,
+      "start_heartbeat_ns": 1795807489116840394
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "calibration",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-1"
+    },
+    "timing": {
+      "arrival_count": 15843,
+      "observe_end_ns": 1795810348000000000,
+      "origin_ns": 1795807528000000000,
+      "stop_ns": 1795809748000000000
+    },
+    "transitions": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795808162246000000,
+        "firing": true
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795808222246000000,
+        "firing": true
+      },
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795808907246000000,
+        "firing": false
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795808952246000000,
+        "firing": false
+      }
+    ],
+    "worker_witness": {
+      "first_restored_progress_ns": 1795808439420157000,
+      "restored_ready_ns": 1795808431965052145,
+      "zero_workers_ns": 1795808129876459537
+    }
+  },
+  "outage-2": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "calibration_recovery": {
+      "R_ns": 476245847862,
+      "age_endpoint_ns": 1795811942246000000,
+      "first_clear_input": {
+        "at_ns": 1795811827246000000,
+        "claimable_attempts": 199,
+        "demand_ns": 1795811825379786000,
+        "firing": [
+          "OldestClaimable",
+          "DeadlineBudgetBurn"
+        ],
+        "oldest_claimable_age_seconds": 27.710199,
+        "ready_slots": 4,
+        "rule_ok": true,
+        "sample_ns": 1795811825297875000,
+        "scrape_ns": 1795811826371000000,
+        "sql_oldest_claimable_seconds": 27.628288,
+        "up": 1,
+        "valid": true,
+        "windows": {
+          "10m": {
+            "bad": 4282,
+            "eligible": 4282
+          },
+          "2m": {
+            "bad": 857,
+            "eligible": 857
+          },
+          "all": {
+            "bad": 4685,
+            "eligible": 8967
+          }
+        }
+      },
+      "last_pre_restore_terminal_ns": 1795811618614523000,
+      "oldest_refires_before_stop": []
+    },
+    "clear_evidence": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795811942246000000,
+        "firing": false,
+        "first_clear_input_ns": 1795811827246000000,
+        "seconds_from_origin": 1376.246,
+        "seconds_from_restore": 476.245847862
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795811992246000000,
+        "firing": false,
+        "seconds_from_origin": 1426.246,
+        "seconds_from_restore": 526.245847862
+      }
+    ],
+    "committed_timeout_count": 0,
+    "faults": [
+      {
+        "command_ns": 1795811166000150179,
+        "planned_ns": 1795811166000000000,
+        "replicas": 0,
+        "returned_ns": 1795811166043732896
+      },
+      {
+        "command_ns": 1795811466000152138,
+        "planned_ns": 1795811466000000000,
+        "replicas": 2,
+        "returned_ns": 1795811466069280083
+      }
+    ],
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 19.283574046611463,
+      "elapsed_monotonic_ns": 2218986672106,
+      "end_ns": 1795812785590123604,
+      "io_full_percent": 0.5590659085944879,
+      "start_ns": 1795810566603451754
+    },
+    "published_attainment": {
+      "attainment": 0.6779650318752761,
+      "closing_width_ns": 77038089,
+      "eligible": 15843,
+      "incomplete": 0,
+      "on_time": 10741,
+      "setup_width_ns": 59880630,
+      "width_sensitivity": 1
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 6,
+      "export_end_ns": 1795813437878109098,
+      "periodic_heartbeats": 581,
+      "start_heartbeat_ns": 1795810527682213380
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [
+      {
+        "firing": [
+          {
+            "endsAt": "0001-01-01T00:00:00Z",
+            "fingerprint": "b268eff42d1addce",
+            "labels": {
+              "alertname": "ScrapeAbsent",
+              "campaign": "j3-r421-46050616178",
+              "namespace": "j3-target-outage-2"
+            },
+            "received_ns": 1795810532253238567,
+            "startsAt": "2026-11-27T20:15:32.246Z",
+            "status": "firing"
+          }
+        ],
+        "resolved": [
+          {
+            "endsAt": "2026-11-27T20:15:37.246Z",
+            "fingerprint": "b268eff42d1addce",
+            "labels": {
+              "alertname": "ScrapeAbsent",
+              "campaign": "j3-r421-46050616178",
+              "namespace": "j3-target-outage-2"
+            },
+            "received_ns": 1795810537253237930,
+            "startsAt": "2026-11-27T20:15:32.246Z",
+            "status": "resolved"
+          }
+        ]
+      }
+    ],
+    "stage": "calibration",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-2"
+    },
+    "timing": {
+      "arrival_count": 15843,
+      "observe_end_ns": 1795813386000000000,
+      "origin_ns": 1795810566000000000,
+      "stop_ns": 1795812786000000000
+    },
+    "transitions": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795811197246000000,
+        "firing": true
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795811257246000000,
+        "firing": true
+      },
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795811942246000000,
+        "firing": false
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795811992246000000,
+        "firing": false
+      }
+    ],
+    "worker_witness": {
+      "first_restored_progress_ns": 1795811471973655000,
+      "restored_ready_ns": 1795811472405033472,
+      "zero_workers_ns": 1795811168339564112
+    }
+  },
+  "outage-3": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "calibration_recovery": {
+      "R_ns": 469245908436,
+      "age_endpoint_ns": 1795814977246000000,
+      "first_clear_input": {
+        "at_ns": 1795814862246000000,
+        "claimable_attempts": 209,
+        "demand_ns": 1795814861106969000,
+        "firing": [
+          "OldestClaimable",
+          "DeadlineBudgetBurn"
+        ],
+        "oldest_claimable_age_seconds": 28.399434,
+        "ready_slots": 4,
+        "rule_ok": true,
+        "sample_ns": 1795814861016697000,
+        "scrape_ns": 1795814862088000000,
+        "sql_oldest_claimable_seconds": 28.309162,
+        "up": 1,
+        "valid": true,
+        "windows": {
+          "10m": {
+            "bad": 4282,
+            "eligible": 4282
+          },
+          "2m": {
+            "bad": 857,
+            "eligible": 857
+          },
+          "all": {
+            "bad": 4640,
+            "eligible": 8922
+          }
+        }
+      },
+      "last_pre_restore_terminal_ns": 1795814660826521000,
+      "oldest_refires_before_stop": []
+    },
+    "clear_evidence": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795814977246000000,
+        "firing": false,
+        "first_clear_input_ns": 1795814862246000000,
+        "seconds_from_origin": 1369.246,
+        "seconds_from_restore": 469.245908436
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795815032246000000,
+        "firing": false,
+        "seconds_from_origin": 1424.246,
+        "seconds_from_restore": 524.245908436
+      }
+    ],
+    "committed_timeout_count": 0,
+    "faults": [
+      {
+        "command_ns": 1795814208000168242,
+        "planned_ns": 1795814208000000000,
+        "replicas": 0,
+        "returned_ns": 1795814208067237390
+      },
+      {
+        "command_ns": 1795814508000091564,
+        "planned_ns": 1795814508000000000,
+        "replicas": 2,
+        "returned_ns": 1795814508094927772
+      }
+    ],
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 19.391880949043806,
+      "elapsed_monotonic_ns": 2219003355738,
+      "end_ns": 1795815827401868373,
+      "io_full_percent": 0.553856079947772,
+      "start_ns": 1795813608398512905
+    },
+    "published_attainment": {
+      "attainment": 0.6775863157230323,
+      "closing_width_ns": 73038778,
+      "eligible": 15843,
+      "incomplete": 0,
+      "on_time": 10735,
+      "setup_width_ns": 61982990,
+      "width_sensitivity": 2
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 4,
+      "export_end_ns": 1795816477343045293,
+      "periodic_heartbeats": 581,
+      "start_heartbeat_ns": 1795813569429785999
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "calibration",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-outage-3"
+    },
+    "timing": {
+      "arrival_count": 15843,
+      "observe_end_ns": 1795816428000000000,
+      "origin_ns": 1795813608000000000,
+      "stop_ns": 1795815828000000000
+    },
+    "transitions": [
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795814237246000000,
+        "firing": true
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795814302246000000,
+        "firing": true
+      },
+      {
+        "alert": "OldestClaimable",
+        "at_ns": 1795814977246000000,
+        "firing": false
+      },
+      {
+        "alert": "DeadlineBudgetBurn",
+        "at_ns": 1795815032246000000,
+        "firing": false
+      }
+    ],
+    "worker_witness": {
+      "first_restored_progress_ns": 1795814511049936000,
+      "restored_ready_ns": 1795814512000811903,
+      "zero_workers_ns": 1795814209961976117
+    }
+  },
+  "scrape-loss": {
+    "ambiguous_evaluations": 0,
+    "attempt": "1",
+    "committed_timeout_count": 0,
+    "faults": [
+      {
+        "allow_scrape": false,
+        "command_ns": 1795817245000165693,
+        "planned_ns": 1795817245000000000,
+        "returned_ns": 1795817245033664952
+      },
+      {
+        "allow_scrape": true,
+        "command_ns": 1795817305000171950,
+        "planned_ns": 1795817305000000000,
+        "returned_ns": 1795817305048258555
+      }
+    ],
+    "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+    "in_flight_scrape_pairings": [],
+    "offering_pressure_covariate": {
+      "cpu_some_percent": 10.973864719701078,
+      "elapsed_monotonic_ns": 719277465288,
+      "end_ns": 1795817364283857638,
+      "io_full_percent": 0.36472322943547203,
+      "start_ns": 1795816645006392587
+    },
+    "published_attainment": {
+      "attainment": 1.0,
+      "closing_width_ns": 61783915,
+      "eligible": 5138,
+      "incomplete": 0,
+      "on_time": 5138,
+      "setup_width_ns": 58827023,
+      "width_sensitivity": 0
+    },
+    "receiver_log": {
+      "continuous_sequence": true,
+      "delivery_batches": 2,
+      "export_end_ns": 1795817975539218585,
+      "periodic_heartbeats": 274,
+      "start_heartbeat_ns": 1795816606686251522
+    },
+    "run": "46050616178",
+    "sender_returncode": 0,
+    "setup_incidents": [],
+    "stage": "calibration",
+    "target": {
+      "campaign": "j3-r421-46050616178",
+      "namespace": "j3-target-scrape-loss"
+    },
+    "timing": {
+      "arrival_count": 5138,
+      "observe_end_ns": 1795817965000000000,
+      "origin_ns": 1795816645000000000,
+      "stop_ns": 1795817365000000000
+    },
+    "transitions": [
+      {
+        "alert": "ScrapeAbsent",
+        "at_ns": 1795817252246000000,
+        "firing": true
+      },
+      {
+        "alert": "ScrapeAbsent",
+        "at_ns": 1795817307246000000,
+        "firing": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "campaign": "j3-r421-46050616178",
+  "head": "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+  "inputs": {
+    "forecast-measurements.json": "08d8de4ae6d0d08908682657d61d77eda3a6ce0ccc85f341683bfe25879f86a0",
+    "outage-1/calibration-recovery.json": "25fbba121699fcf59acc1b26bd4894ffd89ffe6a09c7e9a70fac648ebd0737f5",
+    "outage-1/outage.json": "19f9e48b657bce2d5e0bf4249cfa9397b246e690e7260c3cd28ae818a5cb1900",
+    "outage-2/calibration-recovery.json": "bdb5a3781e2afb8210dbada2a12ab4b54083b3952d49393c35e15dfd98f66f9c",
+    "outage-2/outage.json": "e8f109f8907b9024158a861887d14d83adcc5d32832b208a39abc64f0a2325a9",
+    "outage-3/calibration-recovery.json": "22d3801bae4903a20a7f8420ec77e8925d09355699d833cca25de3ae090e87dd",
+    "outage-3/outage.json": "eb7e1f18e6a88431fa46db7088a9256d2209d807ab0e4b3da02d2194015a4735"
+  },
+  "sealed_ns": 1795818086309700319,
+  "sha256": "83a4219d82f3ee1099ce619b9488a2c405aa7cfb95a4feb2a2df1222de614db9"
+}
