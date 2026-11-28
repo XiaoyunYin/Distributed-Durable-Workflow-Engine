@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import copy
 import json
 import os
@@ -99,6 +100,14 @@ class PhaseGEvidence(Evidence):
         with super().step(name) as row:
             yield row
             row["elapsed_ns"] = time.monotonic_ns() - started
+
+    def retain_broker_diagnostics(self, raw: bytes) -> None:
+        for history in json.loads(raw).values():
+            for attempt in history["first"] + history["last"]:
+                for read in attempt["member_file_reads"]:
+                    if read["bytes"] is not None:
+                        self.check(base64.b64decode(read["bytes"], validate=True))
+        self.write_bytes("broker-snapshot-diagnostics.json", raw)
 
 
 def atomic(path: Path, data: bytes) -> None:
@@ -737,6 +746,9 @@ class Episode(Matrix):
                     process.kill()
                     process.wait(timeout=5)
                 self.evidence.write_bytes("collector.log", logs.read_bytes())
+                broker_diagnostics = self.scratch / "broker-snapshot-diagnostics.json"
+                if broker_diagnostics.is_file():
+                    self.evidence.retain_broker_diagnostics(self.root_read(broker_diagnostics))
 
     def coordinator_state(self, worker_names: list[str]) -> Json | None:
         rows = [

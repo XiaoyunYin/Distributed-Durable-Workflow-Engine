@@ -50,12 +50,13 @@ type processRegistration struct {
 }
 
 type collector struct {
-	config     config
-	cluster    k6collect.Kubernetes
-	watch      *k6collect.PodWatch
-	sources    k6v1.External
-	registered map[string]bool
-	lastPhase  string
+	config         config
+	cluster        k6collect.Kubernetes
+	watch          *k6collect.PodWatch
+	sources        k6v1.External
+	registered     map[string]bool
+	lastPhase      string
+	brokerFailures brokerHistory
 }
 
 func load(path string, out any) error {
@@ -116,7 +117,7 @@ func run(ctx context.Context, c config) error {
 	defer ticker.Stop()
 	var generation int64
 	published := false
-	var failedAt time.Time
+	var failures collectionFailures
 	var lastError string
 	for {
 		select {
@@ -127,15 +128,22 @@ func run(ctx context.Context, c config) error {
 		case <-ticker.C:
 		}
 		generation++
-		err := observer.collect(ctx, client, metadata, generation)
+		sampleCtx := ctx
+		cancelSample := func() {}
+		if !failures.retryUntil.IsZero() && observer.drained() {
+			if !time.Now().Before(failures.retryUntil) {
+				return failures.last
+			}
+			sampleCtx, cancelSample = context.WithDeadline(ctx, failures.retryUntil)
+		}
+		err := observer.collect(sampleCtx, client, metadata, generation)
+		cancelSample()
+		if failures.shouldExit(time.Now(), published, err != nil && observer.drained(), err) {
+			return err
+		}
 		if err == nil {
 			published = true
-			failedAt = time.Time{}
 			lastError = ""
-		} else if failedAt.IsZero() {
-			failedAt = time.Now()
-		} else if published && observer.drained() && time.Since(failedAt) > k6v1.MaxSampleGap {
-			return err
 		}
 		if err != nil && lastError != err.Error() {
 			lastError = err.Error()
@@ -209,18 +217,16 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, metadata 
 	if err != nil {
 		return err
 	}
-	row, err := k6collect.BrokerSnapshot(brokerCtx, client, c.Group, ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
-		var state struct {
-			Generation  int64                        `json:"generation"`
-			Members     map[string]int64             `json:"members"`
-			Coordinator *k6v1.CoordinatorObservation `json:"coordinator,omitempty"`
-		}
-		err := load(c.Members, &state)
-		return state.Generation, state.Members, state.Coordinator, err
-	})
+	row, converging, err := o.snapshotBroker(brokerCtx, client, ids)
 	if err != nil {
+		if errors.Is(err, errBrokerDiagnostics) {
+			return err
+		}
 		actual, readErr := k6collect.BrokerTopicIDs(brokerCtx, metadata, names)
 		if readErr != nil || maps.Equal(c.Topics, actual) {
+			if readErr == nil && converging {
+				return drainMembershipPending{err}
+			}
 			return err
 		}
 		// Kafka can report a new topic ID before the group callbacks
@@ -280,6 +286,12 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, metadata 
 		}
 	} else if err := o.effect(m, drained); err != nil {
 		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
 	}
 	return k6collect.Publish(c.Output, generation, m, o.sources)
 }

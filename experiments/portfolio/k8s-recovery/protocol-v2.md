@@ -1867,3 +1867,23 @@ within the existing sample bounds or satisfy the existing rules for a vanished
 startup. Missing source or terminal proof and unrelated identities fail the
 guard. This CI reliability change preserves registered K values and verdict
 rules, with evidence semantics extended only for this specific attribution.
+
+### B.11 Phase G post-drain broker convergence (R383, pending review)
+
+After the writer fence, the collector allows one 10-second convergence window
+for the observed membership disagreements on the unchanged registered topics.
+The window starts at the first eligible failure after drain and matches the Kafka
+worker session timeout. Eligibility requires two successful matching group
+descriptions, two readable callback states, and a departure signal from the
+empty callback map, an empty group, or a joined group with extra file entries.
+The collector publishes only a successful broker bracket, which clears the
+convergence timer. Persistent failures still fail the phase. The non-drained
+collection rules and the checker's 5-second maximum sample gap and 30-second
+quiet window retain their registered values.
+
+Post-fence broker failures retain the first two and last two distinct attempts
+per error code, with a count. The episode artifact includes member-file bytes
+and hashes, coordinator observations, and both group descriptions when reached.
+Individual payloads are capped at 16 KiB. The retained-output credential scan
+also checks the decoded member bytes. The diagnostics are outside the checker
+bundle. This CI reliability change preserves registered K values and verdict rules.
