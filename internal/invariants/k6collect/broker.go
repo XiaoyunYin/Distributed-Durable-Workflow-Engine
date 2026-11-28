@@ -23,8 +23,44 @@ type BrokerClient interface {
 // omits the generation. Keep both observations for offline corroboration.
 type MemberGenerations func(context.Context) (last int64, members map[string]int64, observation *k6v1.CoordinatorObservation, err error)
 
+// BrokerSnapshotViews contains the descriptions actually reached by a bracket.
+// A nil view means the call was not reached. Only group and assignment fields
+// are retained, so opaque member metadata never enters the diagnostics.
+type BrokerSnapshotViews struct {
+	Before *BrokerDescription `json:"before"`
+	After  *BrokerDescription `json:"after"`
+}
+
+type BrokerDescription struct {
+	Failed bool              `json:"failed"`
+	Groups []BrokerGroupView `json:"groups"`
+}
+
+type BrokerGroupView struct {
+	Group   string              `json:"group"`
+	State   string              `json:"state"`
+	Failed  bool                `json:"failed"`
+	Members []k6v1.BrokerMember `json:"members"`
+}
+
+func brokerDescription(response *kafka.DescribeGroupsResponse, err error, ids map[string]string) *BrokerDescription {
+	view := &BrokerDescription{Failed: err != nil || response == nil}
+	if response != nil {
+		for _, group := range response.Groups {
+			view.Groups = append(view.Groups, BrokerGroupView{
+				Group: group.GroupID, State: group.GroupState, Failed: group.Error != nil,
+				Members: groupView(group, ids).Members,
+			})
+		}
+	}
+	return view
+}
+
 func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topicIDs map[string]string,
-	generations MemberGenerations) (k6v1.BrokerRow, error) {
+	generations MemberGenerations, views *BrokerSnapshotViews) (k6v1.BrokerRow, error) {
+	if views != nil {
+		*views = BrokerSnapshotViews{}
+	}
 	failure := errors.New("K6_BROKER_DESCRIBE")
 	if group == "" || len(topicIDs) == 0 || generations == nil {
 		return k6v1.BrokerRow{}, failure
@@ -38,7 +74,10 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 	}
 	groupReq := &kafka.DescribeGroupsRequest{GroupIDs: []string{group}}
 	before, err := client.DescribeGroups(ctx, groupReq)
-	if err != nil || len(before.Groups) != 1 || before.Groups[0].Error != nil {
+	if views != nil {
+		views.Before = brokerDescription(before, err, topicIDs)
+	}
+	if err != nil || before == nil || len(before.Groups) != 1 || before.Groups[0].Error != nil {
 		return k6v1.BrokerRow{}, failure
 	}
 	positions, err := BrokerPositions(ctx, client, group, topicIDs)
@@ -46,7 +85,10 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 		return k6v1.BrokerRow{}, failure
 	}
 	after, err := client.DescribeGroups(ctx, groupReq)
-	if err != nil || len(after.Groups) != 1 || after.Groups[0].Error != nil ||
+	if views != nil {
+		views.After = brokerDescription(after, err, topicIDs)
+	}
+	if err != nil || after == nil || len(after.Groups) != 1 || after.Groups[0].Error != nil ||
 		!reflect.DeepEqual(groupView(before.Groups[0], topicIDs), groupView(after.Groups[0], topicIDs)) {
 		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GROUP_RACED")
 	}

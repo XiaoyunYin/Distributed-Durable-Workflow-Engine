@@ -1837,3 +1837,53 @@ publishing a decision from the retained defective `busy_removals` field.
 4. **Pre-data design record.** The [K6 design](k6-design.md) at the commit
    adding this amendment registers the K6 cell bindings, identity/grant
    contract and per-arm I-label expectations before any K6 data.
+
+### B.9 K6 CI reliability disclosure for R432 and R433 (pending review)
+
+- Phase C can attribute a vanished startup to a registered write-denial probe
+  when the backend started within the recorded probe window and its runner-side
+  address and port match the probe's single TCP connection. The probe records
+  the configured role and application and must receive `28P01` on that connection.
+  The sampler continues to count starting backends against the connection budget
+  and rejects unexplained vanishes.
+- The Kafka fresh-topic reads in setup may retry exit 1 or a subprocess timeout
+  up to two times before fault injection. Every direct-read attempt records its
+  stderr and exit status, subject to the credential scan. Reads used as verdict
+  evidence are single-shot.
+
+These CI reliability changes preserve the registered K values, verdict rules,
+and evidence semantics apart from the precise Phase C attribution above.
+
+### B.10 Phase C rollout startup disclosure (pending review)
+
+During `f-sink-rollout-surge`, an engine backend in `starting` can publish
+`dur053-k6-sink-grant-reader` before its role appears in `pg_stat_activity`.
+The harness follows that specific partial identity only within the recorded
+rollout window. The socket must map to a registered sink pod by pod address
+or by a matching conntrack tuple. Both pending and authenticated grant-reader
+connections count against the registered client and total connection budgets.
+The same backend must resolve to `k6_sink_grant_reader` with that application
+within the existing sample bounds or satisfy the existing rules for a vanished
+startup. Missing source or terminal proof and unrelated identities fail the
+guard. This CI reliability change preserves registered K values and verdict
+rules, with evidence semantics extended only for this specific attribution.
+
+### B.11 Phase G post-drain broker convergence (R383, pending review)
+
+After the writer fence, the collector allows one 10-second convergence window
+for the observed membership disagreements on the unchanged registered topics.
+The window starts at the first eligible failure after drain and matches the Kafka
+worker session timeout. Eligibility requires two successful matching group
+descriptions, two readable callback states, and a departure signal from the
+empty callback map, an empty group, or a joined group with extra file entries.
+The collector publishes only a successful broker bracket, which clears the
+convergence timer. Persistent failures still fail the phase. The non-drained
+collection rules and the checker's 5-second maximum sample gap and 30-second
+quiet window retain their registered values.
+
+Post-fence broker failures retain the first two and last two distinct attempts
+per error code, with a count. The episode artifact includes member-file bytes
+and hashes, coordinator observations, and both group descriptions when reached.
+Individual payloads are capped at 16 KiB. The retained-output credential scan
+also checks the decoded member bytes. The diagnostics are outside the checker
+bundle. This CI reliability change preserves registered K values and verdict rules.

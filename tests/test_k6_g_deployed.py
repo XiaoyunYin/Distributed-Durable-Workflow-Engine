@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 import sys
@@ -28,9 +29,33 @@ from dur053_k6_g_bundle import (  # noqa: E402
     write_fence,
 )
 from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtime  # noqa: E402
-from dur053_k6_g_smoke import Episode  # noqa: E402
+from dur053_k6_g_smoke import Episode, PhaseGEvidence  # noqa: E402
 from dur053_k6_g_stale import COMPANION, StaleDriver  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
+
+
+@pytest.mark.parametrize("contaminated", [False, True])
+def test_broker_diagnostics_scan_decoded_member_bytes(tmp_path: Path, contaminated: bool) -> None:
+    evidence = PhaseGEvidence(tmp_path)
+    secret = "restricted-broker-test-credential"
+    evidence.secret(secret)
+    member = f"x{secret}".encode() if contaminated else b'{"generation":4,"members":{}}\n'
+    capture = {"bytes": base64.b64encode(member).decode(), "sha256": sha(member)}
+    raw = canonical(
+        {
+            "K6_BROKER_DESCRIBE": {"first": [{"member_file_reads": [capture]}], "last": []},
+        }
+    )
+    evidence.check(raw)  # Encoding the whole file can hide a credential substring from this scan.
+    output = tmp_path / "broker-snapshot-diagnostics.json"
+    if contaminated:
+        with pytest.raises(SmokeFailure, match="^CREDENTIAL_SCAN_FAILED$"):
+            evidence.retain_broker_diagnostics(raw)
+        assert not output.exists()
+    else:
+        evidence.retain_broker_diagnostics(raw)
+        evidence.scan()
+        assert output.read_bytes() == raw
 
 
 def test_k6_j4_modes_require_literal_legacy_evidence() -> None:

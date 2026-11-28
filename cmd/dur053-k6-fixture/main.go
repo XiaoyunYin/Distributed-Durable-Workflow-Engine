@@ -36,6 +36,7 @@ type input struct {
 	Lease       state.LeaseRef
 	Grant       k6auth.ExactGrantRequest
 	Probe       string
+	TraceSocket bool
 }
 
 func stage(code string, err error) error {
@@ -317,7 +318,7 @@ func connectDiagnostic(err error) map[string]any {
 
 func sqlProbe(ctx context.Context, in input) map[string]any {
 	result := map[string]any{"diagnostic": connectDiagnostic(nil)}
-	conn, err := pgx.Connect(ctx, in.DSN)
+	conn, err := connectProbe(ctx, in, result)
 	if err != nil {
 		result["code"] = classifyConnectError(err)
 		result["diagnostic"] = connectDiagnostic(err)
@@ -357,6 +358,36 @@ func sqlProbe(ctx context.Context, in input) map[string]any {
 		result["code"] = "UNEXPECTED_SQL_SUCCESS"
 	}
 	return result
+}
+
+func connectProbe(ctx context.Context, in input, result map[string]any) (*pgx.Conn, error) {
+	if !in.TraceSocket {
+		return pgx.Connect(ctx, in.DSN)
+	}
+	config, err := pgx.ParseConfig(in.DSN)
+	if err != nil {
+		return nil, err
+	}
+	dial := config.DialFunc
+	var local *net.TCPAddr
+	dials := 0
+	config.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dials++
+		conn, err := dial(ctx, network, addr)
+		if err == nil {
+			local, _ = conn.LocalAddr().(*net.TCPAddr)
+		}
+		return conn, err
+	}
+	conn, err := pgx.ConnectConfig(ctx, config)
+	var rejection *pgconn.PgError
+	if dials == 1 && local != nil && errors.As(err, &rejection) && rejection.Code == "28P01" {
+		result["rejected_connection"] = map[string]any{
+			"client_addr": local.IP.String(), "client_port": local.Port,
+			"role": config.User, "application": config.RuntimeParams["application_name"],
+		}
+	}
+	return conn, err
 }
 
 func run(ctx context.Context, action string, in input) (any, error) {

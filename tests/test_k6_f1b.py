@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
@@ -109,6 +111,62 @@ def f1b_smoke(tmp_path):
     smoke.evidence = F1bEvidence(tmp_path)
     smoke.monitor_samples = []
     return smoke
+
+
+@pytest.mark.parametrize("read_mode", ["setup_recovers", "setup_exhausts", "verdict"])
+def test_f1b_direct_kafka_reads_retain_attempts(f1b_smoke, tmp_path, monkeypatch, read_mode):
+    smoke = f1b_smoke
+    smoke.env = {}
+    smoke.deadline = datetime.now(UTC) + timedelta(seconds=30)
+    smoke.broker = ENGINE
+    smoke.kafka_probe = tmp_path / "kafka-read"
+    empty = json.dumps(
+        [{"partition": part, "first": 0, "next": 0, "records": []} for part in range(8)]
+    ).encode()
+    failed = subprocess.CompletedProcess([], 1, b"", b"K6E1_KAFKA_READ: Leader Not Available\n")
+    success = subprocess.CompletedProcess([], 0, empty, b"")
+    run = Mock(
+        side_effect=[failed, success, success] if read_mode == "setup_recovers" else [failed] * 3
+    )
+    monkeypatch.setattr(subprocess, "run", run)
+    backoff = Mock()
+    monkeypatch.setattr(time, "sleep", backoff)
+
+    if read_mode == "verdict":
+        with pytest.raises(SmokeFailure, match="^E1_KAFKA_DIRECT_READ_EXIT_1$"):
+            smoke.kafka(EVENTS)
+        expected = [(EVENTS, 1, 1)]
+    else:
+        smoke.scratch = tmp_path
+        smoke.harness = Mock()
+        smoke.harness.render.return_value = (None, [])
+        smoke.addresses = {}
+        smoke.namespace = "medium-2"
+        monkeypatch.setattr(smoke, "render_episode", lambda source: source)
+        stop = Mock(side_effect=SmokeFailure("STOP_AFTER_KAFKA_SETUP"))
+        monkeypatch.setattr(smoke, "create", stop)
+        if read_mode == "setup_recovers":
+            with pytest.raises(SmokeFailure, match="^STOP_AFTER_KAFKA_SETUP$"):
+                smoke.setup_episode()
+            stop.assert_called_once()
+            expected = [(EVENTS, 1, 1), (EVENTS, 2, 0), (TASKS, 1, 0)]
+        else:
+            with pytest.raises(SmokeFailure, match="^E1_KAFKA_DIRECT_READ_EXIT_1$"):
+                smoke.setup_episode()
+            stop.assert_not_called()
+            expected = [(EVENTS, attempt, 1) for attempt in range(1, 4)]
+
+    assert run.call_count == len(expected)
+    assert backoff.call_count == {"verdict": 0, "setup_recovers": 1, "setup_exhausts": 2}[read_mode]
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "kafka-direct-read-attempts.jsonl").read_bytes().splitlines()
+    ]
+    assert [(row["topic"], row["attempt"], row["exit_status"]) for row in records] == expected
+    for row in records:
+        assert row["setup"] is (read_mode != "verdict")
+        assert row["started_ns"] <= row["finished_ns"]
+        assert row["stderr"] == (failed.stderr.decode() if row["exit_status"] else "")
 
 
 @pytest.fixture(params=CELLS)

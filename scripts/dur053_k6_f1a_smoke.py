@@ -537,7 +537,7 @@ class F1aSmoke(Matrix):
         self.retain("topology", objects)
         self.reset_episode_transport(renderer)
         for topic in (EVENTS, TASKS):
-            sample = self.kafka(topic)
+            sample = self.kafka(topic, setup=True)
             self.retain("kafka-initial-" + topic, sample)
             expect("F1A_FRESH_KAFKA_TOPIC", broker_records(sample["value"], 8), [])
         self.create("F1A_NAMESPACE", obj("Namespace", self.namespace, None))

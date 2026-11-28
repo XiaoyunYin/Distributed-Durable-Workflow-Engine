@@ -587,7 +587,7 @@ class Matrix(Smoke):
         _, source = renderer.render("kind", self.addresses)
         renderer.reset_transport()
         for topic in (EVENTS, TASKS):
-            sample = self.kafka(topic)
+            sample = self.kafka(topic, setup=True)
             self.evidence.write(f"kafka-initial-{topic}.json", sample)
             expect("E1_FRESH_BROKER_TOPIC", broker_records(sample["value"], 8), [])
         objects = deployment_objects(
@@ -825,22 +825,80 @@ class Matrix(Smoke):
         except ValueError:
             raise SmokeFailure(f"{stage}_OUTPUT_INVALID") from None
 
-    def kafka(self, topic: str, partition: int = -1, group: str = "") -> dict:
-        started = time.time_ns()
-        result = self.command(
-            "E1_KAFKA_DIRECT_READ",
-            str(self.kafka_probe),
-            "-broker",
-            self.broker + ":19092",
-            "-topic",
-            topic,
-            "-partition",
-            str(partition),
-            "-group",
-            group,
-            timeout=6,
-        )
-        return {"started_ns": started, "observed_ns": time.time_ns(), "value": json.loads(result)}
+    def kafka(
+        self, topic: str, partition: int = -1, group: str = "", *, setup: bool = False
+    ) -> dict:
+        stage = "E1_KAFKA_DIRECT_READ"
+        limit = 3 if setup else 1
+        for attempt in range(1, limit + 1):
+            started = time.time_ns()
+            exit_status = None
+            stderr = b""
+            failure = None
+
+            def capture_status(status: int | None, output: bytes) -> None:
+                nonlocal exit_status, stderr
+                exit_status, stderr = status, output
+
+            try:
+                result = self.command(
+                    stage,
+                    str(self.kafka_probe),
+                    "-broker",
+                    self.broker + ":19092",
+                    "-topic",
+                    topic,
+                    "-partition",
+                    str(partition),
+                    "-group",
+                    group,
+                    timeout=6,
+                    capture_status=capture_status,
+                )
+                return {
+                    "started_ns": started,
+                    "observed_ns": time.time_ns(),
+                    "value": json.loads(result),
+                }
+            except (SmokeFailure, ValueError) as error:
+                failure = self.evidence.safe_reason(error)
+                retryable = failure == f"{stage}_TIMEOUT" or (
+                    exit_status == 1 and failure.startswith(f"{stage}_EXIT_1")
+                )
+                if attempt == limit or not retryable:
+                    raise
+            finally:
+                diagnostic = stderr.decode(errors="replace")
+                try:
+                    self.evidence.check(stderr)
+                    self.evidence.check(diagnostic.encode())
+                except SmokeFailure:
+                    diagnostic = "[redacted by credential scan]"
+                record = (
+                    json_data(
+                        {
+                            "step": self.evidence.current_step,
+                            "topic": topic,
+                            "partition": partition,
+                            "group": group,
+                            "setup": setup,
+                            "attempt": attempt,
+                            "started_ns": started,
+                            "finished_ns": time.time_ns(),
+                            "exit_status": exit_status,
+                            "stderr": diagnostic,
+                            "failure": failure,
+                        }
+                    )
+                    + b"\n"
+                )
+                self.evidence.check(record)
+                with (self.evidence.root / "kafka-direct-read-attempts.jsonl").open(
+                    "ab"
+                ) as journal:
+                    journal.write(record)
+            time.sleep(0.25)
+        raise AssertionError("bounded Kafka read loop did not return or raise")
 
     def snapshot(self, workflow: str, *, lease_writes: bool = False) -> dict:
         expect("E1_SAFE_WORKFLOW", bool(re.fullmatch(r"[a-z0-9-]{1,64}", workflow)), True)

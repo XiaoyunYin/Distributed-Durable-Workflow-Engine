@@ -309,7 +309,7 @@ class LeaseTakeover(Matrix):
         self.evidence.write("topology.json", objects)
         renderer.reset_transport()
         for topic in (EVENTS, TASKS):
-            sample = self.kafka(topic)
+            sample = self.kafka(topic, setup=True)
             self.evidence.write(f"kafka-initial-{topic}.json", sample)
             expect("E2_FRESH_BROKER_TOPIC", broker_records(sample["value"], 8), [])
         self.create("E2_NAMESPACE", obj("Namespace", NS, None))
