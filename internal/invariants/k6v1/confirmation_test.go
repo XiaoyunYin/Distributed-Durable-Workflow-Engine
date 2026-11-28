@@ -6,6 +6,24 @@ import (
 	"time"
 )
 
+func TestControlRequiresKafkaGenerationUnset(t *testing.T) {
+	const name = "RUNTIME_KAFKA_GENERATION"
+	for _, pod := range []ControlPod{
+		{EnvNames: []string{name}},
+		{EnvNames: []string{name}, LegacyEnv: map[string]string{name: ""}},
+		{EnvNames: []string{name}, LegacyEnv: map[string]string{name: "j7-restore"}},
+		{LegacyEnv: map[string]string{name: ""}},
+		{EnvFrom: true},
+	} {
+		if !(ControlSnapshot{Pods: []ControlPod{pod}}).faultConfigured() {
+			t.Fatalf("K6 accepted a configured or opaque Kafka generation: %+v", pod)
+		}
+	}
+	if (ControlSnapshot{Pods: []ControlPod{{}}}).faultConfigured() {
+		t.Fatal("unset generation must preserve K6 control admission")
+	}
+}
+
 func TestK6ConfirmationSourceBinding(t *testing.T) {
 	at := UTC(time.Unix(1, 0))
 	snapshot := ControlSnapshot{BeforeUTC: at, AfterUTC: at, CRDList: "1", PodList: "2",

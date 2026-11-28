@@ -57,16 +57,17 @@ func emitSchedulerAcknowledgment(lease state.Lease, acquisition, boundary string
 	slog.Info("k4 scheduler acknowledgment", "data", string(data))
 }
 
-func runIngestor(ctx context.Context, drain <-chan struct{}, store *state.Store, brokers []string, wake chan<- struct{}) error {
+func runIngestor(ctx context.Context, drain <-chan struct{}, store *state.Store, brokers []string, wake chan<- struct{}, generation transport.ConsumerGeneration) error {
+	consumerID := generation.SchedulerID()
 	for ctx.Err() == nil {
 		select {
 		case <-drain:
 			return nil
 		default:
 		}
-		source, err := transport.NewKafkaSource(brokers, state.EventTopic, "runtime-schedulers-v1")
+		source, err := transport.NewKafkaSource(brokers, state.EventTopic, consumerID)
 		if err == nil {
-			consumer := transport.NewConsumer(store, source, transport.ConsumerConfig{ConsumerID: "runtime-schedulers-v1"})
+			consumer := transport.NewConsumer(store, source, transport.ConsumerConfig{ConsumerID: consumerID})
 			for ctx.Err() == nil {
 				select {
 				case <-drain:

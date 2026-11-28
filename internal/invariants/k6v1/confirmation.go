@@ -33,11 +33,13 @@ type ControlPod struct {
 	LegacyEnv map[string]string `json:"legacy_env,omitempty"`
 }
 
-// These switches may be present only with a witnessed literal legacy value.
+// Nonempty values allow a witnessed literal legacy setting. An empty
+// value requires absence from the registered PodSpec.
 var controlLegacyEnv = map[string]string{
 	"J4_PROVIDER_RESILIENCE":       "0",
 	"J4_RECORDED_LLM_ACTIVITY":     "0",
 	"RUNTIME_TIMEOUT_RETRY_POLICY": "0",
+	"RUNTIME_KAFKA_GENERATION":     "",
 }
 
 // Reviewed PodSpec env names from the medium-16 inventories in runs
@@ -114,13 +116,13 @@ func (s ControlSnapshot) valid() bool {
 func (s ControlSnapshot) faultConfigured() bool {
 	return len(s.ChaosCRDs) > 0 || slices.ContainsFunc(s.Pods, func(p ControlPod) bool {
 		for name, value := range p.LegacyEnv {
-			if legacy, ok := controlLegacyEnv[name]; !ok || legacy != value || !slices.Contains(p.EnvNames, name) {
+			if legacy, ok := controlLegacyEnv[name]; !ok || legacy == "" || legacy != value || !slices.Contains(p.EnvNames, name) {
 				return true
 			}
 		}
 		return p.EnvFrom || slices.ContainsFunc(p.EnvNames, func(name string) bool {
 			if legacy, ok := controlLegacyEnv[name]; ok {
-				return p.LegacyEnv[name] != legacy
+				return legacy == "" || p.LegacyEnv[name] != legacy
 			}
 			return !controlConfigEnv[name]
 		})

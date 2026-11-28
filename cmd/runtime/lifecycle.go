@@ -162,6 +162,10 @@ func serveLifecycle(signalCtx context.Context) error {
 	if err := state.ValidateRecordedLLMMode(); err != nil {
 		return err
 	}
+	generation, err := transport.ConsumerGenerationFromEnvironment()
+	if err != nil {
+		return err
+	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	defaultAddr := "127.0.0.1:8080"
 	if os.Getenv("RUNTIME_ROLES") == "demand" {
@@ -228,6 +232,10 @@ func serveLifecycle(signalCtx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if generation != (transport.ConsumerGeneration{}) {
+		slog.Info("Kafka consumer generation enabled", "roles", *rolesFlag,
+			"scheduler_consumer_id", generation.SchedulerID(), "worker_consumer_id", generation.WorkerID())
+	}
 	roleName := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(roleName)
 	tracing, err := telemetry.NewTracing(context.Background(), "durable-runtime-"+roleName, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
@@ -269,7 +277,7 @@ func serveLifecycle(signalCtx context.Context) error {
 			return err
 		}
 	}
-	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
+	apiServer := api.NewServer(store).WithConsumerGeneration(generation).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
 	if k6.worker != nil {
 		k6.worker.Store = store
 		apiServer.WithK6WorkerControl(k6.worker)
@@ -391,7 +399,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	if store != nil && roles["ingestor"] && len(brokers) > 0 {
 		ingestor = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
-			return runIngestor(ctx, drain, store, brokers, wake)
+			return runIngestor(ctx, drain, store, brokers, wake, generation)
 		})
 	}
 	if store != nil && len(brokers) > 0 {

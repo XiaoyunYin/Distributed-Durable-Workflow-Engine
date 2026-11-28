@@ -37,6 +37,15 @@ TASK_TOPIC = "durable-agent.tasks.v1"
 GROUP = "runtime-workers-v1"
 
 
+def worker_group() -> str:
+    generation = os.getenv("RUNTIME_KAFKA_GENERATION", "")
+    if generation == "":
+        return GROUP
+    if generation == "j7-restore":
+        return f"{GROUP}-{generation}"
+    raise ValueError("RUNTIME_KAFKA_GENERATION must be unset or j7-restore")
+
+
 class RetryingControl(ControlClient):
     """Retry uncertain HTTP outcomes using identical bodies, never rerun work."""
 
@@ -224,7 +233,7 @@ def handle_delivery(
                 {
                     "workflow": dict(message.headers or []).get("workflow-id", b"").decode(),
                     "worker": worker_id,
-                    "consumer": GROUP,
+                    "consumer": getattr(consumer, "config", {}).get("group_id", GROUP),
                     "event": delivery_body(message)["event_id"],
                     "topic": message.topic,
                     "partition": str(message.partition),
@@ -330,14 +339,17 @@ def handle_delivery(
     return None
 
 
-def legacy_consume_slot(brokers: str, url: str, worker_id: str, stop: threading.Event) -> None:
+def legacy_consume_slot(
+    brokers: str, url: str, worker_id: str, stop: threading.Event, group: str | None = None
+) -> None:
+    group = group if group is not None else worker_group()
     while not stop.is_set():
         consumer = None
         try:
             consumer = KafkaConsumer(
                 *([] if campaign_enabled() else [TASK_TOPIC]),
                 bootstrap_servers=brokers.split(","),
-                group_id=GROUP,
+                group_id=group,
                 client_id=worker_id,
                 enable_auto_commit=False,
                 auto_offset_reset="earliest",
@@ -374,9 +386,14 @@ def start_pool(
 ) -> list[threading.Thread]:
     if slots < 1 or slots > 16:
         raise ValueError("WORKER_SLOTS must be between 1 and 16")
+    group = worker_group()
+    if group != GROUP:
+        LOG.info("Kafka worker consumer generation enabled group=%s", group)
     if lifecycle is not None and not lifecycle.legacy:
         executor = BoundedExecutor(lifecycle, slots)
-        hooks: dict[str, Any] = {"effect_factory": effect_factory} if effect_factory else {}
+        hooks: dict[str, Any] = {"group": group}
+        if effect_factory is not None:
+            hooks["effect_factory"] = effect_factory
         if deployment_hook is not None:
             hooks["deployment_hook"] = deployment_hook
         if control_factory is not None:
@@ -397,7 +414,7 @@ def start_pool(
     threads = [
         threading.Thread(
             target=legacy_consume_slot,
-            args=(brokers, url, f"{worker_id}-{slot}", stop),
+            args=(brokers, url, f"{worker_id}-{slot}", stop, group),
             name=f"kafka-slot-{slot}",
             daemon=True,
         )
@@ -514,7 +531,9 @@ def consume_slot(
     effect_factory: Callable[[], EffectAdapter] | None = None,
     deployment_hook: DeploymentHook | None = None,
     control_factory: ControlFactory | None = None,
+    group: str | None = None,
 ) -> None:
+    group = group if group is not None else worker_group()
     deliver = (
         partial(handle_delivery, effect_factory=effect_factory)
         if effect_factory is not None
@@ -529,7 +548,7 @@ def consume_slot(
             assignment = Assignment(lifecycle)
             consumer = KafkaConsumer(
                 bootstrap_servers=brokers.split(","),
-                group_id=GROUP,
+                group_id=group,
                 client_id=worker_id,
                 enable_auto_commit=False,
                 auto_offset_reset="earliest",

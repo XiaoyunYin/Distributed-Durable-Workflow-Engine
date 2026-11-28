@@ -339,6 +339,30 @@ def test_k6_creation_requires_legacy_timeout_retry(
         create.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"value": "j7-restore"},
+        {"value": ""},
+        {"valueFrom": {"secretKeyRef": {"name": "settings", "key": "generation"}}},
+    ],
+)
+def test_k6_creation_requires_kafka_generation_unset(
+    monkeypatch: pytest.MonkeyPatch, entry: dict
+) -> None:
+    smoke = object.__new__(Smoke)
+    create = Mock()
+    monkeypatch.setattr(smoke, "k", create)
+    env = [{"name": "RUNTIME_KAFKA_GENERATION", **entry}]
+    manifest = {
+        "kind": "Deployment",
+        "spec": {"template": {"spec": {"containers": [{"name": "worker", "env": env}]}}},
+    }
+    with pytest.raises(SmokeFailure, match="K6_KAFKA_GENERATION"):
+        smoke.create("test", manifest)
+    create.assert_not_called()
+
+
 def test_fence_requires_all_admission_stops(tmp_path: Path) -> None:
     binding = {
         "episode": "hook-0-0",

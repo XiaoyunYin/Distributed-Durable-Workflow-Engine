@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -8,10 +10,16 @@ import (
 	"durable-agent-execution-engine/internal/state"
 )
 
+type workerDeliveryRepository interface {
+	RecordInbox(context.Context, state.InboxMessage) (state.InboxResult, error)
+	QuarantineMessage(context.Context, state.InboxMessage, string) (state.InboxResult, error)
+	RuntimeActivity(context.Context, string, json.RawMessage) (*state.RuntimeActivity, error)
+}
+
 // The local API persists inbox/poison disposition before the Python consumer
 // commits Kafka offsets. Payload is base64 so malformed JSON can be quarantined.
 func (s *Server) workerDelivery(w http.ResponseWriter, r *http.Request) {
-	store, ok := s.repository.(*state.Store)
+	store, ok := s.repository.(workerDeliveryRepository)
 	if !ok {
 		writeError(w, 501, "WORKER_CONTROL_UNAVAILABLE", "durable delivery store is unavailable", nil)
 		return

@@ -1,0 +1,103 @@
+// j7-media prepares source media and witnesses source loss for the J7 drill.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+	"time"
+)
+
+func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: j7-media archive ARCHIVE_DIR SOURCE FILE, prepare [flags], or {source-preflight|cut|source-loss|restore} --config FILE")
+	}
+	switch args[0] {
+	case "archive":
+		if len(args) != 4 || !filepath.IsAbs(args[1]) {
+			return errors.New("archive requires an absolute archive directory, source path and PostgreSQL filename")
+		}
+		return archiveWAL(args[1], args[2], args[3], syncDirectory)
+	case "prepare":
+		var in prepareInput
+		flags := flag.NewFlagSet("prepare", flag.ContinueOnError)
+		flags.SetOutput(diagnostics)
+		flags.StringVar(&in.pgBin, "pg-bin", "", "absolute directory of the pinned PostgreSQL binaries")
+		flags.StringVar(&in.sourceService, "source-service", "", "libpq service for the source probe and archive anchors")
+		flags.StringVar(&in.backupService, "backup-service", "", "libpq service for the source replication login")
+		flags.StringVar(&in.backup, "backup", "", "absolute path for a new base backup directory")
+		flags.StringVar(&in.archive, "archive", "", "absolute path to the existing archive directory")
+		flags.StringVar(&in.drill, "drill", "", "sealed drill ID used for archive anchor names")
+		budget := flags.Duration("timeout", 4*time.Minute, "media preparation deadline")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 0 || *budget <= 0 || *budget > 8*time.Minute {
+			return errors.New("prepare requires flags only and a positive timeout within eight minutes")
+		}
+		ctx, cancel := context.WithTimeout(ctx, *budget)
+		defer cancel()
+		receipt, err := prepareBackup(ctx, in, execTool, syncDirectory)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(out).Encode(receipt)
+	case "source-preflight", "cut", "source-loss":
+		return runFault(ctx, args, out, diagnostics)
+	case "restore":
+		return runRestore(ctx, args[1:], out, diagnostics)
+	case "kafka-source", "fresh-kafka":
+		return runKafkaLifecycle(ctx, args, out, diagnostics)
+	case "watch-redispatch", "verify-redispatch":
+		return runRedispatchStage(ctx, args, out, diagnostics)
+	case "orphan-source", "orphan-rebind", "verify-orphan":
+		return runOrphanStage(ctx, args, out, diagnostics)
+	case "index-evidence", "publish-evidence":
+		return runEvidence(args, out, diagnostics)
+	case "verify-drill":
+		return runDrillVerdict(args, out, diagnostics)
+	case "observe-quiet":
+		return runQuietObservation(ctx, args, out, diagnostics)
+	case "verify-controls":
+		return runQualificationControls(args, out, diagnostics)
+	case "hosted-gate":
+		return runHostedGate(args, out, diagnostics)
+	case "stage-target":
+		if len(args) != 1 {
+			return errors.New("stage-target uses the sealed mounts")
+		}
+		return stageTarget(ctx)
+	case "observe-target":
+		if len(args) != 3 {
+			return errors.New("observe-target requires engine database and namespace")
+		}
+		ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		result, err := observeTarget(ctx, args[1], args[2])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(out).Encode(result)
+	default:
+		return fmt.Errorf("unknown j7-media command %q", args[0])
+	}
+}
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "restore-wal" {
+		os.Exit(runReplayWAL(os.Args[2:]))
+	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil && !errors.Is(err, flag.ErrHelp) {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
