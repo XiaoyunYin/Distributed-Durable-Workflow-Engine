@@ -7,9 +7,33 @@
       "unset_default": "0",
       "values": {"0": "legacy timeout recovery", "1": "bound claimed expiry replacements"},
       "permitted_enabled_profiles": ["J19", "J8"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b", "j4-core", "j4-b2"],
+      "routes_added": [],
+      "migrations_added": []
+    },
+    "J4_RECORDED_LLM_ACTIVITY": {
+      "task": "J4",
+      "unset_default": "0",
+      "values": {"0": "omit the recorded-provider activity", "1": "admit j4.recorded-llm@v1 in Go and Python"},
+      "permitted_enabled_profiles": ["j4-core", "j4-b2"],
       "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
       "routes_added": [],
       "migrations_added": []
+    },
+    "J4_PROVIDER_RESILIENCE": {
+      "task": "J4 B2",
+      "unset_default": "0",
+      "values": {
+        "0": "one send per J4 claim when the activity is enabled, with no B2 reservations or retries",
+        "1": "durable provider budget and retry policy on the internal worker listener, requiring J4_RECORDED_LLM_ACTIVITY=1 and migration 000025"
+      },
+      "permitted_enabled_profiles": ["j4-b2"],
+      "required_unset_profiles": ["K5", "K6_before_Phase_G", "K6_Phase_G", "J5a", "J5b"],
+      "routes_added": [
+        "POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/provider-attempts/reserve",
+        "POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/provider-attempts/outcome"
+      ],
+      "migrations_added": ["migrations/j4_b2/000025_j4_provider_resilience.up.sql"]
     }
   },
   "migration_inventories": {
@@ -32,6 +56,11 @@
       "versions": "000001-000004 inclusive"
     },
     "J19": {"base": "runtime_base", "additional": []},
+    "j4-core": {"base": "runtime_base", "additional": []},
+    "j4-b2": {
+      "base": "runtime_base",
+      "additional": ["migrations/j4_b2/000025_j4_provider_resilience.up.sql"]
+    },
     "dur055": {
       "database": "separate retrieval fixture",
       "source": [

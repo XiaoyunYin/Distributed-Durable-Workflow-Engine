@@ -22,7 +22,7 @@ package = false
 
 [tool.pytest.ini_options]
 addopts = "-ra"
-pythonpath = ["python"]
+pythonpath = ["python", "."]
 testpaths = ["tests"]
 
 [tool.ruff]

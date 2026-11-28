@@ -8,7 +8,11 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-Activity = Callable[[Any], Any]
+from workers.recorded_activity import RecordedActivity, recorded_activity_enabled
+from workers.recorded_wire import ACTIVITY as RECORDED_LLM_ACTIVITY
+from workers.recorded_wire import VERSION as RECORDED_LLM_VERSION
+
+Activity = Callable[[Any], Any] | RecordedActivity
 K6_ACTIVITY = "dur053.cooperating"
 K6_VERSION = "v1"
 K6_EFFECT_CLASS = "COOPERATING_EFFECT"
@@ -56,6 +60,8 @@ def default_registry() -> ActivityRegistry:
     registry.register(
         "pure.add", "v1", lambda value: sum(value) if isinstance(value, list) else value
     )
+    if recorded_activity_enabled():
+        registry.register(RECORDED_LLM_ACTIVITY, RECORDED_LLM_VERSION, RecordedActivity())
     cpu_enabled = os.getenv("DUR053_ALLOW_FIXTURE_ACTIVITY", "0")
     if cpu_enabled not in {"0", "1"}:
         raise ValueError("DUR053_ALLOW_FIXTURE_ACTIVITY must be 0 or 1")

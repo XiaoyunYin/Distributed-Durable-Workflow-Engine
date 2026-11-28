@@ -34,6 +34,8 @@ def registry_set(entries: object) -> set[tuple[str, str, str]]:
                 raise ValueError("invalid K6 activity version or class")
         elif effect_class != "PURE_ACTIVITY":
             raise ValueError("invalid activity class")
+        if name == "j4.recorded-llm" and version != "v1":
+            raise ValueError("invalid recorded-provider activity version")
         if (name, version) in result:
             raise ValueError("duplicate registry entry")
         result[name, version] = effect_class

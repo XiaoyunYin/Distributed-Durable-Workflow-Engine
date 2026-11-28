@@ -36,6 +36,10 @@ func main() {
 		}
 		return
 	}
+	if err := state.ValidateRecordedLLMMode(); err != nil {
+		slog.Error("invalid recorded-provider mode", "error", err)
+		os.Exit(1)
+	}
 	mode := envOrDefault("RUNTIME_SHUTDOWN_MODE", "drain")
 	if mode != "drain" && mode != "legacy" {
 		slog.Error("invalid RUNTIME_SHUTDOWN_MODE", "mode", mode)
@@ -46,6 +50,10 @@ func main() {
 	if mode == "legacy" {
 		if state.K6Enabled() {
 			slog.Error("K6 requires the split drain runtime")
+			os.Exit(1)
+		}
+		if state.ProviderResilienceEnabled() {
+			slog.Error("J4 provider resilience requires the split drain runtime")
 			os.Exit(1)
 		}
 		legacyServe(ctx, stop)
@@ -151,6 +159,9 @@ func lifecycleRoles(value string) (map[string]bool, error) {
 }
 
 func serveLifecycle(signalCtx context.Context) error {
+	if err := state.ValidateRecordedLLMMode(); err != nil {
+		return err
+	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	defaultAddr := "127.0.0.1:8080"
 	if os.Getenv("RUNTIME_ROLES") == "demand" {
@@ -158,6 +169,9 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	addr := flags.String("addr", envOrDefault("RUNTIME_ADDR", defaultAddr), "HTTP listen address")
 	rolesFlag := flags.String("roles", envOrDefault("RUNTIME_ROLES", "combined"), "combined or comma-separated api,operator,worker-control,scheduler,relay,ingestor,demand")
+	j4WorkerAddr := flags.String("j4-worker-addr", "", "private J4 worker listener")
+	j4FixedDelay := flags.Bool("j4-fixed-delay-control", false, "J4 B5 fixed-delay control")
+	j4Workflow := flags.String("j4-c2-workflow", "", "J4 C2 workflow whose result consumption is held")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -166,6 +180,13 @@ func serveLifecycle(signalCtx context.Context) error {
 		return err
 	}
 	routes, err := lifecycleRoutes(*rolesFlag, roles)
+	if err != nil {
+		return err
+	}
+	if err := validateJ4Listener(routes, *j4WorkerAddr, *j4FixedDelay); err != nil {
+		return err
+	}
+	j4, err := newJ4Deployment(*j4WorkerAddr, *j4Workflow, roles["scheduler"])
 	if err != nil {
 		return err
 	}
@@ -236,6 +257,18 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	var draining atomic.Bool
 	handlerStore := store
+	var provider *state.ProviderControl
+	if state.ProviderResilienceEnabled() {
+		probe, cancel := context.WithTimeout(signalCtx, 5*time.Second)
+		provider, err = state.NewProviderControl(probe, store, os.Getenv("RUNTIME_NAMESPACE"), *j4FixedDelay)
+		cancel()
+		if err != nil {
+			if store != nil {
+				store.Close()
+			}
+			return err
+		}
+	}
 	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
 	if k6.worker != nil {
 		k6.worker.Store = store
@@ -243,13 +276,29 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
-	server := &http.Server{Addr: *addr, Handler: handler, TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: *addr, Handler: j4.health(handler), TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
 		if store != nil {
 			store.Close()
 		}
 		return err
+	}
+	var workerServer *http.Server
+	var workerListener net.Listener
+	if *j4WorkerAddr != "" {
+		handler := api.NewServer(store).WithRoutes(api.RoutesWorkerControl).
+			WithAuthentication(reviewer).WithTracing(tracing).WithJ4Provider(provider).Handler()
+		workerServer = &http.Server{Addr: *j4WorkerAddr, Handler: j4.health(handler), ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+		workerListener, err = net.Listen("tcp", *j4WorkerAddr)
+		if err != nil {
+			_ = listener.Close()
+			if store != nil {
+				store.Close()
+			}
+			return err
+		}
 	}
 	ctx, fail := context.WithCancel(signalCtx)
 	defer fail()
@@ -267,6 +316,16 @@ func serveLifecycle(signalCtx context.Context) error {
 		fail()
 	}
 	var group errgroup.Group
+	if workerServer != nil {
+		group.Go(func() error {
+			err := workerServer.Serve(workerListener)
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			recordFatal(err)
+			return err
+		})
+	}
 	httpDone := make(chan struct{})
 	group.Go(func() error {
 		defer close(httpDone)
@@ -305,6 +364,7 @@ func serveLifecycle(signalCtx context.Context) error {
 			if err := configureK6SchedulerHook(&options); err != nil {
 				return err
 			}
+			j4.scheduler(&options)
 			configureK6ClockLease(ctx, &options)
 			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})
@@ -384,6 +444,12 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	slog.Info("runtime shutdown phase", "phase", "http_drain")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if workerServer != nil {
+		if err := shutdownHTTP(workerServer, shutdownCtx); err != nil {
+			_ = workerServer.Close()
+			recordFatal(err)
+		}
+	}
 	shutdownErr := shutdownHTTP(server, shutdownCtx)
 	cancel()
 	if shutdownErr != nil {

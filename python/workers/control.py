@@ -297,3 +297,11 @@ class ControlClient:
         if reconciliation_ref:
             body["reconciliation_ref"] = reconciliation_ref
         return self._post(self._path(workflow_id, node_id, iteration, "result"), body)
+
+    def provider_exchange(
+        self, workflow_id: str, node_id: str, iteration: int, action: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        if action not in {"reserve", "outcome"}:
+            raise ValueError("unknown J4 provider action")
+        path = self._path(workflow_id, node_id, iteration, f"provider-attempts/{action}")
+        return self._post(path, body)

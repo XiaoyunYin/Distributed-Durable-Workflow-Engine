@@ -27,6 +27,7 @@ from workers.k4_control import CURRENT, new_request
 from workers.k4_witness import campaign_enabled
 from workers.k6_effect import EffectAdapter, emit_observation, endpoint
 from workers.lifecycle import BoundedExecutor, WorkerLifecycle
+from workers.recorded_activity import recorded_activity_enabled
 from workers.registry import K6_ACTIVITY, K6_VERSION, default_registry
 from workers.runner import ActivityRunner, ActivityTask, DeploymentHook
 from workers.witness import campaign_witness
@@ -239,6 +240,20 @@ def handle_delivery(
                 )
             }
         )
+        if deployment_hook is not None and recorded_activity_enabled():
+            deployment_hook(
+                "j4_offset_committed",
+                {
+                    "worker": worker_id,
+                    "consumer": GROUP,
+                    "event": delivery_body(message)["event_id"],
+                    "topic": message.topic,
+                    "partition": str(message.partition),
+                    "offset": str(message.offset),
+                    "next_offset": str(response["next_offset"]),
+                    "disposition": response["disposition"],
+                },
+            )
     if lifecycle is not None and not lifecycle.can_start():
         return None
     task = response.get("task")

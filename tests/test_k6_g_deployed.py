@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
-from dur053_k6_b_smoke import Smoke  # noqa: E402
+from dur053_k6_b_smoke import Smoke, legacy_env  # noqa: E402
 from dur053_k6_chaos import Target  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
     CONTROL_PATH,
@@ -31,6 +31,22 @@ from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtim
 from dur053_k6_g_smoke import Episode  # noqa: E402
 from dur053_k6_g_stale import COMPANION, StaleDriver  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
+
+
+def test_k6_j4_modes_require_literal_legacy_evidence() -> None:
+    assert legacy_env({"containers": [{"env": []}]}) == {}
+    names = ["J4_PROVIDER_RESILIENCE", "J4_RECORDED_LLM_ACTIVITY", "RUNTIME_TIMEOUT_RETRY_POLICY"]
+    entries = [{"name": name, "value": "0"} for name in names]
+    assert legacy_env({"containers": [{"env": entries}]}) == dict.fromkeys(names, "0")
+    for entry in (
+        {"name": names[0], "value": "1"},
+        {"name": names[1], "value": ""},
+        {"name": names[0], "valueFrom": {"secretKeyRef": {"name": "mode", "key": "mode"}}},
+    ):
+        with pytest.raises(SmokeFailure, match="K6_LEGACY_ENV_VALUE"):
+            legacy_env({"initContainers": [{"env": [entry]}]})
+    with pytest.raises(SmokeFailure, match="K6_LEGACY_OPAQUE_ENV"):
+        legacy_env({"containers": [{"envFrom": [{"configMapRef": {"name": "mode"}}]}]})
 
 
 def test_stale_call_and_continuity_use_predecessor_after_peer_registration(tmp_path: Path) -> None:
@@ -259,8 +275,8 @@ def test_control_snapshot_reads_apiserver_lists(
     monkeypatch.setattr(episode, "k", kubernetes)
     if scenario not in (None, "legacy"):
         code = {
-            "enabled": "K6_TIMEOUT_RETRY_POLICY",
-            "opaque": "K6_TIMEOUT_RETRY_OPAQUE_ENV",
+            "enabled": "K6_LEGACY_ENV_VALUE",
+            "opaque": "K6_LEGACY_OPAQUE_ENV",
         }.get(scenario, "G_CONTROL_CONTAINER_COUNT")
         with pytest.raises(SmokeFailure, match=code):
             episode.control_snapshot()
@@ -318,7 +334,7 @@ def test_k6_creation_requires_legacy_timeout_retry(
         smoke.create("test", manifest)
         create.assert_called_once()
     else:
-        with pytest.raises(SmokeFailure, match="K6_TIMEOUT_RETRY_POLICY"):
+        with pytest.raises(SmokeFailure, match="K6_LEGACY_ENV_VALUE"):
             smoke.create("test", manifest)
         create.assert_not_called()
 
