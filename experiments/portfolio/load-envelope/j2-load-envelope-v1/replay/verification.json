@@ -1,15 +1,16 @@
 {
   "candidate_approval_evidence": {
     "full_clock_holds": {
-      "A": "eng-r422-a-final2",
-      "AB": "eng-r422-ab-final2"
+      "A": "eng-r422-a-final3",
+      "AB": "eng-r422-ab-final3"
     },
     "head": "commit containing this packet",
-    "implementation_basis": "e9b6a0cc82dcb0a0a3b42de697b5a59b1cf892cc",
+    "implementation_basis": "2656671dda190ba3c6efef42659a0e1262c4a40e",
+    "prior_supplemental_controls_run": 46121143979,
     "review_checklist": "approval.md#required-review-before-authorizing-measurement",
     "short_clock": "eng-r422-final-<first eight characters of the new packet commit SHA>",
-    "status": "pending candidate-head approval lanes and exact-head rehearsal",
-    "supplemental_controls_run": 46121143979
+    "status": "pending candidate-head final3 approval lanes and exact-head rehearsal",
+    "supplemental_controls_run": 46148424125
   },
   "engineering_release_index": {
     "browser_download_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/download/eng-inc3-j2-evidence/eng-inc2-real-grid--r46028317534--a1--replay-r46041889944--index.json",
@@ -583,6 +584,25 @@
       "head": "c4c5fba2bb7f1f8e0c75213bf3a1449c91de64f6",
       "run": 46107868766,
       "status": "PASS"
+    }
+  },
+  "r427_r428_final2": {
+    "A": {
+      "job_3_step_capacity_misses_at_cap": 13,
+      "run": 46132556664,
+      "status": "FAIL"
+    },
+    "AB": {
+      "run": 46132565367,
+      "status": "PASS"
+    },
+    "attempt": 1,
+    "head": "b55dd995bcf3a7762df8b0794909ee63739a89d1",
+    "review_round": 648,
+    "short_clock": {
+      "reason": "per-cell expiry reserve omitted",
+      "run": 46132587046,
+      "status": "FAIL"
     }
   },
   "runs": {
