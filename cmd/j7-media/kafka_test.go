@@ -97,10 +97,11 @@ func TestRedispatchJoinsOriginalAttemptAndNoOldNotice(t *testing.T) {
 	history := []dispatchHistory{
 		{WorkflowID: "d1", Revision: 5, ActorKind: "scheduler", NodeID: "root", Attempt: 1, Reason: "REDISPATCH_UNCLAIMED", CreatedAt: dead},
 		{WorkflowID: "d1", Revision: 6, ActorKind: "worker", NodeID: "root", Attempt: 1, Reason: "ATTEMPT_RESULT_RECORDED", CreatedAt: dead},
-		{WorkflowID: "d1", Revision: 7, ActorKind: "scheduler", NodeID: "root", Attempt: 1, Reason: "RESULT_CONSUMED", NewState: "SUCCEEDED", CreatedAt: dead},
+		{WorkflowID: "d1", Revision: 7, ActorKind: "scheduler", Epoch: 1, NodeID: "root", Attempt: 1, Reason: "RESULT_CONSUMED", NewState: "RUNNABLE", CreatedAt: dead},
+		{WorkflowID: "d1", Revision: 8, ActorKind: "scheduler", Epoch: 1, Reason: "GRAPH_ADVANCED", NewState: "SUCCEEDED", CreatedAt: dead},
 	}
 	trace := invariants.Trace{
-		Workflows: []invariants.WorkflowRecord{{WorkflowID: "d1", State: "SUCCEEDED", Revision: 7}},
+		Workflows: []invariants.WorkflowRecord{{WorkflowID: "d1", State: "SUCCEEDED", Revision: 8}},
 		Results:   []invariants.AcceptedResult{{WorkflowID: "d1", NodeID: "root", Accepted: true}},
 		Attempts: []invariants.AttemptRecord{{WorkflowID: "d1", NodeID: "root", AttemptNumber: 1, State: "SUCCEEDED",
 			ClaimToken: "token", WorkerID: "worker", WorkerRequestID: "request", Outcome: "KNOWN_SUCCESS", ResultRecorded: true}},
@@ -131,6 +132,11 @@ func TestRedispatchJoinsOriginalAttemptAndNoOldNotice(t *testing.T) {
 	if err != nil || got.ClaimSHA != restoreledger.SHA256([]byte("token")) || got.ConsumedRevision != 7 {
 		t.Fatalf("normal same-attempt redispatch: %+v %v", got, err)
 	}
+	setHistory(history[:3])
+	if _, err := verifyRedispatchedWorkflow(trace, hold, notice, broker, before); err == nil {
+		t.Fatal("consume receipt without terminal graph completion passed")
+	}
+	setHistory(history)
 	retry := msg
 	retry.Offset = msg.Offset + 1
 	broker.Events = []kafkaEvent{msg, retry}

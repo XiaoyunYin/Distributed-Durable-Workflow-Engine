@@ -33,7 +33,7 @@ type hostedCandidate struct {
 
 var hostedCandidateFiles = []string{
 	"deploy/j7/controller", "deploy/j7/source-overlay.json", "deploy/j7/target-overlay.json",
-	"deploy/j7/workload.json", "deploy/runtime-switches.json",
+	"deploy/j7/workload.json", "deploy/j7/kind.json", "deploy/runtime-switches.json",
 	"deploy/k8s/tools.lock.json", "experiments/portfolio/postgres-restore/protocol.md",
 }
 
@@ -59,6 +59,7 @@ func selectRelay(registry map[string]registeredSwitch) (string, registeredSwitch
 func checkCandidate(root string) (hostedCandidate, string, error) {
 	var c hostedCandidate
 	var registry struct {
+		Schema   int                         `json:"schema_version"`
 		Switches map[string]registeredSwitch `json:"switches"`
 	}
 	raw, err := evidenceFile(root, "deploy/runtime-switches.json")
@@ -68,6 +69,9 @@ func checkCandidate(root string) (hostedCandidate, string, error) {
 	if err := json.Unmarshal(raw, &registry); err != nil {
 		return c, "", err
 	}
+	if registry.Schema != 1 {
+		return c, "", errors.New("J9A_ADMISSION: unsupported switch registry")
+	}
 	name, row, err := selectRelay(registry.Switches)
 	if err != nil {
 		return c, "", err
@@ -76,10 +80,8 @@ func checkCandidate(root string) (hostedCandidate, string, error) {
 	if err != nil {
 		return c, "", errors.New("J7_CANDIDATE_ADMISSION: tracked reviewed candidate and fixture controller are required")
 	}
-	if c.Schema != "j7.hosted-candidate.v1" || c.RelaySwitch != name || c.RelayValue == "" ||
-		c.RelayValue == row.Default || row.Values[c.RelayValue] == "" ||
-		(!strings.HasPrefix(c.RuntimePath, "cmd/runtime/") && !strings.HasPrefix(c.RuntimePath, "internal/")) ||
-		!strings.HasSuffix(c.RuntimePath, ".go") || strings.HasSuffix(c.RuntimePath, "_test.go") {
+	if c.Schema != "j7.hosted-candidate.v1" || c.RelaySwitch != name || name != repairedRelaySwitch || c.RelayValue != "1" ||
+		row.Default != "0" || row.Values[c.RelayValue] == "" || c.RuntimePath != relayReaderPath {
 		return c, "", errors.New("J9A_ADMISSION: candidate does not select the registered nondefault repaired mode")
 	}
 	expected := append(slices.Clone(hostedCandidateFiles), c.RuntimePath)
@@ -101,6 +103,9 @@ func checkCandidate(root string) (hostedCandidate, string, error) {
 	source, err := evidenceFile(root, c.RuntimePath)
 	if err != nil || !strings.Contains(string(source), c.RelaySwitch) {
 		return c, "", errors.New("J9A_ADMISSION: registered switch has no witnessed runtime reader")
+	}
+	if _, err := readControllerPlan(root); err != nil {
+		return c, "", err
 	}
 	return c, sha, nil
 }

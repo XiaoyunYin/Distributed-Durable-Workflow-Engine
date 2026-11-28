@@ -295,7 +295,8 @@ func verifyRedispatchedWorkflow(t invariants.Trace, hold dispatchAtCut, known re
 		known.ObservedNS < open || known.ObservedNS-open > int64(redispatchWindow) {
 		return r, errors.New("timely redispatch does not match the retained Kafka copy")
 	}
-	var dispatches, records, consumed int
+	var dispatches, records, consumed, terminal int
+	var finished dispatchHistory
 	history, err := rawTable[dispatchHistory](t, "engine.transition_history")
 	if err != nil {
 		return r, err
@@ -326,15 +327,23 @@ func verifyRedispatchedWorkflow(t invariants.Trace, hold dispatchAtCut, known re
 			records++
 			r.ResultRevision = row.Revision
 		case "RESULT_CONSUMED":
-			if row.ActorKind != "scheduler" || row.NewState != "SUCCEEDED" {
+			if row.ActorKind != "scheduler" || row.Epoch <= 0 || row.NewState != "RUNNABLE" {
 				return r, errors.New("redispatch did not end in a scheduler-consumed success")
 			}
 			consumed++
 			r.ConsumedRevision = row.Revision
+		case "GRAPH_ADVANCED":
+			if row.NewState == "SUCCEEDED" {
+				if row.ActorKind != "scheduler" || row.Epoch <= 0 || row.CreatedAt.Before(h.Deadline) {
+					return r, errors.New("redispatch graph completion lacks scheduler authority")
+				}
+				terminal++
+				finished = row
+			}
 		}
 	}
 	if dispatches != 1 || records != 1 || consumed != 1 || r.RedispatchRevision >= r.ResultRevision ||
-		r.ResultRevision >= r.ConsumedRevision {
+		r.ResultRevision >= r.ConsumedRevision || terminal != 1 || finished.Revision <= r.ConsumedRevision {
 		return r, errors.New("redispatch does not have one ordered dispatch, recorded result and consumed result")
 	}
 	var attempts int
@@ -353,7 +362,7 @@ func verifyRedispatchedWorkflow(t invariants.Trace, hold dispatchAtCut, known re
 	if attempts != 1 || !slices.ContainsFunc(t.Results, func(a invariants.AcceptedResult) bool {
 		return a.WorkflowID == r.WorkflowID && a.NodeID == hold.Attempt.NodeID && a.Iteration == hold.Attempt.Iteration && a.Accepted
 	}) || !slices.ContainsFunc(t.Workflows, func(a invariants.WorkflowRecord) bool {
-		return a.WorkflowID == r.WorkflowID && a.State == "SUCCEEDED" && a.Revision == r.ConsumedRevision
+		return a.WorkflowID == r.WorkflowID && a.State == "SUCCEEDED" && a.Revision == finished.Revision
 	}) {
 		return r, errors.New("redispatched workflow has no accepted terminal result")
 	}

@@ -13,9 +13,18 @@ that digest before reading its seal.
 
 ## Admission
 
-The current checkout can run tooling. Qualification and measurement are
-blocked by the missing J9a registry entry and reviewed fixture candidate.
-The capability contract for that candidate is below.
+Tooling validates the sealed topology and renders the planned dependency and
+media commands with `bash deploy/j7/controller dry-run <j7-media>`. This step
+requires no Docker. The separate PostgreSQL tooling fixture still runs in the
+pinned image.
+
+Qualification and measurement require J9a's reviewed registration and runtime
+reader. After PR #102 merges, reseal the candidate against the actual merged
+registry and reader. The tracked controller checks the runner identity and
+owns the sealed kind bootstrap and scoped teardown. `pre-arm` currently stops
+before allocation because the live cohort driver, target reopening and complete
+resource sampling still need wiring. The capability contract for that driver is
+below.
 
 - Register the reviewed J9a switch for both `J7_source` and `J7_target` and
   select its registered nondefault value. Keep the registered K profiles.
@@ -25,9 +34,9 @@ The capability contract for that candidate is below.
   target overlays, the workload, the registry, the tool lock and this
   experiment's protocol. The checkout and rules must be reviewed before
   qualification.
-- The tracked fixture controller still needs implementation. It owns the
-  actual one-node kind deployment and its private PostgreSQL, Kafka and
-  sink resources. It opens app writers only after observing effective
+- The fixture controller owns the one-node kind deployment and its private
+  PostgreSQL, Kafka and sink resources. It opens app writers only after
+  observing effective
   repaired-relay mode, migration inventories, endpoint isolation and
   generation agreement. It owns marker sequencing, fault and restore
   calls, source and target worker holds, fixture credentials, resource and
@@ -37,6 +46,7 @@ The workflow calls the candidate with the following argument order.
 
 | Command | Arguments after the command | Expected result |
 | --- | --- | --- |
+| `pre-arm` | Private workspace | Require a complete, reviewed live driver before creating any resources. |
 | `bootstrap` | Private workspace | Prepare the pinned runner topology and private tooling without arming an outage. |
 | `drill` | Drill ID, private workspace, drill evidence directory, `j7-media` path | Run one physical drill and produce its original observation artifacts and sealed ledger. |
 | `between` | Finished drill ID, private workspace, finished drill evidence directory | Tear down the completed fixture before a fresh drill is admitted. |

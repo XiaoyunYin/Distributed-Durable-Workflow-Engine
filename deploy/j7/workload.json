@@ -1,0 +1,74 @@
+{
+  "schema": "j7.controller-workload.v1",
+  "topology": {
+    "nodes": 1,
+    "workers": 2,
+    "network": "kind",
+    "cni": "calico",
+    "broker_policy": "fresh"
+  },
+  "roles": {
+    "engine-db": {
+      "millicpu": 1000,
+      "memory_bytes": 1073741824
+    },
+    "sink-db": {
+      "millicpu": 500,
+      "memory_bytes": 536870912
+    },
+    "kafka": {
+      "millicpu": 1000,
+      "memory_bytes": 1610612736
+    },
+    "api": {
+      "millicpu": 500,
+      "memory_bytes": 268435456
+    },
+    "scheduler": {
+      "millicpu": 500,
+      "memory_bytes": 268435456
+    },
+    "relay": {
+      "millicpu": 500,
+      "memory_bytes": 268435456
+    },
+    "worker-1": {
+      "millicpu": 500,
+      "memory_bytes": 536870912
+    },
+    "worker-2": {
+      "millicpu": 500,
+      "memory_bytes": 536870912
+    },
+    "sink": {
+      "millicpu": 500,
+      "memory_bytes": 536870912
+    }
+  },
+  "engine_connections": 100,
+  "sink_connections": 16,
+  "marker_interval_seconds": 5,
+  "archived_markers": 12,
+  "baseline_terminal_markers": 8,
+  "unarchived_markers": 3,
+  "source_cohorts": [
+    "d1",
+    "d2",
+    "f1",
+    "l1",
+    "e1"
+  ],
+  "target_cohorts": [
+    "n1",
+    "n2",
+    "n3",
+    "n4"
+  ],
+  "gates": {
+    "d1": "unclaimed-published",
+    "d2": "unclaimed-published",
+    "f1": "claimed-held-result",
+    "l1": "archived-lease",
+    "e1": "authorized-held-apply"
+  }
+}

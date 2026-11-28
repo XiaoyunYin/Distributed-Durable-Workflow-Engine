@@ -72,6 +72,7 @@ jobs:
           set -euo pipefail
           install -d -m 0755 "$RUNNER_TEMP/j7-tooling"
           go build -p 1 -o "$RUNNER_TEMP/j7-tooling/j7-media" ./cmd/j7-media
+          bash deploy/j7/controller dry-run "$RUNNER_TEMP/j7-tooling/j7-media" >"$RUNNER_TEMP/j7-tooling/controller-plan.json"
           go test -p 1 -c -o "$RUNNER_TEMP/j7-tooling/media.test" ./cmd/j7-media
           image=$(jq -er .postgres deploy/k8s/tools.lock.json)
           docker run --rm --network none --user postgres \

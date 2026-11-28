@@ -315,6 +315,16 @@ func publishBundle(src evidenceBundle, dest string) (string, error) {
 	if err := os.Mkdir(dest, 0o700); err != nil {
 		return "", err
 	}
+	idx, err := projectBundle(src, func(name string, data []byte) error {
+		return writeEvidenceBytes(filepath.Join(dest, name), data)
+	})
+	if err != nil {
+		return "", err
+	}
+	return savePrivateJSON(filepath.Join(dest, "index.json"), idx)
+}
+
+func projectBundle(src evidenceBundle, write func(string, []byte) error) (evidenceIndex, error) {
 	idx := src.index
 	idx.Projection = true
 	idx.Files = nil
@@ -331,14 +341,14 @@ func publishBundle(src evidenceBundle, dest string) (string, error) {
 		}
 		// Publish only the fixed evidence inventory. Deployment settings in
 		// topology/consumers are the redacted records, never the live overlays.
-		if err := writeEvidenceBytes(filepath.Join(dest, e.Name), data); err != nil {
-			return "", err
+		if err := write(e.Name, data); err != nil {
+			return idx, err
 		}
 		idx.Files = append(idx.Files, e)
 		kept[e.Name] = e
 	}
 	idx.Missing = missingEvidence(kept)
-	return savePrivateJSON(filepath.Join(dest, "index.json"), idx)
+	return idx, nil
 }
 
 func publicEvidence(src evidenceBundle, e evidenceEntry) ([]byte, error) {

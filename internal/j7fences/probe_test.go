@@ -304,10 +304,11 @@ func TestWorkerProbeUsesAuthenticatedAPIAndExactArchivedToken(t *testing.T) {
 		if len(backend.results) == 2 {
 			next.State, next.Current, next.Outcome, next.Result = state.AttemptSucceeded, false, "KNOWN_SUCCESS", input
 			n.Current, n.Result = 0, input
-			w.State, w.Revision = state.StateSucceeded, 7
+			w.State, w.Revision = state.StateSucceeded, 8
 			h = append(h, history{Revision: 6, Actor: subject, ActorKind: "worker", Reason: "ATTEMPT_RESULT_RECORDED",
 				Node: scope.Node, Attempt: 2}, history{Revision: 7, ActorKind: "scheduler", Epoch: 5, Reason: "RESULT_CONSUMED",
-				Node: scope.Node, Attempt: 2, NewState: state.StateSucceeded})
+				Node: scope.Node, Attempt: 2, NewState: state.StateRunnable},
+				history{Revision: 8, ActorKind: "scheduler", Epoch: 5, Reason: "GRAPH_ADVANCED", NewState: state.StateSucceeded})
 		}
 		return newSample(j, got, map[string]any{"workflow": w, "nodes": []node{n}, "attempts": []Attempt{retired, next},
 			"history": h, "outbox": []outbox{{ID: "new-event", Revision: 5, Kind: "attempt.dispatch",

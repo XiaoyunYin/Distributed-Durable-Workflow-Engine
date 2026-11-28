@@ -1,0 +1,15 @@
+{
+  "schema": "j7.controller-overlay.v1",
+  "profile": "J7_source",
+  "environment": {
+    "RUNTIME_RELAY_FULL_BATCH_LOOP": "1"
+  },
+  "engine_migrations": {
+    "first": 1,
+    "last": 23
+  },
+  "sink_migrations": {
+    "first": 1,
+    "last": 4
+  }
+}

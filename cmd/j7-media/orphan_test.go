@@ -79,14 +79,16 @@ func makeOrphanFixture() orphanFixture {
 	replacement.Proof, _ = json.Marshal(proof("lookup", 2))
 	original.Current, original.State = false, "TIMED_OUT"
 	f.end.Accepted, f.end.ResultSHA, f.end.Attempts = raw, digest("postgres jsonb accepted result"), []orphanAttempt{original, replacement}
-	f.end.Revision = 8
+	f.end.Revision = 9
 	f.end.History = []dispatchHistory{
 		{WorkflowID: "e1", Revision: 6, ActorKind: "scheduler", Epoch: 2, NodeID: h.Attempt.NodeID, Attempt: 1,
 			Reason: "TIMEOUT_REPLACEMENT", CreatedAt: fromStart(101 * time.Second)},
 		{WorkflowID: "e1", Revision: 7, ActorKind: "worker", NodeID: h.Attempt.NodeID, Attempt: 2,
 			Reason: "ATTEMPT_RESULT_RECORDED", CreatedAt: fromStart(105 * time.Second)},
-		{WorkflowID: "e1", Revision: 8, ActorKind: "scheduler", Epoch: 2, NodeID: h.Attempt.NodeID, Attempt: 2, NewState: "SUCCEEDED",
+		{WorkflowID: "e1", Revision: 8, ActorKind: "scheduler", Epoch: 2, NodeID: h.Attempt.NodeID, Attempt: 2, NewState: "RUNNABLE",
 			Reason: "RESULT_CONSUMED", CreatedAt: fromStart(106 * time.Second)},
+		{WorkflowID: "e1", Revision: 9, ActorKind: "scheduler", Epoch: 2, NewState: "SUCCEEDED",
+			Reason: "GRAPH_ADVANCED", CreatedAt: fromStart(107 * time.Second)},
 	}
 	call := func(id, attempt int64, op, outcome string, at time.Duration) k6sink.Call {
 		return k6sink.Call{CallID: id, Operation: op, WorkflowID: "e1", LogicalKey: h.LogicalKey, IntentID: h.Intent,
@@ -203,6 +205,7 @@ func TestOrphanRequiresSignedReplacementAndOrderedConsumption(t *testing.T) {
 		{"wrong-fence", func(f *orphanFixture) { f.end.Attempts[1].Fence++ }},
 		{"source-result-mismatch", func(f *orphanFixture) { f.end.ResultSHA = f.hold.GrantSHA }},
 		{"second-consumption", func(f *orphanFixture) { f.end.History = append(f.end.History, f.end.History[2]) }},
+		{"missing-terminal-graph", func(f *orphanFixture) { f.end.History = f.end.History[:3] }},
 		{"early-timeout", func(f *orphanFixture) { f.end.History[0].CreatedAt = f.cut }},
 		{"late-consumption", func(f *orphanFixture) { f.end.History[2].CreatedAt = f.done }},
 		{"unresolved", func(f *orphanFixture) { f.end.Unresolved++ }},

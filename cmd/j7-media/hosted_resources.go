@@ -40,17 +40,19 @@ type resourceSample struct {
 	IOWrittenBytes  int64  `json:"io_written_bytes"`
 }
 
+var j7RoleLimits = map[string]quota{
+	"engine-db": {1000, 1 << 30}, "sink-db": {500, 512 << 20}, "kafka": {1000, 1536 << 20},
+	"api": {500, 256 << 20}, "scheduler": {500, 256 << 20}, "relay": {500, 256 << 20},
+	"worker-1": {500, 512 << 20}, "worker-2": {500, 512 << 20}, "sink": {500, 512 << 20},
+}
+
 func checkResources(r resourceWindow, drillStart, final int64) error {
 	if r.Schema != "j7.resource-samples.v1" || r.CPUs < 4 || r.InstalledKiB < 12<<20 ||
 		r.StartupFreeKiB < 8<<20 || r.EngineLimit <= 0 || r.EngineLimit > 100 || r.SinkLimit <= 0 ||
 		r.SinkLimit > 16 || len(r.Samples) < 2 {
 		return errors.New("J7_CAPACITY: runner resources or connection ceilings could not be proved")
 	}
-	want := map[string]quota{
-		"engine-db": {1000, 1 << 30}, "sink-db": {500, 512 << 20}, "kafka": {1000, 1536 << 20},
-		"api": {500, 256 << 20}, "scheduler": {500, 256 << 20}, "relay": {500, 256 << 20},
-		"worker-1": {500, 512 << 20}, "worker-2": {500, 512 << 20}, "sink": {500, 512 << 20},
-	}
+	want := j7RoleLimits
 	for role, q := range want {
 		if r.RoleLimits[role] != q {
 			return fmt.Errorf("J7_CAPACITY: effective limits differ for %s", role)

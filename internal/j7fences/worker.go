@@ -430,7 +430,7 @@ func checkWorkerTerminal(s sample, fresh restoreledger.ClaimRef, identity string
 	if err != nil {
 		return err
 	}
-	var recorded, consumed int64
+	var recorded, consumed, terminal int64
 	for _, h := range rows {
 		if h.Revision <= previousRevision {
 			continue
@@ -443,14 +443,21 @@ func checkWorkerTerminal(s sample, fresh restoreledger.ClaimRef, identity string
 			}
 			recorded = h.Revision
 		case "RESULT_CONSUMED":
-			if consumed != 0 || h.ActorKind != "scheduler" || h.Epoch <= 0 || h.NewState != state.StateSucceeded ||
+			if consumed != 0 || h.ActorKind != "scheduler" || h.Epoch <= 0 || h.NewState != state.StateRunnable ||
 				h.Attempt != fresh.Attempt || h.Node != fresh.NodeID || h.Iteration != fresh.Iteration {
 				return errors.New("F1 result consumption is not the expected fenced success")
 			}
 			consumed = h.Revision
+		case "GRAPH_ADVANCED":
+			if h.NewState == state.StateSucceeded {
+				if terminal != 0 || h.ActorKind != "scheduler" || h.Epoch <= 0 {
+					return errors.New("F1 graph completion lacks scheduler authority")
+				}
+				terminal = h.Revision
+			}
 		}
 	}
-	if count != 1 || recorded == 0 || consumed <= recorded || consumed != w.Revision {
+	if count != 1 || recorded == 0 || consumed <= recorded || terminal <= consumed || terminal != w.Revision {
 		return errors.New("F1 lacks one recorded and consumed successful replacement result")
 	}
 	return nil

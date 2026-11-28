@@ -223,7 +223,7 @@ func verifyRecoveredEffect(db orphanDB, hold effectAtCut, original k6receipt.Pro
 		!isEffectResult(next.Result, proof.Receipt) || !isEffectResult(db.Accepted, proof.Receipt) {
 		return next, failed
 	}
-	var timeout, recorded, consumed dispatchHistory
+	var timeout, recorded, consumed, terminal dispatchHistory
 	for _, row := range db.History {
 		switch row.Reason {
 		case "TIMEOUT_REPLACEMENT":
@@ -239,10 +239,20 @@ func verifyRecoveredEffect(db orphanDB, hold effectAtCut, original k6receipt.Pro
 			recorded = row
 		case "RESULT_CONSUMED":
 			if consumed.Revision != 0 || row.Attempt != 2 || row.ActorKind != "scheduler" || row.Epoch <= 0 ||
-				row.NewState != "SUCCEEDED" {
+				row.NewState != "RUNNABLE" {
 				return next, failed
 			}
 			consumed = row
+		case "GRAPH_ADVANCED":
+			if row.NewState != "SUCCEEDED" {
+				continue
+			}
+			if terminal.Revision != 0 || row.WorkflowID != db.Workflow || row.ActorKind != "scheduler" ||
+				row.Epoch <= 0 || row.CreatedAt.After(db.DBTime) {
+				return next, failed
+			}
+			terminal = row
+			continue
 		default:
 			continue
 		}
@@ -252,7 +262,8 @@ func verifyRecoveredEffect(db orphanDB, hold effectAtCut, original k6receipt.Pro
 		}
 	}
 	if timeout.Revision <= rebind.Revision || recorded.Revision <= timeout.Revision || consumed.Revision <= recorded.Revision ||
-		db.Revision != consumed.Revision || recorded.CreatedAt.Before(timeout.CreatedAt) ||
+		terminal.Revision <= consumed.Revision || db.Revision != terminal.Revision ||
+		terminal.CreatedAt.Before(consumed.CreatedAt) || terminal.CreatedAt.After(gate) || recorded.CreatedAt.Before(timeout.CreatedAt) ||
 		consumed.CreatedAt.Before(recorded.CreatedAt) || consumed.CreatedAt.After(gate) ||
 		!recorded.CreatedAt.Before(next.Deadline) ||
 		!consumed.CreatedAt.Before(db.Grant.Expires.Add(-time.Duration(db.Grant.UncertaintyUS)*time.Microsecond)) {

@@ -55,7 +55,7 @@ finish() {
     fi
     if (( armed )); then
         local cleanup_started=$SECONDS containers volumes
-        if timeout --kill-after=10s 20m "$candidate" cleanup "$private" >"$private/cleanup.stdout" 2>&1 &&
+        if timeout --kill-after=10s 20m bash "$candidate" cleanup "$private" >"$private/cleanup.stdout" 2>&1 &&
             jq -e '.verified == true and .residuals == []' "$private/cleanup.json" >/dev/null &&
             containers=$(docker --host=unix:///var/run/docker.sock container ls -aq --filter "label=j7.restore.run=$GITHUB_RUN_ID") &&
             volumes=$(docker --host=unix:///var/run/docker.sock volume ls -q --filter "label=j7.restore.run=$GITHUB_RUN_ID") &&
@@ -131,12 +131,15 @@ fi
 "$tool" hosted-gate --root "$root" --mode "$mode" --elapsed-minutes "$(elapsed)" "${gate_args[@]}" \
     >"$gate" 2>"$public/admission-error.txt"
 # Only a reviewed, tracked controller may start resources on a hosted job.
-git -C "$root" ls-files --error-unmatch deploy/j7/candidate.json deploy/j7/controller >/dev/null
-test -x "$candidate"
+mapfile -t sealed_files < <(jq -er '.sealed_files | keys[]' "$root/deploy/j7/candidate.json")
+git -C "$root" ls-files --error-unmatch -- deploy/j7/candidate.json "${sealed_files[@]}" >/dev/null
+test -f "$candidate"
+reason=controller_admission
+bash "$candidate" pre-arm "$private" >"$public/controller-admission-error.txt" 2>&1
 armed=1
 reason=bootstrap
 bootstrap_started=$SECONDS
-timeout --kill-after=10s 35m "$candidate" bootstrap "$private" >"$private/bootstrap.log" 2>&1
+timeout --kill-after=10s 35m bash "$candidate" bootstrap "$private" >"$private/bootstrap.log" 2>&1
 bootstrap_time=$(( (SECONDS - bootstrap_started + 59) / 60 ))
 observed_drill=0
 observed_between=0
@@ -200,7 +203,7 @@ for id in "${drills[@]}"; do
     mkdir -p "$raw" "$retained"
     started=$SECONDS
     result=0
-    timeout --kill-after=10s 20m "$candidate" drill "$id" "$private" "$raw" "$tool" >"$raw/controller.log" 2>&1 &
+    timeout --kill-after=10s 20m bash "$candidate" drill "$id" "$private" "$raw" "$tool" >"$raw/controller.log" 2>&1 &
     driver_pid=$!
     while kill -0 "$driver_pid" 2>/dev/null; do
         if [[ -f "$private/resource-stop" ]] || ! kill -0 "$monitor_pid" 2>/dev/null; then
@@ -254,7 +257,7 @@ for id in "${drills[@]}"; do
     if (( done_count < ${#drills[@]} )); then
         reason=between_drills
         started=$SECONDS
-        timeout --kill-after=10s 5m "$candidate" between "$id" "$private" "$raw" >"$private/between-$id.log" 2>&1
+        timeout --kill-after=10s 5m bash "$candidate" between "$id" "$private" "$raw" >"$private/between-$id.log" 2>&1
         duration=$(( (SECONDS - started + 59) / 60 ))
         (( duration <= observed_between )) || observed_between=$duration
     fi

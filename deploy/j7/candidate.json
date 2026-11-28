@@ -1,0 +1,17 @@
+{
+  "schema": "j7.hosted-candidate.v1",
+  "relay_switch": "RUNTIME_RELAY_FULL_BATCH_LOOP",
+  "relay_value": "1",
+  "runtime_mode_source": "cmd/runtime/relay_mode.go",
+  "sealed_files": {
+    "deploy/j7/controller": "2bd8c3511990f997c48e3b996cd5ece59d28935feeed26b95dde6e96647ef7d8",
+    "deploy/j7/source-overlay.json": "be7b05fda881ba58d2c1cfd080d22883a2a02c76771f3cbc510a49f9db25b012",
+    "deploy/j7/target-overlay.json": "299782ff9848a4c82f396855dc57a1a5591add692adaeb769490ff2a0bfb2ce5",
+    "deploy/j7/workload.json": "6e3c6709275f71e019396cb3392e1a0e87437d7e10361cd6adf0e80436658fd2",
+    "deploy/j7/kind.json": "5166c557be03c681782c0371d0c40f9e02042a115aad41844ed788b4c4eca51f",
+    "deploy/runtime-switches.json": "41952613818968763ef624f7f02601128e777fc29f7fa9f36f7ce71478dd8b35",
+    "deploy/k8s/tools.lock.json": "ce7e411fa11f25bcf966f9f41710d30b69eb496f2876e901ae5c3d0008c69450",
+    "experiments/portfolio/postgres-restore/protocol.md": "9f2666eacde2a5573043a29c5636c20042348cf2a6b19f79421604c357c35d14",
+    "cmd/runtime/relay_mode.go": "b91f05618f5c39ae1c8e7b51ee13e704024829e50693f501828a24ddbe275137"
+  }
+}

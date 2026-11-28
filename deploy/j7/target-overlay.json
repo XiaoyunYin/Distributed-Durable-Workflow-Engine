@@ -1,0 +1,16 @@
+{
+  "schema": "j7.controller-overlay.v1",
+  "profile": "J7_target",
+  "environment": {
+    "RUNTIME_RELAY_FULL_BATCH_LOOP": "1",
+    "RUNTIME_KAFKA_GENERATION": "j7-restore"
+  },
+  "engine_migrations": {
+    "first": 1,
+    "last": 23
+  },
+  "sink_migrations": {
+    "first": 1,
+    "last": 4
+  }
+}

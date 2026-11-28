@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+if [[ ${1:-} == dry-run ]]; then
+    [[ $# == 2 ]]
+    exec "$2" hosted-controller "$root" dry-run
+fi
+
+case "${1:-}" in
+    pre-arm|bootstrap|cleanup) [[ $# == 2 ]]; private=$2 ;;
+    between) [[ $# == 4 ]]; private=$3 ;;
+    drill) [[ $# == 5 ]]; private=$3 ;;
+    *) exit 2 ;;
+esac
+exec "$private/j7-media" hosted-controller "$root" live \
+    "$GITHUB_ACTIONS" "$RUNNER_ENVIRONMENT" "$RUNNER_OS" "$GITHUB_RUN_ATTEMPT" \
+    "$GITHUB_WORKSPACE" "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$J7_CAMPAIGN" "$GITHUB_SHA" "$@"

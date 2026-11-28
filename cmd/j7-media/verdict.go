@@ -381,6 +381,10 @@ func (d drillInputs) checkPrewrite(v *drillVerdict) (prewriteVerdict, error) {
 }
 
 func runDrillVerdict(args []string, out, diagnostics io.Writer) error {
+	return runDrillVerdictWithClock(args, out, diagnostics, restoreledger.HostClock)
+}
+
+func runDrillVerdictWithClock(args []string, out, diagnostics io.Writer, hostClock func() (restoreledger.Clock, string, error)) error {
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostics)
 	dir := flags.String("dir", "", "indexed evidence directory")
@@ -409,7 +413,7 @@ func runDrillVerdict(args []string, out, diagnostics io.Writer) error {
 		}
 		now = func() (int64, error) { return original.CheckerNS, nil }
 	} else {
-		now, boot, err = restoreledger.HostClock()
+		now, boot, err = hostClock()
 		if err != nil || b.index.Projection {
 			return errors.New("live verdict requires the original private evidence on the outage boot")
 		}

@@ -67,6 +67,8 @@ func run(ctx context.Context, args []string, out, diagnostics io.Writer) error {
 		return runQuietObservation(ctx, args, out, diagnostics)
 	case "verify-controls":
 		return runQualificationControls(args, out, diagnostics)
+	case "hosted-controller":
+		return runHostedController(ctx, args, out)
 	case "hosted-gate":
 		return runHostedGate(args, out, diagnostics)
 	case "stage-target":
