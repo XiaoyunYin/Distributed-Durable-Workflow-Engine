@@ -1,6 +1,7 @@
 # J12 public API authentication and namespace authorisation
 
-Slice 0 registration is pending independent review. The campaign budget is $0.
+Slice 0 was accepted in Round 678. The hosted runner and this amendment await
+independent review. The campaign budget is $0.
 Use one isolated public GitHub-hosted Actions job on `ubuntu-24.04`, with
 disposable PostgreSQL and Kafka beside a single-node kind cluster for the
 Kubernetes identity controls. Pin the tools, kind node, PostgreSQL and Kafka
@@ -75,7 +76,9 @@ empty value or any value other than `0` or `1` is a startup error.
   integral Unix seconds, strictly earlier than `exp` and at most 30 seconds
   in the future. Reject at or after `exp + 30s`. Skew is measured against the
   API process wall clock. Reject duplicate JSON members and malformed time
-  claims, including explicit nulls. The issuer determines token lifetime.
+  claims, including explicit nulls. A non-integer NumericDate in `exp`, `nbf`
+  or `iat` fails closed, including fractional or exponent-form JSON numbers.
+  The fixture issuer gives valid tenant tokens a 30-minute lifetime.
 - Validate the local JWKS before startup and reread it for each public credential
   check. Publish a complete file by atomic replacement and overlap old and new
   `kid` values during rotation. A removed or unknown `kid` fails immediately.
@@ -105,9 +108,10 @@ empty value or any value other than `0` or `1` is a startup error.
 ## Hosted controls and verdicts
 
 Execute the registered matrix once with fresh fixtures. Exercise each listed
-method on every listener with its matching credential, a valid tenant JWT, a
-valid projected Kubernetes credential, the dedicated demand bearer, and no
-credential. Use valid state and requests for allowed cells, with independent
+method on every listener using a valid tenant JWT, the distinct projected
+operator and worker credentials, the dedicated demand bearer, and no credential.
+The 16 method/route pairs produce 320 listener/credential cells and 16
+wrong-method controls. Use valid state and requests for allowed cells, with independent
 fixtures where a prior action changes state. Record status, stable error code,
 bound durable IDs, per-control SQL observations and verdict. Attempt at least
 one unlisted method per route, and verify startup rejects combined mode and
@@ -146,3 +150,45 @@ The PostgreSQL-backed handler fixture is `TestJ12PostgresTenantAuthorisation` in
 the base migration inventory. The test applies and rolls back 000026 and
 uses a TLS TokenReview fixture. The hosted campaign uses actual pod-bound tokens
 for the Kubernetes trust verdict.
+
+## Hosted entry points and evidence
+
+`.github/workflows/j12.yml` runs tooling on pull requests or by manual dispatch.
+Tooling builds the harness, runs its offline checks and the J12 Go tests, then
+runs the PostgreSQL-backed handler and SQL witness fixtures on a disposable
+base-profile database. It can run while J9a is pending.
+
+```sh
+gh workflow run j12.yml --ref codex/j12-slice0 -f mode=tooling
+```
+
+Qualification is a separate manual mode. Supply `relay_switch` and
+`relay_value` explicitly. After J9a merges, those inputs are
+`RUNTIME_RELAY_FULL_BATCH_LOOP` and `1`. Admission requires a unique J9a
+registration that permits J12, a non-default registered value and the runtime
+reader in the exact checkout. The harness refuses to start infrastructure when
+that registration or reader is missing.
+
+The runner deploys four ClusterIP listeners, a relay and two probe pods on one
+kind node. The operator and worker probes use distinct service accounts and
+project their own audience-scoped tokens. The real API server reviews those
+tokens under a separate reviewer account with `tokenreviews.create`. Projected
+token probes originate in those two pods. Tenant and demand credentials travel
+through the authenticated Kubernetes exec stream, then reach the real listeners
+over the listener pod's loopback. The fixture has one
+Kafka partition per topic. The worker delivery positive uses the record read
+from Kafka and reconciled to an acknowledged PostgreSQL outbox publication.
+Fixture setup supplies the leases and worker attempt without running a scheduler
+or effect executor. The demand positive requires one claimable attempt and a
+sample time within ten seconds of the probe clock.
+
+The qualification job retains `qualification.json` with run and attempt IDs,
+image identities, observed mode and listener inventory, applied migrations, and
+all 389 control outcomes. An observer logs into PostgreSQL with a SELECT-only,
+read-only role. Its independent SQL snapshots include requester, workflow,
+cancellation, approval, worker and outbox rows, grant presence and engine and
+effect-service table counts. Each HTTP control records before and after snapshot
+digests. A denied request must preserve that projection, and the self, legacy
+and foreign intent fixtures must still be pending with zero grants or effects at
+the final observation. Scrubbed snapshots contain grant and claim presence bits.
+The runner keeps bearer values, HTTP bodies and private RSA keys in memory.

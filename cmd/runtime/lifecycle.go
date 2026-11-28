@@ -188,14 +188,15 @@ func serveLifecycle(signalCtx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if publicAuth && *rolesFlag == "combined" {
+		return validateJ12Credentials(api.RoutesCombined, nil, nil)
+	}
 	routes, err := lifecycleRoutes(*rolesFlag, roles)
 	if err != nil {
 		return err
 	}
-	if publicAuth {
-		if routes == api.RoutesCombined || *j4WorkerAddr != "" || state.ProviderResilienceEnabled() || state.K6Enabled() {
-			return errors.New("J12 requires its own split listener profile")
-		}
+	if publicAuth && (*j4WorkerAddr != "" || state.ProviderResilienceEnabled() || state.K6Enabled()) {
+		return errors.New("J12 requires its own split listener profile")
 	}
 	if err := validateJ4Listener(routes, *j4WorkerAddr, *j4FixedDelay); err != nil {
 		return err

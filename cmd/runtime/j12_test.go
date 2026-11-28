@@ -51,7 +51,7 @@ func TestJ12StartupRejectsUnsafeListenerConfiguration(t *testing.T) {
 	t.Setenv("RUNTIME_PUBLIC_JWT_AUDIENCE", "durable-j12-api")
 	t.Setenv("RUNTIME_PUBLIC_JWT_JWKS_FILE", filepath.Join(t.TempDir(), "absent"))
 	for _, tc := range []struct{ roles, message string }{
-		{"combined", "J12 requires its own split listener profile"},
+		{"combined", "RUNTIME_PUBLIC_API_AUTH=1 rejects combined HTTP roles"},
 		{"api,operator", "split HTTP roles require separate listeners/processes"},
 		{"api", "public JWT JWKS unavailable"},
 		{"operator", "require Kubernetes TokenReview"},
@@ -65,6 +65,14 @@ func TestJ12StartupRejectsUnsafeListenerConfiguration(t *testing.T) {
 				t.Fatalf("got %v, want %q", err, tc.message)
 			}
 		})
+	}
+	t.Setenv("RUNTIME_ROLES", "combined")
+	t.Setenv("RUNTIME_TOKEN_AUTH", "enabled")
+	if err := serveLifecycle(context.Background()); err == nil || !strings.Contains(err.Error(), "RUNTIME_PUBLIC_API_AUTH=1 rejects combined HTTP roles") {
+		t.Fatalf("combined startup did not report the J12 configuration error: %v", err)
+	}
+	if err := validateJ12Credentials(api.RoutesCombined, nil, nil); err == nil {
+		t.Fatal("J12 credential validation accepted combined routes")
 	}
 	t.Setenv("RUNTIME_PUBLIC_API_AUTH", "")
 	if err := serveLifecycle(context.Background()); err == nil || !strings.Contains(err.Error(), "must be unset, 0, or 1") {

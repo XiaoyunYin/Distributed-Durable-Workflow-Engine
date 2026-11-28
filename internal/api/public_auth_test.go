@@ -123,6 +123,7 @@ func TestJ12TenantJWTClaims(t *testing.T) {
 		{name: "missing-expiry", claim: "exp", omit: true},
 		{name: "null-expiry", claim: "exp", value: nil},
 		{name: "fractional-expiry", claim: "exp", value: json.Number("1800000050.1")},
+		{name: "exponent-expiry", claim: "exp", value: json.Number("1.80000005e9")},
 		{name: "exp-string", claim: "exp", value: "1800000060"},
 		{name: "expired-within-skew", claim: "exp", value: now.Unix() - 29, pass: true},
 		{name: "expired-at-skew", claim: "exp", value: now.Unix() - 30},
@@ -130,10 +131,12 @@ func TestJ12TenantJWTClaims(t *testing.T) {
 		{name: "nbf-at-skew", claim: "nbf", value: now.Unix() + 30, pass: true},
 		{name: "nbf-beyond-skew", claim: "nbf", value: now.Unix() + 31},
 		{name: "nbf-null", claim: "nbf", value: nil},
+		{name: "nbf-fractional", claim: "nbf", value: json.Number("1800000000.5")},
 		{name: "iat-at-skew", claim: "iat", value: now.Unix() + 30, pass: true},
 		{name: "iat-beyond-skew", claim: "iat", value: now.Unix() + 31},
 		{name: "iat-zero", claim: "iat", value: 0},
 		{name: "iat-null", claim: "iat", value: nil},
+		{name: "iat-fractional", claim: "iat", value: json.Number("1800000000.5")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			claims := j12Claims("requester", "tenant-a", now)

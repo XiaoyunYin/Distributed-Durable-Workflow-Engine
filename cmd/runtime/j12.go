@@ -20,6 +20,8 @@ func publicAPIAuthFromEnvironment() (bool, error) {
 
 func validateJ12Credentials(routes api.RouteSet, reviewer *api.TokenReviewer, demand *api.DemandBearerAuthenticator) error {
 	switch routes {
+	case api.RoutesCombined:
+		return errors.New("RUNTIME_PUBLIC_API_AUTH=1 rejects combined HTTP roles. Use split listeners")
 	case api.RoutesOperator, api.RoutesWorkerControl:
 		if reviewer == nil {
 			return errors.New("J12 operator and worker listeners require Kubernetes TokenReview")

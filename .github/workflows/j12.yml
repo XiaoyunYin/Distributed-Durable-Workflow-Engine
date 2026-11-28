@@ -1,0 +1,126 @@
+name: J12 public API authentication
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/j12.yml'
+      - 'cmd/runtime/**'
+      - 'deploy/j12/**'
+      - 'deploy/k8s/tools.lock.json'
+      - 'deploy/runtime-switches.json'
+      - 'experiments/portfolio/public-api-auth/protocol.md'
+      - 'internal/api/**'
+      - 'internal/state/**'
+      - 'migrations/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: J12 tooling or hosted qualification
+        type: choice
+        options: [tooling, qualification]
+        default: tooling
+        required: true
+      relay_switch:
+        description: Registered J9a repaired-relay switch for qualification
+        type: string
+      relay_value:
+        description: Registered J9a repaired-relay value for qualification
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GOMAXPROCS: '2'
+  GOFLAGS: '-p=1'
+
+jobs:
+  tooling:
+    if: github.event_name == 'pull_request' || inputs.mode == 'tooling'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432/tcp
+        options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build and check the hosted harness offline
+        run: |
+          set -euo pipefail
+          go build -p 1 ./cmd/runtime ./deploy/j12
+          go test -p 1 -race -count=1 ./deploy/j12
+          go test -p 1 -race -count=1 ./cmd/runtime ./internal/api ./internal/state -run '^TestJ12'
+          go test -p 1 -count=1 ./internal/invariants/k6v1 -run '^TestK6ConfirmationEnvReadersClassified$'
+      - name: Prepare base-only tooling database
+        env:
+          DATABASE_URL: postgresql://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres?sslmode=disable
+        run: go run -p 1 ./cmd/dur053-migrate
+      - name: Check durable J12 state on PostgreSQL
+        env:
+          J12_TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres?sslmode=disable
+        run: go test -p 1 -count=1 -v ./deploy/j12 ./internal/api -run '^TestJ12(WitnessSQLOnPostgres|PostgresTenantAuthorisation)$'
+
+  qualification:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'qualification'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: j12-hosted-qualification
+      cancel-in-progress: false
+    steps:
+      - name: Register hosted job start
+        env:
+          PUBLIC_REPOSITORY: ${{ !github.event.repository.private }}
+        run: |
+          set -euo pipefail
+          echo "J12_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+          test "$PUBLIC_REPOSITORY" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build and run registered J12 controls
+        env:
+          RELAY_SWITCH: ${{ inputs.relay_switch }}
+          RELAY_VALUE: ${{ inputs.relay_value }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          build_dir=$(mktemp -d "$RUNNER_TEMP/j12-build.XXXXXX")
+          trap 'rm -f -- "$build_dir/j12" "$build_dir/runtime"; rmdir -- "$build_dir"' EXIT
+          CGO_ENABLED=0 go build -p 1 -buildvcs=false -o "$build_dir/runtime" ./cmd/runtime
+          CGO_ENABLED=0 go build -p 1 -buildvcs=false -o "$build_dir/j12" ./deploy/j12
+          "$build_dir/j12" --run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --source "$GITHUB_SHA" --started "$J12_JOB_STARTED" --runtime "$build_dir/runtime" \
+            --relay-switch "$RELAY_SWITCH" --relay-value "$RELAY_VALUE" \
+            --scratch "$RUNNER_TEMP/j12-scratch" --output "$RUNNER_TEMP/j12-evidence"
+      - name: Record an interrupted or incomplete setup
+        if: always()
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/j12-evidence"
+          if [[ ! -s "$output/qualification.json" ]]; then
+            mkdir -p "$output"
+            jq -n --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" --arg source "$GITHUB_SHA" \
+              '{schema:"j12.setup-failure.v1",run_id:$run,run_attempt:$attempt,source_revision:$source,verdict:"invalid",stage:"setup-or-interruption",controls:"unwitnessed"}' \
+              > "$output/setup-failure.json"
+          fi
+      - name: Retain scrubbed qualification verdict
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: j12-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j12-evidence/*.json
+          if-no-files-found: error
