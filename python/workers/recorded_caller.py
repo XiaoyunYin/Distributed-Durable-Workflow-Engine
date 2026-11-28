@@ -10,6 +10,7 @@ from dataclasses import asdict
 from ipaddress import IPv4Address
 from pathlib import Path
 
+from workers.recorded_probe import caller_probe, inventory
 from workers.recorded_wire import (
     CALLER_UID,
     MAX_IPC,
@@ -56,10 +57,16 @@ def verify_caller(ipc: socket.socket) -> None:
 
 
 def main() -> None:
-    fd, addr = sys.argv[1:]
+    fd, addr, *flags = sys.argv[1:]
     host = IPv4Address(addr)
     with socket.socket(fileno=int(fd)) as ipc:
         verify_caller(ipc)
+        if flags == ["--probe"]:
+            ipc.sendall(json.dumps(caller_probe(host), separators=(",", ":")).encode() + b"\n")
+            return
+        if flags:
+            raise ValueError("unexpected J4 caller options")
+        inventory("caller")
         with ipc.makefile("rb") as reader:
             envelope = strict_json(reader.readline(MAX_IPC + 1))
             if envelope.keys() != {"call", "input", "deadline_ns"} or reader.read(1):

@@ -9,6 +9,8 @@ import stat
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -85,6 +87,42 @@ class ProviderConfig:
         cls.load()
 
 
+@contextmanager
+def isolated_caller(
+    config: ProviderConfig, *, probe: bool = False
+) -> Iterator[tuple[socket.socket, subprocess.Popen]]:
+    parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    with parent, child:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-B",
+                "-s",
+                "-m",
+                "workers.recorded_caller",
+                str(child.fileno()),
+                str(config.stub_ipv4),
+                *(["--probe"] if probe else []),
+            ],
+            env={"PYTHONPATH": str(Path(__file__).resolve().parents[1])},
+            user=CALLER_UID,
+            group=CALLER_UID,
+            extra_groups=(),
+            close_fds=True,
+            pass_fds=(child.fileno(),),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        child.close()
+        try:
+            yield parent, process
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
 def call_provider(
     config: ProviderConfig,
     call: CallIdentity,
@@ -101,54 +139,27 @@ def call_provider(
     )
     if len(envelope) > MAX_IPC:
         raise ValueError("fixture IPC request too large")
-    parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-    with parent, child:
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-B",
-                "-s",
-                "-m",
-                "workers.recorded_caller",
-                str(child.fileno()),
-                str(config.stub_ipv4),
-            ],
-            env={"PYTHONPATH": str(Path(__file__).resolve().parents[1])},
-            user=CALLER_UID,
-            group=CALLER_UID,
-            extra_groups=(),
-            close_fds=True,
-            pass_fds=(child.fileno(),),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        child.close()
+    with isolated_caller(config) as (parent, process):
         # The network deadline is enforced inside the child. Leave a short IPC
         # tail for it to return the witnessed deadline event and exit.
         ipc_deadline = deadline_ns + 1_000_000_000
         reply = None
-        try:
-            parent.settimeout(remaining(ipc_deadline))
-            parent.sendall(envelope)
-            parent.shutdown(socket.SHUT_WR)
-            with DeadlineReader(parent, ipc_deadline).makefile("rb") as reader:
-                while line := reader.readline(MAX_IPC + 1):
-                    event = strict_json(line)
-                    kind = event.pop("event")
-                    if kind == "send" and reply is None:
-                        trace({"event": kind, **event})
-                    elif kind == "reply" and reply is None:
-                        reply = ProviderReply(**event)
-                    else:
-                        raise RuntimeError("fixture HTTP caller failed")
-            if process.wait(timeout=remaining(ipc_deadline)) != 0 or reply is None:
-                raise RuntimeError("fixture HTTP caller did not return a reply")
-            return reply
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait()
+        parent.settimeout(remaining(ipc_deadline))
+        parent.sendall(envelope)
+        parent.shutdown(socket.SHUT_WR)
+        with DeadlineReader(parent, ipc_deadline).makefile("rb") as reader:
+            while line := reader.readline(MAX_IPC + 1):
+                event = strict_json(line)
+                kind = event.pop("event")
+                if kind == "send" and reply is None:
+                    trace({"event": kind, **event})
+                elif kind == "reply" and reply is None:
+                    reply = ProviderReply(**event)
+                else:
+                    raise RuntimeError("fixture HTTP caller failed")
+        if process.wait(timeout=remaining(ipc_deadline)) != 0 or reply is None:
+            raise RuntimeError("fixture HTTP caller did not return a reply")
+        return reply
 
 
 class RecordedActivity:

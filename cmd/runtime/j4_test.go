@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"durable-agent-execution-engine/internal/api"
+	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/state"
 )
 
@@ -24,6 +30,66 @@ func TestJ4ServeRejectsInvalidModesBeforeBootstrapping(t *testing.T) {
 				t.Fatalf("startup error = %v, want %s", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestJ4C2GateHoldsOnlyTheNamedReceipt(t *testing.T) {
+	dir := t.TempDir()
+	gate := &j4ReceiptGate{dir: dir, workflow: "wf", bootID: "boot", clock: func() (int64, error) { return 42, nil }}
+	j4 := &j4Deployment{hold: gate}
+	var options engine.ServeOptions
+	j4.scheduler(&options)
+	if options.ScanInterval != time.Second {
+		t.Fatal("wrong J4 scan interval")
+	}
+	input := state.ConsumeResultInput{WorkflowID: "foreign", NodeID: state.RecordedLLMActivity,
+		AttemptNumber: 1, ExpectedRevision: 7}
+	if err := options.BeforeResultConsumption(input, state.Attempt{}); err != nil {
+		t.Fatal("gate held another workflow")
+	}
+	input.WorkflowID = "wf"
+	for range 2 {
+		if err := options.BeforeResultConsumption(input, state.Attempt{}); !errors.Is(err, errJ4ReceiptHeld) {
+			t.Fatalf("missing hold: %v", err)
+		}
+	}
+	release := filepath.Join(dir, "release")
+	if err := os.WriteFile(release, []byte("different\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := options.BeforeResultConsumption(input, state.Attempt{}); err == nil {
+		t.Fatal("foreign release opened the hold")
+	}
+	if err := os.WriteFile(release, []byte("wf\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := options.BeforeResultConsumption(input, state.Attempt{}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "scheduler.jsonl"))
+	if err != nil || strings.Count(string(data), "\n") != 2 ||
+		!strings.Contains(string(data), `"event":"held"`) ||
+		!strings.Contains(string(data), `"event":"released"`) {
+		t.Fatalf("unexpected gate evidence %s (%v)", data, err)
+	}
+}
+
+func TestJ4ClockHealthIsStrictlyOptIn(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) })
+	for _, tc := range []struct {
+		deployment *j4Deployment
+		path       string
+		want       int
+	}{
+		{nil, "/healthz", 204},
+		{&j4Deployment{bootID: "shared-boot", clock: func() (int64, error) { return 42, nil }}, "/healthz", 200},
+		{&j4Deployment{}, "/v1/", 204},
+	} {
+		w := httptest.NewRecorder()
+		tc.deployment.health(next).ServeHTTP(w, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if w.Code != tc.want || tc.want == 200 && !strings.Contains(w.Body.String(), `"monotonic_ns":42`) {
+			t.Fatalf("unexpected clock probe response %d: %s", w.Code, w.Body)
+		}
 	}
 }
 

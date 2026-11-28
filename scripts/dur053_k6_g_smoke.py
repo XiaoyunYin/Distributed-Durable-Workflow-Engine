@@ -25,7 +25,7 @@ from dur053_k6_b_smoke import (
     ENGINE_ROLE,
     Smoke,
     json_data,
-    legacy_timeout_retry_env,
+    legacy_env,
     private_file,
     require,
     subject,
@@ -1070,7 +1070,7 @@ class Episode(Matrix):
                 continue
             require(pod["metadata"]["namespace"] == self.namespace, "G_CONTROL_NAMESPACE")
             spec = pod["spec"]
-            legacy_env = legacy_timeout_retry_env(spec)
+            legacy = legacy_env(spec)
             init = spec.get("initContainers", [])
             ephemeral = spec.get("ephemeralContainers", [])
             require(
@@ -1093,7 +1093,7 @@ class Episode(Matrix):
                         {entry["name"] for c in containers for entry in c.get("env", [])}
                     ),
                     "env_from": any(c.get("envFrom") for c in containers),
-                    **({"legacy_env": legacy_env} if legacy_env else {}),
+                    **({"legacy_env": legacy} if legacy else {}),
                 }
             )
         return {

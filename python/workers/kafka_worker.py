@@ -251,6 +251,7 @@ def handle_delivery(
                     "partition": str(message.partition),
                     "offset": str(message.offset),
                     "next_offset": str(response["next_offset"]),
+                    "disposition": response["disposition"],
                 },
             )
     if lifecycle is not None and not lifecycle.can_start():

@@ -274,6 +274,42 @@ def test_policy_init_publishes_only_after_successful_install(
     address = IPv4Address("192.168.3.10")
     proof = tmp_path / "installed.json"
     calls = []
+    family = {"family": "inet", "table": "j4_provider"}
+    chain = {**family, "chain": "output"}
+    uid = {"match": {"left": {"meta": {"key": "skuid"}}, "op": "==", "right": 65533}}
+    addr = {
+        "match": {
+            "left": {"payload": {"protocol": "ip", "field": "daddr"}},
+            "op": "==",
+            "right": str(address),
+        }
+    }
+    port = {
+        "match": {
+            "left": {"payload": {"protocol": "tcp", "field": "dport"}},
+            "op": "==",
+            "right": 8082,
+        }
+    }
+    counter = {"counter": {"packets": 0, "bytes": 0}}
+    effective = {
+        "nftables": [
+            {"table": {"name": "j4_provider", "family": "inet"}},
+            {
+                "chain": {
+                    **family,
+                    "name": "output",
+                    "hook": "output",
+                    "type": "filter",
+                    "prio": 0,
+                    "policy": "accept",
+                }
+            },
+            {"rule": {**chain, "expr": [uid, addr, port, counter, {"accept": None}]}},
+            {"rule": {**chain, "expr": [uid, counter, {"drop": None}]}},
+            {"rule": {**chain, "expr": [addr, port, counter, {"drop": None}]}},
+        ]
+    }
 
     def run(command, **kwargs):
         assert not proof.exists()
@@ -289,16 +325,19 @@ def test_policy_init_publishes_only_after_successful_install(
                 "meta skuid 65533 counter drop",
             ]
             assert "ip daddr 192.168.3.10 tcp dport 8082 counter drop" in rules
-        return subprocess.CompletedProcess(command, 0, '{"nftables":[{"verified":"test"}]}')
+        return subprocess.CompletedProcess(command, 0, json.dumps(effective))
 
     monkeypatch.setattr(subprocess, "run", run)
     install_egress.install(address, proof)
     assert calls == [
         ["nft", "--check", "-f", "-"],
         ["nft", "-f", "-"],
-        ["nft", "--json", "list", "table", "inet", "j4_provider"],
+        ["nft", "--json", "--numeric", "list", "table", "inet", "j4_provider"],
     ]
     assert json.loads(proof.read_bytes())["stub_ipv4"] == str(address)
+    effective["nftables"][-1]["rule"]["expr"][-1] = {"accept": None}
+    with pytest.raises(ValueError, match="single provider allow tuple"):
+        install_egress.require_nft_snapshot(address, effective)
     with pytest.raises(RuntimeError, match="already exists"):
         install_egress.install(address, proof)
 

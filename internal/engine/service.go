@@ -20,6 +20,7 @@ type ServeOptions struct {
 	Drain                   <-chan struct{}
 	LegacyShutdown          bool
 	LeaseTakeover           LeaseTakeoverHooks
+	ScanInterval            time.Duration
 }
 
 // LeaseTakeoverHooks connects the tagged scheduler to lease-fencing boundaries.
@@ -53,7 +54,11 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"
 	runner.LeaseTTL, runner.AttemptLease = 15*time.Second, 30*time.Second
 	cursor := ""
-	ticker := time.NewTicker(500 * time.Millisecond)
+	scanInterval := options.ScanInterval
+	if scanInterval <= 0 {
+		scanInterval = 500 * time.Millisecond
+	}
+	ticker := time.NewTicker(scanInterval)
 	defer ticker.Stop()
 	for {
 		select {

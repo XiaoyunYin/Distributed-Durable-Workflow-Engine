@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 class HealthHandler(BaseHTTPRequestHandler):
     lifecycle: WorkerLifecycle | None = None
+    health_details: Callable[[], dict] | None = None
     """Process health; this is not a claim that dependencies are available."""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -54,11 +55,13 @@ class HealthHandler(BaseHTTPRequestHandler):
         if self.path not in {"/healthz", "/readyz"}:
             self.send_error(404)
             return
+        details = type(self).health_details
         body = json.dumps(
             {
                 "status": "ok",
                 "worker_id": worker_identity(),
                 "version": __version__,
+                **(details() if details is not None else {}),
             }
         ).encode()
         self.send_response(
@@ -82,6 +85,7 @@ def run(
     *,
     deployment_hook: DeploymentHook | None = None,
     control_factory: ControlFactory | None = None,
+    health_details: Callable[[], dict] | None = None,
 ) -> None:
     from faults.client import FailpointClient
 
@@ -101,6 +105,7 @@ def run(
         raise ValueError("J4 requires the bounded worker executor")
     lifecycle = WorkerLifecycle(float(os.getenv("WORKER_DRAIN_SECONDS", "30")), mode == "legacy")
     HealthHandler.lifecycle = lifecycle
+    HealthHandler.health_details = health_details
     configured_witness()
     k6_evidence = initialize()
     process_done = threading.Event()

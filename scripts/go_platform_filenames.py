@@ -8,6 +8,7 @@ ALLOWLIST = {
     "cmd/dur035-dispatch/process_cpu_windows.go",
     "cmd/dur050-loadgen/cpu_linux.go",
     "internal/dur050/clock_linux.go",
+    "internal/state/j4_clock_linux.go",
 }
 
 

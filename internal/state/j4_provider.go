@@ -77,7 +77,7 @@ func NewProviderControl(ctx context.Context, store *Store, namespace string, fix
 	if !installed {
 		return nil, errors.New("J4 provider control requires migration j4_b2/000025")
 	}
-	bootID, clock, err := newJ4HostClock()
+	bootID, clock, err := NewJ4HostClock()
 	if err != nil {
 		return nil, err
 	}

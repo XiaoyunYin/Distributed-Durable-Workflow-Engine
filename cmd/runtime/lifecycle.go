@@ -171,6 +171,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	rolesFlag := flags.String("roles", envOrDefault("RUNTIME_ROLES", "combined"), "combined or comma-separated api,operator,worker-control,scheduler,relay,ingestor,demand")
 	j4WorkerAddr := flags.String("j4-worker-addr", "", "private J4 worker listener")
 	j4FixedDelay := flags.Bool("j4-fixed-delay-control", false, "J4 B5 fixed-delay control")
+	j4Workflow := flags.String("j4-c2-workflow", "", "J4 C2 workflow whose result consumption is held")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -183,6 +184,10 @@ func serveLifecycle(signalCtx context.Context) error {
 		return err
 	}
 	if err := validateJ4Listener(routes, *j4WorkerAddr, *j4FixedDelay); err != nil {
+		return err
+	}
+	j4, err := newJ4Deployment(*j4WorkerAddr, *j4Workflow, roles["scheduler"])
+	if err != nil {
 		return err
 	}
 	if roles["demand"] && os.Getenv("RUNTIME_ADDR") == "" {
@@ -271,7 +276,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
-	server := &http.Server{Addr: *addr, Handler: handler, TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: *addr, Handler: j4.health(handler), TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
 		if store != nil {
@@ -284,7 +289,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	if *j4WorkerAddr != "" {
 		handler := api.NewServer(store).WithRoutes(api.RoutesWorkerControl).
 			WithAuthentication(reviewer).WithTracing(tracing).WithJ4Provider(provider).Handler()
-		workerServer = &http.Server{Addr: *j4WorkerAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second,
+		workerServer = &http.Server{Addr: *j4WorkerAddr, Handler: j4.health(handler), ReadHeaderTimeout: 5 * time.Second,
 			ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 		workerListener, err = net.Listen("tcp", *j4WorkerAddr)
 		if err != nil {
@@ -359,6 +364,7 @@ func serveLifecycle(signalCtx context.Context) error {
 			if err := configureK6SchedulerHook(&options); err != nil {
 				return err
 			}
+			j4.scheduler(&options)
 			configureK6ClockLease(ctx, &options)
 			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})

@@ -75,8 +75,6 @@ var envOutsideK6Deployment = map[string]string{
 	"HOSTNAME":                          "process-environment fallback, absent from the PodSpec inventory",
 	"INCIDENT_LIVE_APPROVED":            "incident-agent execution entry point",
 	"J2_CHECKER_PHASES":                 "J2 checker phase diagnostics outside the control topology",
-	"J4_RECORDED_LLM_ACTIVITY":          "J4 fixture opt-in, forbidden in the registered K6 controls",
-	"J4_PROVIDER_RESILIENCE":            "J4 provider retry opt-in, forbidden in the registered K6 controls",
 	"KAFKA_BROKERS":                     "local demo command",
 	"OPENAI_API_KEY":                    "incident-agent provider entry point",
 	"OTEL_EXPORTER_OTLP_ENDPOINT":       "optional external exporter, absent in hosted G controls",
@@ -201,11 +199,24 @@ func goEnvReads(path string, raw []byte) ([]string, error) {
 var pythonEnvReader = regexp.MustCompile(`\b(?:os\.)?(?:(?:getenv|environ\.get)\s*\(|environ\s*\[)\s*["']([^"'\r\n]+)["']`)
 
 func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
-	t.Run("RecordedProviderForbidden", func(t *testing.T) {
+	t.Run("RecordedProviderLegacyOnly", func(t *testing.T) {
 		for _, name := range []string{"J4_RECORDED_LLM_ACTIVITY", "J4_PROVIDER_RESILIENCE"} {
-			snapshot := ControlSnapshot{Pods: []ControlPod{{EnvNames: []string{name}}}}
-			if !snapshot.faultConfigured() {
-				t.Fatalf("%s was admitted into a K6 control", name)
+			for _, tc := range []struct {
+				names []string
+				proof map[string]string
+				deny  bool
+			}{
+				{nil, nil, false},
+				{[]string{name}, map[string]string{name: "0"}, false},
+				{[]string{name}, nil, true},
+				{[]string{name}, map[string]string{name: ""}, true},
+				{[]string{name}, map[string]string{name: "1"}, true},
+				{nil, map[string]string{name: "0"}, true},
+			} {
+				snapshot := ControlSnapshot{Pods: []ControlPod{{EnvNames: tc.names, LegacyEnv: tc.proof}}}
+				if snapshot.faultConfigured() != tc.deny {
+					t.Fatalf("%s legacy evidence %+v: want denial=%t", name, tc, tc.deny)
+				}
 			}
 		}
 	})

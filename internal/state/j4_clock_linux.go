@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func newJ4HostClock() (string, func() (int64, error), error) {
+func NewJ4HostClock() (string, func() (int64, error), error) {
 	data, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
 	if err != nil {
 		return "", nil, err
