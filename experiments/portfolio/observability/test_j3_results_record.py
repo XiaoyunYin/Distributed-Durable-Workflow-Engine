@@ -3,63 +3,79 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).with_name("j3-r421-46050616178")
-RUN = 46050616178
-HEAD = "2a3451a2a10b8e002086ff1ba69f40f6d369733a"
-RELEASE_INDEX = "j3-r421-46050616178-index.json"
-RELEASE_INDEX_SHA256 = "7cdae1077e6665f3e7e2bf8355c16b09d5be8ec38c933af4edf82d7d5773440f"
-RELEASE_URL = (
-    "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/"
-    "releases/tag/j3-r421-46050616178-evidence"
+MEASUREMENT = ROOT.with_name("j3-r426-46122607713")
+RELEASES = "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/releases/tag"
+RECORDS = (
+    pytest.param(
+        ROOT,
+        46050616178,
+        "2a3451a2a10b8e002086ff1ba69f40f6d369733a",
+        607,
+        "7cdae1077e6665f3e7e2bf8355c16b09d5be8ec38c933af4edf82d7d5773440f",
+        {15223759432: 1, 15235390969: 1, 15235740301: 2, 15235825154: 1, 15239329022: 3},
+        id="qualification",
+    ),
+    pytest.param(
+        MEASUREMENT,
+        46122607713,
+        "28d4109eafb95514d03032baca3819e26bfa331a",
+        647,
+        "7275f268f2e1c8eae604ff6a6a59c024eb9e9de06ec974f41c4bf4d1da2945b5",
+        {15254950390: 1, 15260625530: 4},
+        id="measurement",
+    ),
 )
 
 
-def read(name):
-    return json.loads((ROOT / name).read_bytes())
+def read(name, root=ROOT):
+    return json.loads((root / name).read_bytes())
 
 
-def test_qualification_summary_hashes_and_artifact_bindings():
-    index = read("sha256.json")
+@pytest.mark.parametrize("root,run,head,review_round,release_sha,part_counts", RECORDS)
+def test_summary_hashes_and_artifact_bindings(
+    root, run, head, review_round, release_sha, part_counts
+):
+    index = read("sha256.json", root)
+    release_index = f"{root.name}-index.json"
+    release_url = f"{RELEASES}/{root.name}-evidence"
     assert (index["run_id"], index["head"], index["workflow_attempt"], index["review_round"]) == (
-        RUN,
-        HEAD,
+        run,
+        head,
         1,
-        607,
+        review_round,
     )
     artifacts = {row["id"]: row for row in index["artifacts"]}
     assert len(artifacts) == len(index["artifacts"])
-    assert {row["id"] for row in artifacts.values() if row["run_id"] == RUN} == {
-        15223759432,
-        15235390969,
-        15235740301,
-        15235825154,
-        15239329022,
-    }
+    assert {row["id"] for row in artifacts.values() if row["run_id"] == run} == part_counts.keys()
     for artifact in artifacts.values():
         assert re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"])
         assert artifact["size_in_bytes"] > 0
         assert artifact["url"].endswith(f"/runs/{artifact['run_id']}/artifacts/{artifact['id']}")
-        if artifact["run_id"] == RUN:
-            assert artifact["head"] == HEAD
+        if artifact["run_id"] == run:
+            assert artifact["head"] == head
 
     retained = {
-        path.relative_to(ROOT).as_posix()
-        for path in ROOT.rglob("*")
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
         if path.is_file() and path.name not in {"results.md", "sha256.json"}
     }
     assert retained == index["files"].keys()
+    assert index["files"][release_index]["kind"] == "release-asset"
     used_artifacts = set()
     for name, entry in index["files"].items():
-        contents = (ROOT / name).read_bytes()
+        contents = (root / name).read_bytes()
         assert (len(contents), hashlib.sha256(contents).hexdigest()) == (
             entry["size_in_bytes"],
             entry["sha256"],
         ), name
         sources = entry["sources"]
         if entry["kind"] == "release-asset":
-            assert name == RELEASE_INDEX
-            assert entry["sha256"] == RELEASE_INDEX_SHA256
-            assert sources == [{"asset": RELEASE_INDEX, "release_url": RELEASE_URL}]
+            assert name == release_index
+            assert entry["sha256"] == release_sha
+            assert sources == [{"asset": release_index, "release_url": release_url}]
             continue
         assert entry["kind"] in {"archive-member", "projection"}
         assert sources
@@ -74,15 +90,19 @@ def test_qualification_summary_hashes_and_artifact_bindings():
     assert used_artifacts == artifacts.keys()
 
 
-def test_release_index_matches_each_actions_zip_and_orders_its_parts():
-    index, release = read("sha256.json"), read(RELEASE_INDEX)
-    assert (release["run"], release["head"]) == (RUN, HEAD)
-    assert index["files"][RELEASE_INDEX]["kind"] == "release-asset"
-    actions = {row["id"]: row for row in index["artifacts"] if row["run_id"] == RUN}
+@pytest.mark.parametrize("root,run,head,_review_round,release_sha,part_counts", RECORDS)
+def test_release_index_matches_each_actions_zip_and_orders_its_parts(
+    root, run, head, _review_round, release_sha, part_counts
+):
+    index = read("sha256.json", root)
+    release_path = root / f"{root.name}-index.json"
+    assert hashlib.sha256(release_path.read_bytes()).hexdigest() == release_sha
+    release = json.loads(release_path.read_bytes())
+    assert (release["run"], release["head"]) == (run, head)
+    actions = {row["id"]: row for row in index["artifacts"] if row["run_id"] == run}
     backed_up = {row["actions_id"]: row for row in release["artifacts"]}
-    assert len(release["artifacts"]) == len(backed_up) == 5
+    assert len(release["artifacts"]) == len(backed_up) == len(part_counts)
     assert backed_up.keys() == actions.keys()
-    part_counts = {15235740301: 2, 15239329022: 3}
     max_part_size = 64 * 1024**2
     for artifact_id, row in backed_up.items():
         original = actions[artifact_id]
@@ -90,7 +110,7 @@ def test_release_index_matches_each_actions_zip_and_orders_its_parts():
         assert f"sha256:{row['sha256']}" == row["actions_digest"] == original["digest"]
 
         parts = row["parts"]
-        count = part_counts.get(artifact_id, 1)
+        count = part_counts[artifact_id]
         assert len(parts) == count
         assert sum(part["size"] for part in parts) == row["size"]
         assert all(part["size"] == max_part_size for part in parts[:-1])
@@ -137,7 +157,11 @@ def test_qualification_record_links_seal_replays_and_deliveries():
             assert row["status"] == row["behavior"]["status"] == row["delivery"]["status"] == "PASS"
 
     for name, episode in episodes.items():
-        assert (episode["run"], episode["head"], episode["attempt"]) == (str(RUN), HEAD, "1")
+        assert (episode["run"], episode["head"], episode["attempt"]) == (
+            str(index["run_id"]),
+            index["head"],
+            str(index["workflow_attempt"]),
+        )
         state = states[name]
         step = state["evaluation_interval_ns"]
         transitions = []
@@ -167,3 +191,74 @@ def test_qualification_record_links_seal_replays_and_deliveries():
     assert reconciled["valid"] and not any(
         reconciled[key] for key in ("missing", "duplicated", "unexpected")
     )
+
+
+def test_measurement_record_links_fault_witnesses_and_replayed_deliveries():
+    timing = read("primary/timing-summary.json", MEASUREMENT)
+    witness = read("primary/outage-witness.json", MEASUREMENT)
+    down, restore = map(
+        json.loads, (MEASUREMENT / "primary/faults.jsonl").read_bytes().splitlines()
+    )
+    assert down["replicas"] == 0 and restore["replicas"] == 2
+    assert timing["worker_witness"] == witness
+    assert down["command_ns"] < witness["zero_workers_ns"] < restore["command_ns"]
+    assert timing["witnessed_zero_to_restore_ns"] == (
+        restore["command_ns"] - witness["zero_workers_ns"]
+    )
+    assert timing["scale_command_interval_ns"] == restore["command_ns"] - down["command_ns"]
+
+    schedule = read("verified-schedule-summary.json", MEASUREMENT)
+    seal = read("seal/confirmation-check.json")
+    assert schedule["seal"] == seal["seal"]
+    assert schedule["artifact_id"] == seal["artifact_id"]
+    assert schedule["artifact_digest"] == f"sha256:{seal['artifact_digest']}"
+    assert schedule["schedule"]["delta_s"] == 480
+    assert schedule["schedule"]["arrival_volume"] == 19_268
+
+    verdict = read("verdict.json", MEASUREMENT)
+    assert verdict["status"] == verdict["offline_replay"] == verdict["cleanup"] == "PASS"
+    prior = read("prior-measurement/verdict.json", MEASUREMENT)
+    assert (prior["run"], prior["status"], prior["offline_replay"], prior["cleanup"]) == (
+        "46109429112",
+        "INVALID",
+        "INCOMPLETE",
+        "PASS",
+    )
+    replays = read("offline-replay.json", MEASUREMENT)["episodes"]
+    states = read("alert-state.json", MEASUREMENT)
+    counts = {
+        "primary": (13_302, 19_268, 4),
+        "matched-healthy": (19_268, 19_268, 0),
+        "foreign": (8_564, 8_564, 0),
+        "scrape-loss": (5_138, 5_138, 2),
+    }
+    assert counts.keys() == replays.keys() == states.keys() == verdict["episodes"].keys()
+    for episode, (on_time, eligible, deliveries) in counts.items():
+        replay, state = replays[episode], states[episode]
+        pairs = read(f"{episode}/notification-pairs.json", MEASUREMENT)
+        attainment = replay["published_attainment"]
+        assert (attainment["on_time"], attainment["eligible"], len(pairs)) == (
+            on_time,
+            eligible,
+            deliveries,
+        )
+        assert replay["status"] == "PASS"
+        assert attainment["incomplete"] == replay["ambiguous_evaluations"] == 0
+        assert [pair["transition"] for pair in pairs] == replay["transitions"]
+        step = state["evaluation_interval_ns"]
+        transitions = sorted(
+            (alert, firing, at)
+            for alert, runs in state["firing_runs_ns_inclusive"].items()
+            for first, last in runs
+            for firing, at in ((True, first), (False, last + step))
+        )
+        assert transitions == sorted(
+            (row["alert"], row["firing"], row["at_ns"]) for row in replay["transitions"]
+        )
+        for pair in pairs:
+            assert 0 <= pair["delivery"]["received_ns"] - pair["transition"]["at_ns"] <= 30 * 10**9
+
+    for row in timing["transitions"]:
+        command = down if row["firing"] else restore
+        assert row["seconds_from_command"] == (row["at_ns"] - command["command_ns"]) / 10**9
+    assert len(states["scrape-loss"]["invalid_evaluations_ns"]) == 12

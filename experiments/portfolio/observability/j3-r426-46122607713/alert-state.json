@@ -1,0 +1,78 @@
+{
+  "foreign": {
+    "evaluation_count": 361,
+    "evaluation_interval_ns": 5000000000,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795859757246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795861557246000000
+  },
+  "matched-healthy": {
+    "evaluation_count": 660,
+    "evaluation_interval_ns": 5000000000,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795856117246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795859412246000000
+  },
+  "primary": {
+    "evaluation_count": 661,
+    "evaluation_interval_ns": 5000000000,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [
+        [
+          1795853152246000000,
+          1795853997246000000
+        ]
+      ],
+      "OldestClaimable": [
+        [
+          1795853087246000000,
+          1795853927246000000
+        ]
+      ],
+      "ScrapeAbsent": []
+    },
+    "first_evaluation_ns": 1795852457246000000,
+    "invalid_evaluations_ns": [],
+    "last_evaluation_ns": 1795855757246000000
+  },
+  "scrape-loss": {
+    "evaluation_count": 264,
+    "evaluation_interval_ns": 5000000000,
+    "firing_runs_ns_inclusive": {
+      "DeadlineBudgetBurn": [],
+      "OldestClaimable": [],
+      "ScrapeAbsent": [
+        [
+          1795862372246000000,
+          1795862422246000000
+        ]
+      ]
+    },
+    "first_evaluation_ns": 1795861767246000000,
+    "invalid_evaluations_ns": [
+      1795862367246000000,
+      1795862372246000000,
+      1795862377246000000,
+      1795862382246000000,
+      1795862387246000000,
+      1795862392246000000,
+      1795862397246000000,
+      1795862402246000000,
+      1795862407246000000,
+      1795862412246000000,
+      1795862417246000000,
+      1795862422246000000
+    ],
+    "last_evaluation_ns": 1795863082246000000
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "first_restored_progress_ns": 1795853377061669000,
+  "restored_ready_ns": 1795853363081159175,
+  "restored_worker_uids": [
+    "3ffc89cc-19fc-4b11-99f6-8e1fc34a8cb9",
+    "9fcede2c-bc63-46da-b07c-71ef821da7f3"
+  ],
+  "worker_uids_before": [
+    "0a2a1b57-1367-4db1-a9cc-469eed9d4c68",
+    "cc1aff0c-2eb0-4d31-af34-6b22b83a2c6f"
+  ],
+  "zero_workers_ns": 1795853058982173409
+}

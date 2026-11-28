@@ -1,0 +1,76 @@
+{
+  "attempt": "1",
+  "campaign": "j3-r426-46122607713",
+  "cleanup": "PASS",
+  "episodes": {
+    "foreign": {
+      "arm_seconds": 1801,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 144,
+      "setup_seconds": 64,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-foreign"
+      }
+    },
+    "matched-healthy": {
+      "arm_seconds": 3301,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 280,
+      "setup_seconds": 64,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-matched-healthy"
+      }
+    },
+    "primary": {
+      "arm_seconds": 3301,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 292,
+      "setup_seconds": 76,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-primary"
+      }
+    },
+    "scrape-loss": {
+      "arm_seconds": 1321,
+      "behavior": {
+        "status": "PASS"
+      },
+      "delivery": {
+        "status": "PASS"
+      },
+      "export_reset_seconds": 17,
+      "setup_seconds": 63,
+      "status": "PASS",
+      "target": {
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-scrape-loss"
+      }
+    }
+  },
+  "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+  "offline_replay": "PASS",
+  "run": "46122607713",
+  "stage": "measurement",
+  "status": "PASS"
+}

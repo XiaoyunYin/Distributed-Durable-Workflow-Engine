@@ -1,0 +1,78 @@
+[
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "8626a4d848a4ab64",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-primary"
+      },
+      "received_ns": 1795853087260519324,
+      "startsAt": "2026-11-28T08:04:47.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795853087246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "c8b4cb27271b5ecf",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-primary"
+      },
+      "received_ns": 1795853152261076061,
+      "startsAt": "2026-11-28T08:05:52.246Z",
+      "status": "firing"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795853152246000000,
+      "firing": true
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-28T08:18:52.246Z",
+      "fingerprint": "8626a4d848a4ab64",
+      "labels": {
+        "alertname": "OldestClaimable",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-primary"
+      },
+      "received_ns": 1795853932765851375,
+      "startsAt": "2026-11-28T08:04:47.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "OldestClaimable",
+      "at_ns": 1795853932246000000,
+      "firing": false
+    }
+  },
+  {
+    "delivery": {
+      "endsAt": "2026-11-28T08:20:02.246Z",
+      "fingerprint": "c8b4cb27271b5ecf",
+      "labels": {
+        "alertname": "DeadlineBudgetBurn",
+        "campaign": "j3-r426-46122607713",
+        "namespace": "j3-target-primary"
+      },
+      "received_ns": 1795854002808735837,
+      "startsAt": "2026-11-28T08:05:52.246Z",
+      "status": "resolved"
+    },
+    "transition": {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795854002246000000,
+      "firing": false
+    }
+  }
+]

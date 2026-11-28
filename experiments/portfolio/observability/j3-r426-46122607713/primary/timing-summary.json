@@ -1,0 +1,78 @@
+{
+  "backlog_before_restore": 2134,
+  "backlog_sample_ns": 1795853356102489000,
+  "bounds_s_from_origin": {
+    "burn_clear_by_s": 2050,
+    "burn_fire_by_s": 765,
+    "catchup_before_s": 1920,
+    "drain_and_observation_end_s": 3300,
+    "final_healthy_window_s": [
+      2100,
+      2700
+    ],
+    "oldest_clear_by_s": 1930,
+    "oldest_fire_by_s": 700,
+    "quiet_drain_s": 30,
+    "ready_and_first_progress_by_s": 960,
+    "restore_s": 900,
+    "scale_down_s": 600,
+    "stop_s": 2700,
+    "zero_workers_by_s": 660
+  },
+  "first_burn_clear_input_ns": 1795854002246000000,
+  "first_fire_inputs_ns": {
+    "DeadlineBudgetBurn": 1795853152246000000,
+    "OldestClaimable": 1795853087246000000
+  },
+  "first_oldest_clear_input_ns": 1795853817246000000,
+  "last_bad_pre_restore_deadline_ns": 1795853359785263152,
+  "last_pre_restore_terminal_ns": 1795853532183397000,
+  "origin_ns": 1795852457000000000,
+  "restore_ns": 1795853357000144153,
+  "scale_command_interval_ns": 299999990273,
+  "scale_down_ns": 1795853057000153880,
+  "transitions": [
+    {
+      "alert": "OldestClaimable",
+      "at_ns": 1795853087246000000,
+      "firing": true,
+      "seconds_from_command": 30.24584612,
+      "seconds_from_origin": 630.246
+    },
+    {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795853152246000000,
+      "firing": true,
+      "seconds_from_command": 95.24584612,
+      "seconds_from_origin": 695.246
+    },
+    {
+      "alert": "OldestClaimable",
+      "at_ns": 1795853932246000000,
+      "firing": false,
+      "seconds_from_command": 575.245855847,
+      "seconds_from_origin": 1475.246
+    },
+    {
+      "alert": "DeadlineBudgetBurn",
+      "at_ns": 1795854002246000000,
+      "firing": false,
+      "seconds_from_command": 645.245855847,
+      "seconds_from_origin": 1545.246
+    }
+  ],
+  "witnessed_zero_to_restore_ns": 298017970744,
+  "worker_witness": {
+    "first_restored_progress_ns": 1795853377061669000,
+    "restored_ready_ns": 1795853363081159175,
+    "restored_worker_uids": [
+      "3ffc89cc-19fc-4b11-99f6-8e1fc34a8cb9",
+      "9fcede2c-bc63-46da-b07c-71ef821da7f3"
+    ],
+    "worker_uids_before": [
+      "0a2a1b57-1367-4db1-a9cc-469eed9d4c68",
+      "cc1aff0c-2eb0-4d31-af34-6b22b83a2c6f"
+    ],
+    "zero_workers_ns": 1795853058982173409
+  }
+}

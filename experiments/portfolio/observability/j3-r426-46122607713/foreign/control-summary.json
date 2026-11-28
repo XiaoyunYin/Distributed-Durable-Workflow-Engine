@@ -1,0 +1,75 @@
+{
+  "equal_slot_ledgers": true,
+  "isolation": {
+    "claims": 0,
+    "outbox_rows": 0,
+    "revision_changes": 0,
+    "seeded": 2141
+  },
+  "positive_witness": {
+    "admission_count": 1741,
+    "claimable_attempts": 1741,
+    "namespace": "j3-foreign",
+    "oldest_claimable_age_ns": 243896504000.0,
+    "sample_ns": 1795860600899817000,
+    "windows": {
+      "10m": {
+        "bad": 1741,
+        "eligible": 1741
+      },
+      "2m": {
+        "bad": 856,
+        "eligible": 856
+      }
+    }
+  },
+  "published_with_foreign": {
+    "attainment": 1.0,
+    "eligible": 8564,
+    "incomplete": 0,
+    "on_time": 8564
+  },
+  "published_without_foreign": {
+    "attainment": 1.0,
+    "eligible": 8564,
+    "incomplete": 0,
+    "on_time": 8564
+  },
+  "quiet_target_evaluations": [
+    {
+      "at_ns": 1795860602246000000,
+      "claimable_attempts": 0,
+      "demand_ns": 1795860600989761000,
+      "firing": [],
+      "oldest_claimable_age_seconds": 0.0,
+      "ready_slots": 4,
+      "rule_ok": true,
+      "sample_ns": 1795860600899817000,
+      "scrape_ns": 1795860601640000000,
+      "sql_oldest_claimable_seconds": 0.0,
+      "up": 1,
+      "valid": true,
+      "windows": {
+        "10m": {
+          "bad": 0,
+          "eligible": 4281
+        },
+        "2m": {
+          "bad": 0,
+          "eligible": 856
+        },
+        "all": {
+          "bad": 0,
+          "eligible": 6002
+        }
+      }
+    }
+  ],
+  "synthetic_foreign_database_state": true,
+  "target_slot_invocations": [
+    2107,
+    2127,
+    2153,
+    2177
+  ]
+}

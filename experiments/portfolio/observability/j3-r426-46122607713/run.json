@@ -1,0 +1,58 @@
+{
+  "attempt": "1",
+  "campaign": "j3-r426-46122607713",
+  "checker": {
+    "env": {
+      "CGO_ENABLED": "0",
+      "GOAMD64": "v1",
+      "GOARCH": "amd64",
+      "GOENV": "off",
+      "GOEXPERIMENT": "",
+      "GOFLAGS": "",
+      "GOMAXPROCS": "2",
+      "GOOS": "linux",
+      "GOTOOLCHAIN": "local",
+      "GOWORK": "off"
+    },
+    "flags": [
+      "-p",
+      "1",
+      "-mod=readonly",
+      "-buildvcs=false",
+      "-trimpath",
+      "-ldflags=-s -w"
+    ],
+    "go_mod_sha256": "d89db827ae84144c0d7a2a38c2948d376ceef67523d05b5cb2769e3abdeb2324",
+    "go_sum_sha256": "61f476ff35b34f635b5aba7bc57682b53abef48a967553f5c1182db979f92627",
+    "go_version": "go1.27.4",
+    "gomemlimit": "1200MiB",
+    "package": "./cmd/dur049-checker",
+    "sha256": "823646d3fbd3584b6d22d305ab7aefd4d3f74f9b4e6e12f5604b122bc7be717e",
+    "source": "fbce0d98e4e8c82d57eba09b68bb71a76fd30355",
+    "tree": "ba068edce3a44eaace599bf50e108f8271ff9833"
+  },
+  "head": "28d4109eafb95514d03032baca3819e26bfa331a",
+  "images": {
+    "j3-alertmanager": "prom/alertmanager:v0.31.1@sha256:88b605de9aba0410775c1eb3438f951115054e0d307f23f274a4c705f51630c1",
+    "j3-exporter": "localhost:5001/j3-exporter@sha256:01462a513fb6463e3103a3f08fe2b8ff1f5d71e97242ef37a18ecb2aa52c2629",
+    "j3-grafana": "grafana/grafana:12.4.1@sha256:e932bd6ed0e026595b08483cd0141e5103e1ab7ff8604839ff899b8dc54cabcb",
+    "j3-prometheus": "prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7",
+    "j3-receiver": "localhost:5001/dur053-worker@sha256:139b0cc65e5cc2eefb7442d1129203891733a77b44adf034b493ca9d75485c20",
+    "runtime": "localhost:5001/dur053-runtime@sha256:96d4965f839475190bffcf2c812f19c726b41347bcbb0433eed33970a6a1ef7c",
+    "worker": "localhost:5001/dur053-worker@sha256:139b0cc65e5cc2eefb7442d1129203891733a77b44adf034b493ca9d75485c20"
+  },
+  "in_arm_pressure": "published_covariate_only",
+  "kubernetes_namespace": "dur053-kind",
+  "pre_arm_gate_rejections": 0,
+  "run": "46122607713",
+  "runner": {
+    "cpu_models": [
+      "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz"
+    ],
+    "online_cores": 4
+  },
+  "runtime_profile": "rebuilt registered profile",
+  "scope": "registered measurement",
+  "stage": "measurement",
+  "stage_attempt": 1
+}
